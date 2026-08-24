@@ -4,9 +4,9 @@
       <div class="navbar-inner">
         <router-link to="/" class="logo">AIDevClub</router-link>
         <nav class="navbar-nav">
-          <router-link to="/" class="nav-link" active-class="active" exact>文章</router-link>
-          <router-link to="/skills" class="nav-link" active-class="active" exact>Skills Hub</router-link>
-          <router-link to="/mcps" class="nav-link" active-class="active" exact>MCP Hub</router-link>
+          <router-link to="/" class="nav-link" exact-active-class="active">文章</router-link>
+          <router-link to="/skills" class="nav-link" active-class="active" exact-active-class="active">Skills Hub</router-link>
+          <router-link to="/mcps" class="nav-link" active-class="active" exact-active-class="active">MCP Hub</router-link>
         </nav>
         <div class="navbar-right">
           <template v-if="auth.isLoggedIn">
