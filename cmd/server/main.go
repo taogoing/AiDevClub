@@ -11,6 +11,7 @@ import (
 	"aidevclub/internal/model"
 	"aidevclub/internal/platform"
 	"aidevclub/internal/repo"
+	"aidevclub/internal/scheduler"
 	"aidevclub/internal/service"
 )
 
@@ -176,6 +177,15 @@ func main() {
 
 	r.Static("/static/skills", cfg.SkillZipDir)
 	r.Static("/static/mcp-servers", cfg.McpServerZipDir)
+
+	rankingSvc := service.NewRankingService(rdb, articles, repo.NewSkillRepo(db), repo.NewMcpServerRepo(db), 1.5)
+	rankingH := handler.NewRankingHandler(rankingSvc, artSvc, skillSvc, mcpSvc)
+	r.GET("/api/v1/articles/ranking", rankingH.GetArticleRanking)
+	r.GET("/api/v1/skills/ranking", rankingH.GetSkillRanking)
+	r.GET("/api/v1/mcp-servers/ranking", rankingH.GetMcpServerRanking)
+
+	rankingScheduler := scheduler.NewRankingScheduler(rankingSvc, 2*time.Minute)
+	rankingScheduler.Start()
 
 	logger.Info("server starting", "addr", cfg.HTTPAddr)
 	if err := r.Run(cfg.HTTPAddr); err != nil {
