@@ -60,11 +60,13 @@ const currentPage = ref(1)
 const pageSize = 20
 const total = ref(0)
 const selectedCategory = ref(0)
+const selectedTag = ref(0)
 const sortBy = ref('latest')
 const keyword = ref('')
 
 onMounted(async () => {
   keyword.value = (route.query.keyword as string) || ''
+  selectedTag.value = Number(route.query.tag_id) || 0
   try {
     const res = await getCategories()
     categories.value = res.data.data
@@ -72,13 +74,19 @@ onMounted(async () => {
   await fetchArticles()
 })
 
-watch([selectedCategory, sortBy], () => {
+watch([selectedCategory, selectedTag, sortBy], () => {
   currentPage.value = 1
   fetchArticles()
 })
 
 watch(() => route.query.keyword, (val) => {
   keyword.value = (val as string) || ''
+  currentPage.value = 1
+  fetchArticles()
+})
+
+watch(() => route.query.tag_id, (val) => {
+  selectedTag.value = Number(val) || 0
   currentPage.value = 1
   fetchArticles()
 })
@@ -92,6 +100,7 @@ async function fetchArticles() {
       sort: sortBy.value,
     }
     if (selectedCategory.value) params.category_id = selectedCategory.value
+    if (selectedTag.value) params.tag_id = selectedTag.value
     if (keyword.value) params.keyword = keyword.value
     const res = await getArticles(params)
     const data = res.data.data

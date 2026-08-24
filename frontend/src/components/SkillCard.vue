@@ -5,21 +5,20 @@
       <el-tag size="small" :type="statusType">{{ statusLabel }}</el-tag>
     </div>
     <p class="card-summary">{{ skill.description || '暂无描述' }}</p>
+    <div class="card-tags">
+      <el-tag v-for="tag in skill.tags" :key="tag.id" size="small" type="info">{{ tag.name }}</el-tag>
+    </div>
     <div class="card-meta">
       <div class="meta-left">
-        <el-avatar :size="20" :src="skill.author.avatar_url || undefined">
+        <el-avatar :size="18" :src="skill.author.avatar_url || undefined">
           {{ skill.author.nickname?.charAt(0) || '?' }}
         </el-avatar>
         <span class="author-name">{{ skill.author.nickname }}</span>
-        <el-tag v-for="tag in skill.tags" :key="tag.id" size="small">{{ tag.name }}</el-tag>
       </div>
       <div class="meta-right">
-        <span><el-icon><View /></el-icon> {{ skill.views }}</span>
-        <span><el-icon><Download /></el-icon> {{ skill.downloads }}</span>
-        <span><el-icon><ChatDotRound /></el-icon> {{ skill.comments_count }}</span>
-        <span><el-icon><Star /></el-icon> {{ skill.favorites_count }}</span>
-        <span><el-icon><CaretTop /></el-icon> {{ skill.likes_count }}</span>
-        <span class="time">{{ formatTime(skill.published_at) }}</span>
+        <span><el-icon><View /></el-icon>{{ skill.views }}</span>
+        <span><el-icon><Download /></el-icon>{{ skill.downloads }}</span>
+        <span><el-icon><CaretTop /></el-icon>{{ skill.likes_count }}</span>
       </div>
     </div>
   </div>
@@ -64,74 +63,88 @@ function formatTime(t: string | null) {
 .skill-card {
   background: #fff;
   border-radius: 8px;
-  padding: 20px;
-  margin-bottom: 12px;
+  padding: 16px;
   cursor: pointer;
-  transition: box-shadow 0.2s;
+  transition: all 0.2s;
   border: 1px solid #ebeef5;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 .skill-card:hover {
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
 }
 
 .card-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
+  margin-bottom: 8px;
 }
 
 .card-title {
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 600;
   color: #303133;
-}
-
-.card-summary {
-  color: #606266;
-  font-size: 14px;
-  margin: 8px 0 12px;
+  line-height: 1.4;
+  flex: 1;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
+.card-summary {
+  color: #606266;
+  font-size: 13px;
+  margin: 0 0 12px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  flex: 1;
+}
+
+.card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
 .card-meta {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 13px;
+  font-size: 12px;
   color: #909399;
-  flex-wrap: wrap;
-  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid #f0f0f0;
 }
 
 .meta-left {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .author-name {
   color: #606266;
+  font-size: 12px;
 }
 
 .meta-right {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 .meta-right span {
   display: flex;
   align-items: center;
-  gap: 3px;
-}
-
-.time {
-  margin-left: 4px;
+  gap: 2px;
 }
 </style>

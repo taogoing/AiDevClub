@@ -51,7 +51,7 @@
           </div>
         </div>
       </div>
-      <div v-loading="loading">
+      <div v-loading="loading" class="mcps-grid">
         <McpServerCard v-for="server in servers" :key="server.id" :server="server" />
         <el-empty v-if="!loading && !servers.length" description="暂无 MCP Server" />
       </div>
@@ -66,7 +66,7 @@
       </div>
     </div>
     <aside class="sidebar">
-      <Sidebar />
+      <ResourceSidebar type="mcp" />
     </aside>
   </div>
 </template>
@@ -76,7 +76,7 @@ import { ref, watch, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
 import McpServerCard from '@/components/McpServerCard.vue'
-import Sidebar from '@/components/Sidebar.vue'
+import ResourceSidebar from '@/components/ResourceSidebar.vue'
 import { getMcpServers } from '@/api/mcpServer'
 import { getHotTags } from '@/api/tag'
 import { useAuthStore } from '@/stores/auth'
@@ -183,6 +183,12 @@ async function fetchServers() {
   margin-top: 24px;
 }
 
+.mcps-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
 @media (max-width: 768px) {
   .sidebar {
     display: none;
@@ -190,6 +196,10 @@ async function fetchServers() {
 
   .home-container {
     padding: 16px;
+  }
+
+  .mcps-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>
