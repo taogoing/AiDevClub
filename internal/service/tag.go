@@ -2,24 +2,55 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"time"
+
+	"github.com/redis/go-redis/v9"
 
 	"aidevclub/internal/model"
 	"aidevclub/internal/repo"
 )
 
-type TagService struct{ tags *repo.TagRepo }
+type TagService struct {
+	tags *repo.TagRepo
+	rdb  *redis.Client
+}
 
-func NewTagService(tags *repo.TagRepo) *TagService { return &TagService{tags: tags} }
+func NewTagService(tags *repo.TagRepo, rdb *redis.Client) *TagService {
+	return &TagService{tags: tags, rdb: rdb}
+}
 
-func (s *TagService) List(ctx context.Context, keyword string, hot bool, limit int) ([]model.Tag, error) {
+func (s *TagService) List(ctx context.Context, prefix string, hot bool, limit int) ([]model.Tag, error) {
 	if limit <= 0 {
 		limit = 50
 	}
+
+	if hot && prefix == "" && s.rdb != nil {
+		key := "hot:tags:" + string(rune(limit))
+		if v, err := s.rdb.Get(ctx, key).Bytes(); err == nil {
+			var tags []model.Tag
+			if json.Unmarshal(v, &tags) == nil {
+				return tags, nil
+			}
+		}
+
+		tags, err := s.tags.ListHot(ctx, limit)
+		if err != nil {
+			return nil, err
+		}
+
+		if b, err := json.Marshal(tags); err == nil {
+			_ = s.rdb.Set(ctx, key, b, 300*time.Second).Err()
+		}
+
+		return tags, nil
+	}
+
 	if hot {
 		return s.tags.ListHot(ctx, limit)
 	}
-	return s.tags.List(ctx, keyword, limit)
+	return s.tags.List(ctx, prefix, limit)
 }
 
 func (s *TagService) AdminCreate(ctx context.Context, name, description string) (*model.Tag, error) {

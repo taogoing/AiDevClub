@@ -21,13 +21,13 @@ func TestTagEndpoint(t *testing.T) {
 	ctx := context.Background()
 	_, _ = tagRepo.Create(ctx, "gin")
 	_, _ = tagRepo.Create(ctx, "gorm")
-	h := NewTagHandler(service.NewTagService(tagRepo))
+	h := NewTagHandler(service.NewTagService(tagRepo, nil))
 	r := gin.New()
 	r.GET("/api/v1/tags", h.List)
 
-	// keyword filter
+	// prefix filter
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/api/v1/tags?keyword=gi", nil)
+	req, _ := http.NewRequest(http.MethodGet, "/api/v1/tags?prefix=gi", nil)
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, body %s", w.Code, w.Body.String())
@@ -42,7 +42,7 @@ func TestTagEndpoint(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(resp.Data) != 1 {
-		t.Fatalf("expected 1 tag with keyword=gi, got %d", len(resp.Data))
+		t.Fatalf("expected 1 tag with prefix=gi, got %d", len(resp.Data))
 	}
 
 	// hot list

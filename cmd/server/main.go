@@ -80,7 +80,7 @@ func main() {
 	inter := repo.NewInteractionRepo(db)
 
 	catSvc := service.NewCategoryService(cats)
-	tagSvc := service.NewTagService(tags)
+	tagSvc := service.NewTagService(tags, rdb)
 	artSvc := service.NewArticleService(articles, tags, cats, inter, rdb, cfg)
 	comSvc := service.NewCommentService(comments, articles, inter, users)
 
