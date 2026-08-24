@@ -145,9 +145,7 @@ func (h *ArticleHandler) Get(c *gin.Context) {
 		platform.Fail(c, http.StatusBadRequest, 40001, "参数错误")
 		return
 	}
-	userID, _ := c.Get("user_id")
-	uid, _ := userID.(uint)
-	detail, err := h.svc.Get(c.Request.Context(), uid, id)
+	detail, err := h.svc.Get(c.Request.Context(), c.GetUint("user_id"), id)
 	if err != nil {
 		platform.Fail(c, errStatus(err), errCode(err), err.Error())
 		return

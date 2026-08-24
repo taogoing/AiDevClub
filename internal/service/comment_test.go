@@ -58,3 +58,38 @@ func TestCommentCreateListDelete(t *testing.T) {
 		t.Fatal("other user deleted comment")
 	}
 }
+
+func TestCommentArticleAuthorDeleteOthersComment(t *testing.T) {
+	svc, asvc, u, cat := newCommentTestEnv(t)
+	ctx := context.Background()
+	a, _ := asvc.Create(ctx, u.ID, CreateArticleInput{Title: "t", Content: "c", CategoryID: cat.ID, Status: model.ArticleStatusPublished})
+
+	other := &model.User{Email: "b@b.com", PasswordHash: "x", Nickname: "B", AvatarURL: "/x.png"}
+	_ = repo.NewUserRepo(asvc.articles.DB()).Create(other)
+
+	c, err := svc.Create(ctx, other.ID, a.ID, "别人的评论", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.Delete(ctx, u.ID, c.ID); err != nil {
+		t.Fatalf("article author should delete others' comment: %v", err)
+	}
+}
+
+func TestCommentListDraftArticle(t *testing.T) {
+	svc, asvc, u, cat := newCommentTestEnv(t)
+	ctx := context.Background()
+	draft, _ := asvc.Create(ctx, u.ID, CreateArticleInput{Title: "t", Content: "c", CategoryID: cat.ID, Status: model.ArticleStatusDraft})
+	if _, err := svc.List(ctx, draft.ID); err == nil {
+		t.Fatal("should not list comments on draft article")
+	}
+}
+
+func TestArticleToggleLikeDraft(t *testing.T) {
+	svc, u, cat := newArticleTestEnv(t)
+	ctx := context.Background()
+	draft, _ := svc.Create(ctx, u.ID, CreateArticleInput{Title: "t", Content: "c", CategoryID: cat.ID, Status: model.ArticleStatusDraft})
+	if _, _, err := svc.ToggleLike(ctx, u.ID, draft.ID); err == nil {
+		t.Fatal("should not like draft article")
+	}
+}

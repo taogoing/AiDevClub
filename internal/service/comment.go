@@ -55,6 +55,10 @@ func (s *CommentService) Create(ctx context.Context, userID, articleID uint, con
 }
 
 func (s *CommentService) List(ctx context.Context, articleID uint) ([]CommentItem, error) {
+	a, err := s.articles.FindByID(nil, articleID)
+	if err != nil || a.Status != model.ArticleStatusPublished {
+		return nil, ErrArticleNotFound
+	}
 	comments, err := s.comments.ListByArticle(nil, articleID)
 	if err != nil {
 		return nil, err
