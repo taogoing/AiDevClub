@@ -86,6 +86,11 @@ var allModels = []interface{}{
 	&model.User{}, &model.Category{}, &model.Tag{}, &model.Article{},
 	&model.ArticleTag{}, &model.ArticleLike{}, &model.ArticleFavorite{},
 	&model.Comment{}, &model.CommentLike{},
+	&model.Skill{}, &model.SkillTag{},
+	&model.McpServer{}, &model.McpServerTag{},
+	&model.SkillLike{}, &model.SkillFavorite{},
+	&model.McpServerLike{}, &model.McpServerFavorite{},
+	&model.ResourceComment{}, &model.ResourceCommentLike{},
 }
 
 // NewTestDB 连接测试 MySQL（按进程隔离的库）并重置全部业务表，测试结束后清理。
