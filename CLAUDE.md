@@ -38,7 +38,7 @@ AIDevClub 是一个面向开发者和 AI Agent 的技术内容与 AI 资源分�
 
 ## 现状与路线
 
-P0+P1（基础设施骨架 + 用户认证）已完成并合并到 master。下一步是 P2（技术社区）。总体路线见 [docs/roadmap.md](docs/roadmap.md)，阶段一总结与遗留跟进项见 [docs/phase1-summary.md](docs/phase1-summary.md)。
+P0+P1+P2（基础设施 + 用户认证 + 技术社区）已完成并合并到 master。下一步是前端开发（Vue 3 用户端）。总体路线见 [docs/roadmap.md](docs/roadmap.md)，阶段总结见 [docs/phase1-summary.md](docs/phase1-summary.md) 和 [docs/phase2-summary.md](docs/phase2-summary.md)。
 
 标准命令：`go build ./...`、`go test ./...` 及 `go test ./<package>`（单测）。测试依赖真实 MySQL/Redis（先 `docker compose up -d`，Redis 宿主机端口为 16379）。
 
