@@ -117,8 +117,11 @@ AIDevClub 是一个面向开发者和 AI Agent 的技术内容与 AI 资源分�
 
 ## 11. 测试策略
 
-- **service 层单元测试**：密码哈希、token 生成/校验、参数校验（repo 用 mock）。
-- **handler 层集成测试**：`httptest` + 真实 MySQL/Redis（由 Docker Compose 提供）。
+所有测试使用真实 MySQL 与 Redis（由 Docker Compose 提供，需已启动）：
+
+- **service 层单元测试**：密码哈希、token、注册/登录/刷新/登出逻辑，直接用真实仓库（UserRepo/TokenRepo）打到测试库。
+- **handler 层集成测试**：`httptest` + 真实 MySQL/Redis。
+- 测试隔离：MySQL 用独立 `aidevclub_test` 库（`CREATE DATABASE IF NOT EXISTS` 自动创建，测试前后 drop `users` 表），Redis 用 DB 15（测试前后 `FlushDB`）。
 
 ## 12. 项目结构
 

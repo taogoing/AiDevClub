@@ -4,9 +4,9 @@
 
 **目标：** 搭建可运行的 Go/Gin 服务骨架，并实现用户注册、登录、登出、Token 刷新、资料管理、注销与头像上传。
 
-**架构：** 扁平技术分层（`internal/handler` / `service` / `repo` / `model`），领域边界保留在 service 层。JWT Access Token（HS256，15 分钟）+ Redis 存储的不透明 Refresh Token（30 天，可吊销/轮换）。生产用 MySQL 8 + Redis；测试用内存 SQLite + miniredis。
+**架构：** 扁平技术分层（`internal/handler` / `service` / `repo` / `model`），领域边界保留在 service 层。JWT Access Token（HS256，15 分钟）+ Redis 存储的不透明 Refresh Token（30 天，可吊销/轮换）。生产与测试均用 MySQL 8 + Redis（测试用独立 `aidevclub_test` 库与 Redis DB 15，自动清理）。
 
-**技术栈：** Go 1.21+、Gin、GORM（MySQL 驱动）、go-redis/v9、golang-jwt/v5、bcrypt、viper、slog。测试额外用 gorm sqlite 驱动 + miniredis。
+**技术栈：** Go 1.21+、Gin、GORM（MySQL 驱动）、go-redis/v9、golang-jwt/v5、bcrypt、viper、slog。
 
 **设计文档：** [2026-08-24-auth-foundation-design.md](../specs/2026-08-24-auth-foundation-design.md)
 
@@ -23,6 +23,7 @@
 - 统一响应 `{"code":0,"message":"ok","data":...}`。
 - 业务错误码：`40001` 参数错误、`40101` 未认证、`40401` 用户不存在、`40901` 邮箱已存在、`42901` 限流、`50000` 服务器错误。
 - 每个任务以可独立测试的交付物结束；先写测试、确认失败、再实现、确认通过、最后 commit。
+- 前置条件：运行 `go test` 前需已启动 Docker 的 MySQL（3306）与 Redis（6379）；测试库 `aidevclub_test` 由测试代码 `CREATE DATABASE IF NOT EXISTS` 自动创建，测试后自动 drop 表 / FlushDB。
 
 ---
 
@@ -499,43 +500,72 @@ git commit -m "feat: 统一响应格式与错误处理中间件"
 package testutil
 
 import (
+	"context"
+	"os"
 	"testing"
 
-	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
-	"gorm.io/driver/sqlite"
+	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 
 	"aidevclub/internal/model"
 )
 
-// NewTestDB 返回内存 SQLite，单连接避免 "no such table" 竞态。
+func envOr(key, def string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return def
+}
+
+// 测试后端与生产隔离：独立 MySQL 库 aidevclub_test 与 Redis DB 15。
+var (
+	testMySQLDSN  = envOr("AIDEVCLUB_TEST_MYSQL_DSN", "root:root@tcp(localhost:3306)/aidevclub_test?charset=utf8mb4&parseTime=True&loc=Local")
+	testRedisAddr = envOr("AIDEVCLUB_TEST_REDIS_ADDR", "localhost:6379")
+)
+
+const testRedisDB = 15
+
+// ensureTestDB 用无库名的引导连接创建测试库（幂等，不依赖 docker init 脚本时序）。
+func ensureTestDB(t *testing.T) {
+	t.Helper()
+	bootDSN := "root:root@tcp(localhost:3306)/?charset=utf8mb4&parseTime=True&loc=Local"
+	b, err := gorm.Open(mysql.Open(bootDSN), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("connect mysql bootstrap: %v", err)
+	}
+	if err := b.Exec("CREATE DATABASE IF NOT EXISTS aidevclub_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci").Error; err != nil {
+		t.Fatalf("create test db: %v", err)
+	}
+}
+
+// NewTestDB 连接测试 MySQL 并重置 users 表，测试结束后清理。
 func NewTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	ensureTestDB(t)
+	db, err := gorm.Open(mysql.Open(testMySQLDSN), &gorm.Config{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	sqlDB, err := db.DB()
-	if err != nil {
-		t.Fatal(err)
-	}
-	sqlDB.SetMaxOpenConns(1)
+	_ = db.Migrator().DropTable(&model.User{}) // 首次可能不存在
 	if err := db.AutoMigrate(&model.User{}); err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() {
+		_ = db.Migrator().DropTable(&model.User{})
+	})
 	return db
 }
 
-// NewTestRedis 返回内存 Redis（miniredis）。
+// NewTestRedis 连接测试 Redis（DB 15），测试结束后 FlushDB。
 func NewTestRedis(t *testing.T) *redis.Client {
 	t.Helper()
-	mr, err := miniredis.Run()
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(mr.Close)
-	return redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	rdb := redis.NewClient(&redis.Options{Addr: testRedisAddr, DB: testRedisDB})
+	t.Cleanup(func() {
+		_ = rdb.FlushDB(context.Background()).Err()
+		_ = rdb.Close()
+	})
+	return rdb
 }
 ```
 
@@ -1723,6 +1753,8 @@ func setupRouter(t *testing.T) *gin.Engine {
 		AccessTokenTTL:   time.Minute,
 		RefreshTokenTTL:  time.Hour,
 		RateLimitPerMin:  1000,
+		AvatarDir:        t.TempDir(),
+		MaxAvatarBytes:   2 << 20,
 	}
 	users := repo.NewUserRepo(testutil.NewTestDB(t))
 	tokens := repo.NewTokenRepo(testutil.NewTestRedis(t), time.Hour)
