@@ -58,3 +58,61 @@ func (r *TagRepo) IncrUsage(db *gorm.DB, tagID uint, delta int) error {
 		Where("id = ?", tagID).
 		UpdateColumn("usage_count", gorm.Expr("usage_count + ?", delta)).Error
 }
+
+func (r *TagRepo) AdminCreate(ctx context.Context, name, description string) (*model.Tag, error) {
+	t := &model.Tag{Name: name, Description: description, Enabled: true}
+	err := r.db.WithContext(ctx).Create(t).Error
+	return t, err
+}
+
+func (r *TagRepo) AdminUpdate(ctx context.Context, id uint, name, description string) error {
+	return r.db.WithContext(ctx).
+		Model(&model.Tag{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"name":        name,
+			"description": description,
+		}).Error
+}
+
+func (r *TagRepo) Enable(ctx context.Context, id uint) error {
+	return r.db.WithContext(ctx).
+		Model(&model.Tag{}).
+		Where("id = ?", id).
+		Update("enabled", true).Error
+}
+
+func (r *TagRepo) Disable(ctx context.Context, id uint) error {
+	return r.db.WithContext(ctx).
+		Model(&model.Tag{}).
+		Where("id = ?", id).
+		Update("enabled", false).Error
+}
+
+func (r *TagRepo) AdminList(ctx context.Context, keyword, status string, page, pageSize int) ([]model.Tag, int64, error) {
+	query := r.db.WithContext(ctx).Model(&model.Tag{})
+
+	if keyword != "" {
+		query = query.Where("name LIKE ?", keyword+"%")
+	}
+
+	switch status {
+	case "enabled":
+		query = query.Where("enabled = ?", true)
+	case "disabled":
+		query = query.Where("enabled = ?", false)
+	}
+
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	var tags []model.Tag
+	err := query.Order("id DESC").
+		Offset((page - 1) * pageSize).
+		Limit(pageSize).
+		Find(&tags).Error
+
+	return tags, total, err
+}
