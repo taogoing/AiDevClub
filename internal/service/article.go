@@ -323,6 +323,58 @@ func (s *ArticleService) summaryOf(a model.Article, tags []model.Tag) ArticleSum
 	return sm
 }
 
+func (s *ArticleService) ToggleLike(ctx context.Context, userID, articleID uint) (bool, int, error) {
+	a, err := s.articles.FindByID(nil, articleID)
+	if err != nil || a.Status != model.ArticleStatusPublished {
+		return false, 0, ErrArticleNotFound
+	}
+	var liked bool
+	var newCount int
+	err = s.articles.DB().Transaction(func(tx *gorm.DB) error {
+		var err error
+		liked, err = s.inter.ToggleArticleLike(tx, userID, articleID)
+		if err != nil {
+			return err
+		}
+		delta := 1
+		if !liked {
+			delta = -1
+		}
+		if err := s.articles.IncrCount(tx, articleID, "likes_count", delta); err != nil {
+			return err
+		}
+		newCount = a.LikesCount + delta
+		return nil
+	})
+	return liked, newCount, err
+}
+
+func (s *ArticleService) ToggleFavorite(ctx context.Context, userID, articleID uint) (bool, int, error) {
+	a, err := s.articles.FindByID(nil, articleID)
+	if err != nil || a.Status != model.ArticleStatusPublished {
+		return false, 0, ErrArticleNotFound
+	}
+	var favorited bool
+	var newCount int
+	err = s.articles.DB().Transaction(func(tx *gorm.DB) error {
+		var err error
+		favorited, err = s.inter.ToggleArticleFavorite(tx, userID, articleID)
+		if err != nil {
+			return err
+		}
+		delta := 1
+		if !favorited {
+			delta = -1
+		}
+		if err := s.articles.IncrCount(tx, articleID, "favorites_count", delta); err != nil {
+			return err
+		}
+		newCount = a.FavoritesCount + delta
+		return nil
+	})
+	return favorited, newCount, err
+}
+
 func (s *ArticleService) Get(ctx context.Context, userID, articleID uint) (*ArticleDetail, error) {
 	a, err := s.articles.FindByID(nil, articleID)
 	if err != nil {

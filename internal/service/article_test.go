@@ -169,3 +169,17 @@ func TestArticleHotSortAndCache(t *testing.T) {
 	}
 	_ = a2
 }
+
+func TestArticleToggleLike(t *testing.T) {
+	svc, u, cat := newArticleTestEnv(t)
+	ctx := context.Background()
+	a, _ := svc.Create(ctx, u.ID, CreateArticleInput{Title: "t", Content: "c", CategoryID: cat.ID, Status: model.ArticleStatusPublished})
+	liked, count, err := svc.ToggleLike(ctx, u.ID, a.ID)
+	if err != nil || !liked || count != 1 {
+		t.Fatalf("like = %v, %d, %v", liked, count, err)
+	}
+	liked, count, _ = svc.ToggleLike(ctx, u.ID, a.ID)
+	if liked || count != 0 {
+		t.Fatalf("unlike = %v, %d", liked, count)
+	}
+}

@@ -151,3 +151,31 @@ func (h *ArticleHandler) Get(c *gin.Context) {
 	}
 	platform.OK(c, detail)
 }
+
+func (h *ArticleHandler) Like(c *gin.Context) {
+	id, err := parseUintParam(c, "id")
+	if err != nil {
+		platform.Fail(c, http.StatusBadRequest, 40001, "参数错误")
+		return
+	}
+	liked, count, err := h.svc.ToggleLike(c.Request.Context(), c.GetUint("user_id"), id)
+	if err != nil {
+		platform.Fail(c, errStatus(err), errCode(err), err.Error())
+		return
+	}
+	platform.OK(c, gin.H{"liked": liked, "likes_count": count})
+}
+
+func (h *ArticleHandler) Favorite(c *gin.Context) {
+	id, err := parseUintParam(c, "id")
+	if err != nil {
+		platform.Fail(c, http.StatusBadRequest, 40001, "参数错误")
+		return
+	}
+	favorited, count, err := h.svc.ToggleFavorite(c.Request.Context(), c.GetUint("user_id"), id)
+	if err != nil {
+		platform.Fail(c, errStatus(err), errCode(err), err.Error())
+		return
+	}
+	platform.OK(c, gin.H{"favorited": favorited, "favorites_count": count})
+}

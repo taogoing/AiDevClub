@@ -44,6 +44,8 @@ func articleRouter(t *testing.T) (*gin.Engine, *repo.UserRepo) {
 	art.DELETE("/:id", auth, h.Delete)
 	art.GET("", h.List)
 	art.GET("/:id", opt, h.Get)
+	art.POST("/:id/like", auth, h.Like)
+	art.POST("/:id/favorite", auth, h.Favorite)
 	return r, users
 }
 
@@ -179,5 +181,50 @@ func TestArticleListGetEndpoint(t *testing.T) {
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
 		t.Fatalf("get status = %d, body %s", w.Code, w.Body.String())
+	}
+}
+
+func TestArticleLikeEndpoint(t *testing.T) {
+	r, users := articleRouter(t)
+	u := &model.User{Email: "a@a.com", PasswordHash: "x", Nickname: "A", AvatarURL: "/x.png"}
+	_ = users.Create(u)
+	tok, _ := platform.GenerateAccessToken("s", time.Minute, u.ID)
+
+	body, _ := json.Marshal(map[string]interface{}{
+		"title": "t", "content": "c", "category_id": 1, "status": "published",
+	})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/articles", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+tok)
+	r.ServeHTTP(w, req)
+	var created struct{ Data struct{ ID uint } `json:"data"` }
+	_ = json.Unmarshal(w.Body.Bytes(), &created)
+
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest(http.MethodPost, fmt.Sprintf("/api/v1/articles/%d/like", created.Data.ID), nil)
+	req.Header.Set("Authorization", "Bearer "+tok)
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("like status = %d, body %s", w.Code, w.Body.String())
+	}
+	var likeResp struct {
+		Data struct {
+			Liked      bool `json:"liked"`
+			LikesCount int  `json:"likes_count"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(w.Body.Bytes(), &likeResp)
+	if !likeResp.Data.Liked || likeResp.Data.LikesCount != 1 {
+		t.Fatalf("like resp = %+v", likeResp.Data)
+	}
+
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest(http.MethodPost, fmt.Sprintf("/api/v1/articles/%d/like", created.Data.ID), nil)
+	req.Header.Set("Authorization", "Bearer "+tok)
+	r.ServeHTTP(w, req)
+	_ = json.Unmarshal(w.Body.Bytes(), &likeResp)
+	if likeResp.Data.Liked || likeResp.Data.LikesCount != 0 {
+		t.Fatalf("unlike resp = %+v", likeResp.Data)
 	}
 }
