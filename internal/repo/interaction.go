@@ -59,3 +59,23 @@ func (r *InteractionRepo) CommentLiked(db *gorm.DB, userID, commentID uint) (boo
 	err := r.exec(db).Model(&model.CommentLike{}).Where("comment_id = ? AND user_id = ?", commentID, userID).Count(&count).Error
 	return count > 0, err
 }
+
+func (r *InteractionRepo) SkillLiked(db *gorm.DB, userID, skillID uint) (bool, error) {
+	var count int64
+	err := r.exec(db).Model(&model.SkillLike{}).Where("skill_id = ? AND user_id = ?", skillID, userID).Count(&count).Error
+	return count > 0, err
+}
+
+func (r *InteractionRepo) SkillFavorited(db *gorm.DB, userID, skillID uint) (bool, error) {
+	var count int64
+	err := r.exec(db).Model(&model.SkillFavorite{}).Where("skill_id = ? AND user_id = ?", skillID, userID).Count(&count).Error
+	return count > 0, err
+}
+
+func (r *InteractionRepo) ToggleSkillLike(db *gorm.DB, userID, skillID uint) (bool, error) {
+	return toggleLike(r.exec(db), &model.SkillLike{UserID: userID, SkillID: skillID}, "skill_id = ? AND user_id = ?", skillID, userID)
+}
+
+func (r *InteractionRepo) ToggleSkillFavorite(db *gorm.DB, userID, skillID uint) (bool, error) {
+	return toggleLike(r.exec(db), &model.SkillFavorite{UserID: userID, SkillID: skillID}, "skill_id = ? AND user_id = ?", skillID, userID)
+}
