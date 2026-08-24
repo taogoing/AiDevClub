@@ -22,3 +22,6 @@ Thumbs.db
 
 # 日志
 *.log
+
+# SDD 工作区（临时产物，不入库）
+.superpowers/
