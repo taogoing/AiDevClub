@@ -1,6 +1,14 @@
 package service
 
-import "testing"
+import (
+	"context"
+	"testing"
+	"time"
+
+	"aidevclub/internal/platform"
+	"aidevclub/internal/repo"
+	"aidevclub/internal/testutil"
+)
 
 func TestHashAndCheckPassword(t *testing.T) {
 	h, err := hashPassword("secret123")
@@ -15,5 +23,62 @@ func TestHashAndCheckPassword(t *testing.T) {
 	}
 	if err := checkPassword(h, "wrong"); err == nil {
 		t.Fatal("wrong password accepted")
+	}
+}
+
+func newTestAuthService(t *testing.T) *AuthService {
+	t.Helper()
+	cfg := &platform.Config{
+		DefaultAvatarURL: "/static/avatars/default.png",
+		JWTSecret:        "s",
+		AccessTokenTTL:   time.Minute,
+		RefreshTokenTTL:  time.Hour,
+	}
+	return NewAuthService(
+		repo.NewUserRepo(testutil.NewTestDB(t)),
+		repo.NewTokenRepo(testutil.NewTestRedis(t), time.Hour),
+		cfg,
+	)
+}
+
+func TestRegisterAndLogin(t *testing.T) {
+	ctx := context.Background()
+	svc := newTestAuthService(t)
+
+	if err := svc.Register(ctx, RegisterInput{Email: "a@example.com", Password: "secret123"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.Register(ctx, RegisterInput{Email: "a@example.com", Password: "secret123"}); err == nil {
+		t.Fatal("duplicate email accepted")
+	}
+
+	out, err := svc.Login(ctx, LoginInput{Email: "a@example.com", Password: "secret123"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.AccessToken == "" || out.RefreshToken == "" {
+		t.Fatal("empty tokens")
+	}
+}
+
+func TestRegisterAfterSoftDeleteReturnsErrEmailExists(t *testing.T) {
+	ctx := context.Background()
+	svc := newTestAuthService(t)
+	const email = "soft-delete@example.com"
+
+	if err := svc.Register(ctx, RegisterInput{Email: email, Password: "secret123"}); err != nil {
+		t.Fatal(err)
+	}
+	u, err := svc.users.FindByEmail(email)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.users.Delete(u.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	err = svc.Register(ctx, RegisterInput{Email: email, Password: "secret123"})
+	if err != ErrEmailExists {
+		t.Fatalf("re-register after soft delete = %v, want ErrEmailExists", err)
 	}
 }
