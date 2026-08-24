@@ -2,24 +2,6 @@
   <div class="resource-sidebar">
     <div class="sidebar-section">
       <h3 class="section-title">
-        <el-icon><Star /></el-icon> 热门标签
-      </h3>
-      <div class="tag-cloud">
-        <el-tag
-          v-for="tag in hotTags"
-          :key="tag.id"
-          size="small"
-          class="tag-item"
-          @click="handleTagClick(tag.id)"
-        >
-          {{ tag.name }}
-        </el-tag>
-        <el-empty v-if="!hotTags.length" description="暂无标签" :image-size="60" />
-      </div>
-    </div>
-
-    <div class="sidebar-section">
-      <h3 class="section-title">
         <el-icon><TrendCharts /></el-icon> 热门{{ type === 'skill' ? 'Skill' : 'MCP Server' }}
       </h3>
       <div class="hot-resources">
@@ -60,18 +42,16 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { Star, TrendCharts, Download } from '@element-plus/icons-vue'
-import { getHotTags } from '@/api/tag'
+import { TrendCharts, Download } from '@element-plus/icons-vue'
 import { getSkills } from '@/api/skill'
 import { getMcpServers } from '@/api/mcpServer'
-import type { Tag, SkillSummary, McpServerSummary } from '@/types'
+import type { SkillSummary, McpServerSummary } from '@/types'
 
 const props = defineProps<{
   type: 'skill' | 'mcp'
 }>()
 
 const router = useRouter()
-const hotTags = ref<Tag[]>([])
 const hotResources = ref<(SkillSummary | McpServerSummary)[]>([])
 const topDownloads = ref<(SkillSummary | McpServerSummary)[]>([])
 
@@ -85,8 +65,7 @@ watch(() => props.type, () => {
 
 async function fetchData() {
   try {
-    const [tagRes, hotRes, downloadRes] = await Promise.all([
-      getHotTags(),
+    const [hotRes, downloadRes] = await Promise.all([
       props.type === 'skill'
         ? getSkills({ page: 1, page_size: 5, sort: 'hot' })
         : getMcpServers({ page: 1, page_size: 5, sort: 'hot' }),
@@ -94,18 +73,9 @@ async function fetchData() {
         ? getSkills({ page: 1, page_size: 5, sort: 'downloads' })
         : getMcpServers({ page: 1, page_size: 5, sort: 'downloads' }),
     ])
-    hotTags.value = tagRes.data.data
     hotResources.value = hotRes.data.data.list
     topDownloads.value = downloadRes.data.data.list
   } catch { /* ignore */ }
-}
-
-function handleTagClick(tagId: number) {
-  if (props.type === 'skill') {
-    router.push({ name: 'skills', query: { tag_id: tagId } })
-  } else {
-    router.push({ name: 'mcps', query: { tag_id: tagId } })
-  }
 }
 
 function handleResourceClick(id: number) {
