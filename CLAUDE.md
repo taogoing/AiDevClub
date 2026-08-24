@@ -36,9 +36,11 @@ AIDevClub 是一个面向开发者和 AI Agent 的技术内容与 AI 资源分�
 
 使用 superpowers-zh 技能框架（见下文），走「brainstorming → writing-plans → 实现 → finishing-a-development-branch」流程。设计文档存 `docs/superpowers/specs/`，实现计划存 `docs/superpowers/plans/`。
 
-## 现状
+## 现状与路线
 
-P0+P1（基础设施骨架 + 用户认证）已完成并合并到 master。标准命令：`go build ./...`、`go test ./...` 及 `go test ./<package>`（单测）。测试依赖真实 MySQL/Redis（先 `docker compose up -d`，Redis 端口为 16379）。
+P0+P1（基础设施骨架 + 用户认证）已完成并合并到 master。下一步是 P2（技术社区）。总体路线见 [docs/roadmap.md](docs/roadmap.md)，阶段一总结与遗留跟进项见 [docs/phase1-summary.md](docs/phase1-summary.md)。
+
+标准命令：`go build ./...`、`go test ./...` 及 `go test ./<package>`（单测）。测试依赖真实 MySQL/Redis（先 `docker compose up -d`，Redis 宿主机端口为 16379）。
 
 ---
 
