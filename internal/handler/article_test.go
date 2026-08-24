@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -25,9 +26,11 @@ func articleRouter(t *testing.T) (*gin.Engine, *repo.UserRepo) {
 	users := repo.NewUserRepo(db)
 	rdb := testutil.NewTestRedis(t)
 	cfg := &platform.Config{
-		DefaultPageSize: 20,
-		MaxPageSize:     50,
-		HotCacheTTL:     60e9,
+		DefaultPageSize:      20,
+		MaxPageSize:          50,
+		HotCacheTTL:          60e9,
+		ArticleImageDir:      t.TempDir(),
+		MaxArticleImageBytes: 5 << 20,
 	}
 	svc := service.NewArticleService(
 		repo.NewArticleRepo(db), repo.NewTagRepo(db), repo.NewCategoryRepo(db),
@@ -44,6 +47,7 @@ func articleRouter(t *testing.T) (*gin.Engine, *repo.UserRepo) {
 	art.DELETE("/:id", auth, h.Delete)
 	art.GET("", h.List)
 	art.GET("/:id", opt, h.Get)
+	art.POST("/images", auth, h.UploadImage)
 	art.POST("/:id/like", auth, h.Like)
 	art.POST("/:id/favorite", auth, h.Favorite)
 	return r, users
@@ -226,5 +230,27 @@ func TestArticleLikeEndpoint(t *testing.T) {
 	_ = json.Unmarshal(w.Body.Bytes(), &likeResp)
 	if likeResp.Data.Liked || likeResp.Data.LikesCount != 0 {
 		t.Fatalf("unlike resp = %+v", likeResp.Data)
+	}
+}
+
+func TestArticleUploadImage(t *testing.T) {
+	r, users := articleRouter(t)
+	u := &model.User{Email: "a@a.com", PasswordHash: "x", Nickname: "A", AvatarURL: "/x.png"}
+	_ = users.Create(u)
+	tok, _ := platform.GenerateAccessToken("s", time.Minute, u.ID)
+
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	fw, _ := mw.CreateFormFile("file", "a.png")
+	_, _ = fw.Write([]byte{0x89, 'P', 'N', 'G'})
+	_ = mw.Close()
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/articles/images", &buf)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	req.Header.Set("Authorization", "Bearer "+tok)
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body %s", w.Code, w.Body.String())
 	}
 }
