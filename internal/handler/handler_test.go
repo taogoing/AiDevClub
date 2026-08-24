@@ -29,16 +29,18 @@ func setupRouter(t *testing.T) *gin.Engine {
 		MaxAvatarBytes:   2 << 20,
 	}
 	users := repo.NewUserRepo(testutil.NewTestDB(t))
-	tokens := repo.NewTokenRepo(testutil.NewTestRedis(t), time.Hour)
+	rdb := testutil.NewTestRedis(t)
+	tokens := repo.NewTokenRepo(rdb, time.Hour)
 	authSvc := service.NewAuthService(users, tokens, cfg)
 	userSvc := service.NewUserService(users, tokens, cfg)
 
 	r := gin.New()
 	r.Use(platform.RecoverMiddleware())
 	ah := NewAuthHandler(authSvc)
+	rl := platform.RateLimitMiddleware(rdb, cfg.RateLimitPerMin, time.Minute)
 	auth := r.Group("/api/v1/auth")
-	auth.POST("/register", ah.Register)
-	auth.POST("/login", ah.Login)
+	auth.POST("/register", rl, ah.Register)
+	auth.POST("/login", rl, ah.Login)
 	auth.POST("/refresh", ah.Refresh)
 	auth.POST("/logout", ah.Logout)
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -42,9 +43,10 @@ func main() {
 	})
 
 	ah := handler.NewAuthHandler(authSvc)
+	rl := platform.RateLimitMiddleware(rdb, cfg.RateLimitPerMin, time.Minute)
 	auth := r.Group("/api/v1/auth")
-	auth.POST("/register", ah.Register)
-	auth.POST("/login", ah.Login)
+	auth.POST("/register", rl, ah.Register)
+	auth.POST("/login", rl, ah.Login)
 	auth.POST("/refresh", ah.Refresh)
 	auth.POST("/logout", ah.Logout)
 
