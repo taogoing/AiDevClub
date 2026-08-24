@@ -23,10 +23,10 @@ func checkPassword(hash, plain string) error {
 }
 
 var (
-	ErrEmailExists   = platform.NewBizError(http.StatusConflict, 40901, "邮箱已存在")
-	ErrUserNotFound  = platform.NewBizError(http.StatusNotFound, 40401, "用户不存在")
-	ErrBadCredential = platform.NewBizError(http.StatusBadRequest, 40001, "邮箱或密码错误")
-	ErrInvalidParam  = platform.NewBizError(http.StatusBadRequest, 40001, "参数错误")
+	ErrEmailExists   = platform.NewBizError(http.StatusConflict, platform.CodeEmailExists, "邮箱已存在")
+	ErrUserNotFound  = platform.NewBizError(http.StatusNotFound, platform.CodeUserNotFound, "用户不存在")
+	ErrBadCredential = platform.NewBizError(http.StatusBadRequest, platform.CodeParamError, "邮箱或密码错误")
+	ErrInvalidParam  = platform.NewBizError(http.StatusBadRequest, platform.CodeParamError, "参数错误")
 )
 
 type RegisterInput struct {

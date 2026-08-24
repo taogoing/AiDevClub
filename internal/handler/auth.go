@@ -22,7 +22,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		Nickname string `json:"nickname"`
 	}
 	if err := c.ShouldBindJSON(&in); err != nil {
-		platform.Fail(c, http.StatusBadRequest, 40001, "参数错误")
+		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "参数错误")
 		return
 	}
 	if err := h.svc.Register(c.Request.Context(), service.RegisterInput{Email: in.Email, Password: in.Password, Nickname: in.Nickname}); err != nil {
@@ -38,7 +38,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		Password string `json:"password"`
 	}
 	if err := c.ShouldBindJSON(&in); err != nil {
-		platform.Fail(c, http.StatusBadRequest, 40001, "参数错误")
+		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "参数错误")
 		return
 	}
 	pair, err := h.svc.Login(c.Request.Context(), service.LoginInput{Email: in.Email, Password: in.Password})
@@ -54,7 +54,7 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		RefreshToken string `json:"refresh_token"`
 	}
 	if err := c.ShouldBindJSON(&in); err != nil {
-		platform.Fail(c, http.StatusBadRequest, 40001, "参数错误")
+		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "参数错误")
 		return
 	}
 	pair, err := h.svc.Refresh(c.Request.Context(), in.RefreshToken)
@@ -70,7 +70,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		RefreshToken string `json:"refresh_token"`
 	}
 	if err := c.ShouldBindJSON(&in); err != nil {
-		platform.Fail(c, http.StatusBadRequest, 40001, "参数错误")
+		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "参数错误")
 		return
 	}
 	if err := h.svc.Logout(c.Request.Context(), in.RefreshToken); err != nil {

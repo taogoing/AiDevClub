@@ -10,7 +10,7 @@ func RecoverMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
 			if err := recover(); err != nil {
-				Fail(c, http.StatusInternalServerError, 50000, "服务器内部错误")
+				Fail(c, http.StatusInternalServerError, CodeInternalError, "服务器内部错误")
 				c.Abort()
 			}
 		}()
@@ -24,6 +24,6 @@ func RecoverMiddleware() gin.HandlerFunc {
 				return
 			}
 		}
-		Fail(c, http.StatusInternalServerError, 50000, "服务器内部错误")
+		Fail(c, http.StatusInternalServerError, CodeInternalError, "服务器内部错误")
 	}
 }

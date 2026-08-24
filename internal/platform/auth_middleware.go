@@ -12,13 +12,13 @@ func AuthMiddleware(secret string) gin.HandlerFunc {
 		h := c.GetHeader("Authorization")
 		const prefix = "Bearer "
 		if !strings.HasPrefix(h, prefix) {
-			Fail(c, http.StatusUnauthorized, 40101, "未认证")
+			Fail(c, http.StatusUnauthorized, CodeUnauthorized, "未认证")
 			c.Abort()
 			return
 		}
 		uid, err := ParseAccessToken(secret, strings.TrimPrefix(h, prefix))
 		if err != nil {
-			Fail(c, http.StatusUnauthorized, 40101, "未认证")
+			Fail(c, http.StatusUnauthorized, CodeUnauthorized, "未认证")
 			c.Abort()
 			return
 		}

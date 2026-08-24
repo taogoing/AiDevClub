@@ -36,7 +36,7 @@ func (h *UserHandler) Update(c *gin.Context) {
 		Bio       string `json:"bio"`
 	}
 	if err := c.ShouldBindJSON(&in); err != nil {
-		platform.Fail(c, http.StatusBadRequest, 40001, "参数错误")
+		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "参数错误")
 		return
 	}
 	if err := h.svc.UpdateProfile(c.Request.Context(), c.GetUint("user_id"), service.UpdateProfileInput{Nickname: in.Nickname, AvatarURL: in.AvatarURL, Bio: in.Bio}); err != nil {
@@ -51,7 +51,7 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 		Password string `json:"password"`
 	}
 	if err := c.ShouldBindJSON(&in); err != nil || in.Password == "" {
-		platform.Fail(c, http.StatusBadRequest, 40001, "参数错误")
+		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "参数错误")
 		return
 	}
 	if err := h.svc.ChangePassword(c.Request.Context(), c.GetUint("user_id"), in.Password); err != nil {
@@ -72,27 +72,27 @@ func (h *UserHandler) Delete(c *gin.Context) {
 func (h *UserHandler) UploadAvatar(c *gin.Context) {
 	file, err := c.FormFile("file")
 	if err != nil {
-		platform.Fail(c, http.StatusBadRequest, 40001, "参数错误")
+		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "参数错误")
 		return
 	}
 	ext := strings.ToLower(filepath.Ext(file.Filename))
 	switch ext {
 	case ".jpg", ".jpeg", ".png", ".webp", ".gif":
 	default:
-		platform.Fail(c, http.StatusBadRequest, 40001, "不支持的图片格式")
+		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "不支持的图片格式")
 		return
 	}
 	if file.Size > h.svc.MaxAvatarBytes() {
-		platform.Fail(c, http.StatusBadRequest, 40001, "图片过大")
+		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "图片过大")
 		return
 	}
 	if err := os.MkdirAll(h.svc.AvatarDir(), 0o755); err != nil {
-		platform.Fail(c, http.StatusInternalServerError, 50000, "服务器内部错误")
+		platform.Fail(c, http.StatusInternalServerError, platform.CodeInternalError, "服务器内部错误")
 		return
 	}
 	name := randomHex(16) + ext
 	if err := c.SaveUploadedFile(file, filepath.Join(h.svc.AvatarDir(), name)); err != nil {
-		platform.Fail(c, http.StatusInternalServerError, 50000, "服务器内部错误")
+		platform.Fail(c, http.StatusInternalServerError, platform.CodeInternalError, "服务器内部错误")
 		return
 	}
 	url := "/static/avatars/" + name

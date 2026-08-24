@@ -20,5 +20,5 @@ func errCode(err error) int {
 	if errors.As(err, &be) {
 		return be.Code
 	}
-	return 50000
+	return platform.CodeInternalError
 }

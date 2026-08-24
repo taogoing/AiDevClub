@@ -17,12 +17,12 @@ import (
 )
 
 var (
-	ErrArticleNotFound  = platform.NewBizError(http.StatusNotFound, 40402, "文章不存在或不可见")
-	ErrCommentNotFound  = platform.NewBizError(http.StatusNotFound, 40403, "评论不存在")
-	ErrCategoryNotFound = platform.NewBizError(http.StatusNotFound, 40404, "分类不存在")
-	ErrTagNotFound      = platform.NewBizError(http.StatusNotFound, 40405, "标签不存在")
-	ErrForbidden        = platform.NewBizError(http.StatusForbidden, 40301, "无权限")
-	ErrBadParam         = platform.NewBizError(http.StatusBadRequest, 40002, "参数不合法")
+	ErrArticleNotFound  = platform.NewBizError(http.StatusNotFound, platform.CodeArticleNotFound, "文章不存在或不可见")
+	ErrCommentNotFound  = platform.NewBizError(http.StatusNotFound, platform.CodeCommentNotFound, "评论不存在")
+	ErrCategoryNotFound = platform.NewBizError(http.StatusNotFound, platform.CodeCategoryNotFound, "分类不存在")
+	ErrTagNotFound      = platform.NewBizError(http.StatusNotFound, platform.CodeTagNotFound, "标签不存在")
+	ErrForbidden        = platform.NewBizError(http.StatusForbidden, platform.CodeForbidden, "无权限")
+	ErrBadParam         = platform.NewBizError(http.StatusBadRequest, platform.CodeBizError, "参数不合法")
 )
 
 type ArticleService struct {

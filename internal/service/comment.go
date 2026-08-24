@@ -11,7 +11,7 @@ import (
 	"aidevclub/internal/repo"
 )
 
-var ErrBadParent = platform.NewBizError(http.StatusBadRequest, 40002, "父评论不合法")
+var ErrBadParent = platform.NewBizError(http.StatusBadRequest, platform.CodeBizError, "父评论不合法")
 
 type CommentService struct {
 	comments *repo.CommentRepo

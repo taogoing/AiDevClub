@@ -29,7 +29,7 @@ func TestErrorMiddlewareMapsBizError(t *testing.T) {
 	r := gin.New()
 	r.Use(RecoverMiddleware())
 	r.GET("/err", func(c *gin.Context) {
-		_ = c.Error(NewBizError(http.StatusConflict, 40901, "邮箱已存在"))
+		_ = c.Error(NewBizError(http.StatusConflict, CodeEmailExists, "邮箱已存在"))
 	})
 
 	w := httptest.NewRecorder()

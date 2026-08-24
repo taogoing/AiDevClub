@@ -29,7 +29,7 @@ func (h *ArticleHandler) Create(c *gin.Context) {
 		TagNames   []string            `json:"tag_names"`
 	}
 	if err := c.ShouldBindJSON(&in); err != nil {
-		platform.Fail(c, http.StatusBadRequest, 40001, "参数错误")
+		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "参数错误")
 		return
 	}
 	a, err := h.svc.Create(c.Request.Context(), c.GetUint("user_id"), service.CreateArticleInput{
@@ -46,7 +46,7 @@ func (h *ArticleHandler) Create(c *gin.Context) {
 func (h *ArticleHandler) Update(c *gin.Context) {
 	id, err := parseUintParam(c, "id")
 	if err != nil {
-		platform.Fail(c, http.StatusBadRequest, 40001, "参数错误")
+		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "参数错误")
 		return
 	}
 	var in struct {
@@ -59,7 +59,7 @@ func (h *ArticleHandler) Update(c *gin.Context) {
 		TagNames   []string            `json:"tag_names"`
 	}
 	if err := c.ShouldBindJSON(&in); err != nil {
-		platform.Fail(c, http.StatusBadRequest, 40001, "参数错误")
+		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "参数错误")
 		return
 	}
 	a, err := h.svc.Update(c.Request.Context(), c.GetUint("user_id"), id, service.CreateArticleInput{
@@ -76,7 +76,7 @@ func (h *ArticleHandler) Update(c *gin.Context) {
 func (h *ArticleHandler) Delete(c *gin.Context) {
 	id, err := parseUintParam(c, "id")
 	if err != nil {
-		platform.Fail(c, http.StatusBadRequest, 40001, "参数错误")
+		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "参数错误")
 		return
 	}
 	if err := h.svc.Delete(c.Request.Context(), c.GetUint("user_id"), id); err != nil {
@@ -142,7 +142,7 @@ func (h *ArticleHandler) List(c *gin.Context) {
 func (h *ArticleHandler) Get(c *gin.Context) {
 	id, err := parseUintParam(c, "id")
 	if err != nil {
-		platform.Fail(c, http.StatusBadRequest, 40001, "参数错误")
+		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "参数错误")
 		return
 	}
 	detail, err := h.svc.Get(c.Request.Context(), c.GetUint("user_id"), id)
@@ -156,7 +156,7 @@ func (h *ArticleHandler) Get(c *gin.Context) {
 func (h *ArticleHandler) Like(c *gin.Context) {
 	id, err := parseUintParam(c, "id")
 	if err != nil {
-		platform.Fail(c, http.StatusBadRequest, 40001, "参数错误")
+		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "参数错误")
 		return
 	}
 	liked, count, err := h.svc.ToggleLike(c.Request.Context(), c.GetUint("user_id"), id)
@@ -170,7 +170,7 @@ func (h *ArticleHandler) Like(c *gin.Context) {
 func (h *ArticleHandler) Favorite(c *gin.Context) {
 	id, err := parseUintParam(c, "id")
 	if err != nil {
-		platform.Fail(c, http.StatusBadRequest, 40001, "参数错误")
+		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "参数错误")
 		return
 	}
 	favorited, count, err := h.svc.ToggleFavorite(c.Request.Context(), c.GetUint("user_id"), id)
@@ -184,27 +184,27 @@ func (h *ArticleHandler) Favorite(c *gin.Context) {
 func (h *ArticleHandler) UploadImage(c *gin.Context) {
 	file, err := c.FormFile("file")
 	if err != nil {
-		platform.Fail(c, http.StatusBadRequest, 40001, "参数错误")
+		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "参数错误")
 		return
 	}
 	ext := strings.ToLower(filepath.Ext(file.Filename))
 	switch ext {
 	case ".jpg", ".jpeg", ".png", ".webp", ".gif":
 	default:
-		platform.Fail(c, http.StatusBadRequest, 40001, "不支持的图片格式")
+		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "不支持的图片格式")
 		return
 	}
 	if file.Size > h.svc.MaxImageBytes() {
-		platform.Fail(c, http.StatusBadRequest, 40001, "图片过大")
+		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "图片过大")
 		return
 	}
 	if err := os.MkdirAll(h.svc.ImageDir(), 0o755); err != nil {
-		platform.Fail(c, http.StatusInternalServerError, 50000, "服务器内部错误")
+		platform.Fail(c, http.StatusInternalServerError, platform.CodeInternalError, "服务器内部错误")
 		return
 	}
 	name := randomHex(16) + ext
 	if err := c.SaveUploadedFile(file, filepath.Join(h.svc.ImageDir(), name)); err != nil {
-		platform.Fail(c, http.StatusInternalServerError, 50000, "服务器内部错误")
+		platform.Fail(c, http.StatusInternalServerError, platform.CodeInternalError, "服务器内部错误")
 		return
 	}
 	platform.OK(c, gin.H{"url": "/static/articles/" + name})

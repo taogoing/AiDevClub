@@ -16,7 +16,7 @@ func NewCommentHandler(svc *service.CommentService) *CommentHandler { return &Co
 func (h *CommentHandler) List(c *gin.Context) {
 	id, err := parseUintParam(c, "id")
 	if err != nil {
-		platform.Fail(c, http.StatusBadRequest, 40001, "参数错误")
+		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "参数错误")
 		return
 	}
 	list, err := h.svc.List(c.Request.Context(), id)
@@ -30,7 +30,7 @@ func (h *CommentHandler) List(c *gin.Context) {
 func (h *CommentHandler) Create(c *gin.Context) {
 	id, err := parseUintParam(c, "id")
 	if err != nil {
-		platform.Fail(c, http.StatusBadRequest, 40001, "参数错误")
+		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "参数错误")
 		return
 	}
 	var in struct {
@@ -38,7 +38,7 @@ func (h *CommentHandler) Create(c *gin.Context) {
 		ParentID *uint  `json:"parent_id"`
 	}
 	if err := c.ShouldBindJSON(&in); err != nil {
-		platform.Fail(c, http.StatusBadRequest, 40001, "参数错误")
+		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "参数错误")
 		return
 	}
 	comment, err := h.svc.Create(c.Request.Context(), c.GetUint("user_id"), id, in.Content, in.ParentID)
@@ -52,7 +52,7 @@ func (h *CommentHandler) Create(c *gin.Context) {
 func (h *CommentHandler) Delete(c *gin.Context) {
 	id, err := parseUintParam(c, "id")
 	if err != nil {
-		platform.Fail(c, http.StatusBadRequest, 40001, "参数错误")
+		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "参数错误")
 		return
 	}
 	if err := h.svc.Delete(c.Request.Context(), c.GetUint("user_id"), id); err != nil {
@@ -65,7 +65,7 @@ func (h *CommentHandler) Delete(c *gin.Context) {
 func (h *CommentHandler) Like(c *gin.Context) {
 	id, err := parseUintParam(c, "id")
 	if err != nil {
-		platform.Fail(c, http.StatusBadRequest, 40001, "参数错误")
+		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "参数错误")
 		return
 	}
 	liked, count, err := h.svc.ToggleLike(c.Request.Context(), c.GetUint("user_id"), id)
