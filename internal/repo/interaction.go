@@ -99,3 +99,13 @@ func (r *InteractionRepo) ToggleMcpServerLike(db *gorm.DB, userID, serverID uint
 func (r *InteractionRepo) ToggleMcpServerFavorite(db *gorm.DB, userID, serverID uint) (bool, error) {
 	return toggleLike(r.exec(db), &model.McpServerFavorite{UserID: userID, McpServerID: serverID}, "mcp_server_id = ? AND user_id = ?", serverID, userID)
 }
+
+func (r *InteractionRepo) ResourceCommentLiked(db *gorm.DB, userID, commentID uint) (bool, error) {
+	var count int64
+	err := r.exec(db).Model(&model.ResourceCommentLike{}).Where("comment_id = ? AND user_id = ?", commentID, userID).Count(&count).Error
+	return count > 0, err
+}
+
+func (r *InteractionRepo) ToggleResourceCommentLike(db *gorm.DB, userID, commentID uint) (bool, error) {
+	return toggleLike(r.exec(db), &model.ResourceCommentLike{UserID: userID, CommentID: commentID}, "comment_id = ? AND user_id = ?", commentID, userID)
+}

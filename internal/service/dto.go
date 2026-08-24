@@ -179,3 +179,14 @@ type McpServerListQuery struct {
 	AuthorID *uint
 	Sort     string
 }
+
+type ResourceCommentItem struct {
+	ID         uint                  `json:"id"`
+	ResourceID uint                  `json:"resource_id"`
+	AuthorID   uint                  `json:"author_id"`
+	Author     AuthorBrief           `json:"author"`
+	Content    string                `json:"content"`
+	LikesCount int                   `json:"likes_count"`
+	CreatedAt  time.Time             `json:"created_at"`
+	Replies    []ResourceCommentItem `json:"replies"`
+}
