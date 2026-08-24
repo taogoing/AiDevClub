@@ -81,7 +81,14 @@ func createPerPIDDB() error {
 	return nil
 }
 
-// NewTestDB 连接测试 MySQL（按进程隔离的库）并重置 users 表，测试结束后清理。
+// allModels 测试库需迁移的全部模型（迁移顺序即此处顺序）。
+var allModels = []interface{}{
+	&model.User{}, &model.Category{}, &model.Tag{}, &model.Article{},
+	&model.ArticleTag{}, &model.ArticleLike{}, &model.ArticleFavorite{},
+	&model.Comment{}, &model.CommentLike{},
+}
+
+// NewTestDB 连接测试 MySQL（按进程隔离的库）并重置全部业务表，测试结束后清理。
 func NewTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	ensureTestDB(t)
@@ -89,12 +96,18 @@ func NewTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_ = db.Migrator().DropTable(&model.User{}) // 首次可能不存在
-	if err := db.AutoMigrate(&model.User{}); err != nil {
-		t.Fatal(err)
+	for _, m := range allModels {
+		_ = db.Migrator().DropTable(m)
+	}
+	for _, m := range allModels {
+		if err := db.AutoMigrate(m); err != nil {
+			t.Fatal(err)
+		}
 	}
 	t.Cleanup(func() {
-		_ = db.Migrator().DropTable(&model.User{})
+		for _, m := range allModels {
+			_ = db.Migrator().DropTable(m)
+		}
 	})
 	return db
 }

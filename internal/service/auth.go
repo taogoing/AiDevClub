@@ -5,9 +5,7 @@ import (
 	"errors"
 	"math/rand"
 	"net/http"
-	"strings"
 
-	"github.com/go-sql-driver/mysql"
 	"golang.org/x/crypto/bcrypt"
 
 	"aidevclub/internal/model"
@@ -57,16 +55,6 @@ func NewAuthService(users *repo.UserRepo, tokens *repo.TokenRepo, cfg *platform.
 	return &AuthService{users: users, tokens: tokens, cfg: cfg}
 }
 
-// isDuplicateEntry 判断是否 MySQL 唯一索引冲突（error 1062）。
-// 优先使用驱动错误码判断，strings.Contains 仅作兜底（跨版本/语言环境时）。
-func isDuplicateEntry(err error) bool {
-	var mysqlErr *mysql.MySQLError
-	if errors.As(err, &mysqlErr) && mysqlErr.Number == 1062 {
-		return true
-	}
-	return strings.Contains(err.Error(), "Duplicate entry")
-}
-
 func defaultNickname() string {
 	const letters = "abcdefghijklmnopqrstuvwxyz0123456789"
 	b := make([]byte, 6)
@@ -97,7 +85,7 @@ func (s *AuthService) Register(ctx context.Context, in RegisterInput) error {
 		Nickname:     nickname,
 		AvatarURL:    s.cfg.DefaultAvatarURL,
 	}); err != nil {
-		if isDuplicateEntry(err) {
+		if platform.IsDuplicateEntry(err) {
 			return ErrEmailExists
 		}
 		return err
