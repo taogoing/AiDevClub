@@ -1,6 +1,7 @@
 package platform
 
 import (
+	"log/slog"
 	"strings"
 	"time"
 
@@ -50,7 +51,7 @@ func LoadConfig() (*Config, error) {
 		return nil, err
 	}
 
-	return &Config{
+	cfg := &Config{
 		HTTPAddr:         v.GetString("http.addr"),
 		MySQLDSN:         v.GetString("mysql.dsn"),
 		RedisAddr:        v.GetString("redis.addr"),
@@ -63,5 +64,14 @@ func LoadConfig() (*Config, error) {
 		AvatarDir:        v.GetString("avatar.dir"),
 		DefaultAvatarURL: v.GetString("avatar.default_url"),
 		MaxAvatarBytes:   v.GetInt64("avatar.max_bytes"),
-	}, nil
+	}
+
+	// 生产环境若忘记设置 AIDEVCLUB_JWT_SECRET，会使用众所周知的默认值，
+	// 任何人都可伪造 JWT。这里只告警、不返回错误，避免破坏开发环境。
+	if cfg.JWTSecret == "dev-secret-change-me" {
+		slog.Warn("JWT secret 仍为默认值，生产环境请务必通过 AIDEVCLUB_JWT_SECRET 覆盖",
+			"jwt_secret", "dev-secret-change-me")
+	}
+
+	return cfg, nil
 }

@@ -143,5 +143,9 @@ func (s *AuthService) Refresh(ctx context.Context, refresh string) (*TokenPair, 
 }
 
 func (s *AuthService) Logout(ctx context.Context, refresh string) error {
-	return s.tokens.Revoke(ctx, refresh)
+	if err := s.tokens.Revoke(ctx, refresh); err != nil && !errors.Is(err, repo.ErrTokenNotFound) {
+		return err
+	}
+	// 已吊销或已过期的 token 视为登出成功（幂等），避免重复登出被映射成 500。
+	return nil
 }

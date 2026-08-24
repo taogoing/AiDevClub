@@ -41,6 +41,7 @@ func (r *TokenRepo) Issue(ctx context.Context, userID uint) (string, error) {
 	pipe := r.rdb.TxPipeline()
 	pipe.Set(ctx, refreshKey(tok), userID, r.ttl)
 	pipe.SAdd(ctx, sessionsKey(userID), tok)
+	pipe.Expire(ctx, sessionsKey(userID), r.ttl)
 	if _, err := pipe.Exec(ctx); err != nil {
 		return "", err
 	}

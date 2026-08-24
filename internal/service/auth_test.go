@@ -122,3 +122,19 @@ func TestLogoutRevokesRefresh(t *testing.T) {
 		t.Fatal("refresh token still valid after logout")
 	}
 }
+
+func TestLogoutIdempotent(t *testing.T) {
+	ctx := context.Background()
+	svc := newTestAuthService(t)
+
+	_ = svc.Register(ctx, RegisterInput{Email: "c@example.com", Password: "secret123"})
+	pair, _ := svc.Login(ctx, LoginInput{Email: "c@example.com", Password: "secret123"})
+
+	if err := svc.Logout(ctx, pair.RefreshToken); err != nil {
+		t.Fatalf("first logout = %v, want nil", err)
+	}
+	// 重复登出已吊销的 token 应幂等成功，而不是返回 ErrTokenNotFound。
+	if err := svc.Logout(ctx, pair.RefreshToken); err != nil {
+		t.Fatalf("second logout = %v, want nil", err)
+	}
+}

@@ -36,6 +36,20 @@ func TestTokenRepoIssueValidateRevoke(t *testing.T) {
 	}
 }
 
+func TestTokenRepoIssueSetsSessionsTTL(t *testing.T) {
+	ctx := context.Background()
+	r := NewTokenRepo(testutil.NewTestRedis(t), time.Hour)
+
+	if _, err := r.Issue(ctx, 11); err != nil {
+		t.Fatal(err)
+	}
+
+	ttl := r.rdb.TTL(ctx, sessionsKey(11)).Val()
+	if ttl <= 0 {
+		t.Fatalf("sessions set TTL = %v, want > 0", ttl)
+	}
+}
+
 func TestTokenRepoRevokeAllForUser(t *testing.T) {
 	ctx := context.Background()
 	r := NewTokenRepo(testutil.NewTestRedis(t), time.Hour)
