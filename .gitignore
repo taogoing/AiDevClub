@@ -1,0 +1,24 @@
+# Go
+*.exe
+*.exe~
+*.test
+*.out
+/bin/
+/vendor/
+
+# 环境与密钥
+.env
+.env.*
+!.env.example
+
+# 上传文件（本地存储，不纳入版本控制）
+/storage/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# 日志
+*.log
