@@ -18,7 +18,7 @@ import (
 	"aidevclub/internal/testutil"
 )
 
-func skillRouter(t *testing.T) (*gin.Engine, *repo.UserRepo) {
+func skillRouter(t *testing.T) (*gin.Engine, *repo.UserRepo, *repo.SkillRepo) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	db := testutil.NewTestDB(t)
@@ -31,8 +31,9 @@ func skillRouter(t *testing.T) (*gin.Engine, *repo.UserRepo) {
 		SkillZipDir:         t.TempDir(),
 		MaxResourceZipBytes: 10 << 20,
 	}
+	skillRepo := repo.NewSkillRepo(db)
 	svc := service.NewSkillService(
-		repo.NewSkillRepo(db), repo.NewTagRepo(db),
+		skillRepo, repo.NewTagRepo(db),
 		repo.NewInteractionRepo(db), rdb, cfg,
 	)
 	h := NewSkillHandler(svc)
@@ -48,11 +49,15 @@ func skillRouter(t *testing.T) (*gin.Engine, *repo.UserRepo) {
 	g.POST("/:id/submit", auth, h.Submit)
 	g.POST("/:id/withdraw", auth, h.Withdraw)
 	g.POST("/:id/archive", auth, h.Archive)
-	return r, users
+	g.POST("/:id/upload", auth, h.Upload)
+	g.POST("/:id/download", h.Download)
+	g.POST("/:id/like", auth, h.Like)
+	g.POST("/:id/favorite", auth, h.Favorite)
+	return r, users, skillRepo
 }
 
 func TestSkillCreateEndpoint(t *testing.T) {
-	r, users := skillRouter(t)
+	r, users, _ := skillRouter(t)
 	u := &model.User{Email: "sk@a.com", PasswordHash: "x", Nickname: "SK", AvatarURL: "/x.png"}
 	_ = users.Create(u)
 	tok, _ := platform.GenerateAccessToken("s", time.Minute, u.ID)
@@ -77,7 +82,7 @@ func TestSkillCreateEndpoint(t *testing.T) {
 }
 
 func TestSkillListEndpoint(t *testing.T) {
-	r, users := skillRouter(t)
+	r, users, _ := skillRouter(t)
 	u := &model.User{Email: "sk@b.com", PasswordHash: "x", Nickname: "SK", AvatarURL: "/x.png"}
 	_ = users.Create(u)
 	tok, _ := platform.GenerateAccessToken("s", time.Minute, u.ID)
@@ -109,7 +114,7 @@ func TestSkillListEndpoint(t *testing.T) {
 }
 
 func TestSkillGetEndpoint(t *testing.T) {
-	r, users := skillRouter(t)
+	r, users, _ := skillRouter(t)
 	u := &model.User{Email: "sk@c.com", PasswordHash: "x", Nickname: "SK", AvatarURL: "/x.png"}
 	_ = users.Create(u)
 	tok, _ := platform.GenerateAccessToken("s", time.Minute, u.ID)
@@ -142,7 +147,7 @@ func TestSkillGetEndpoint(t *testing.T) {
 }
 
 func TestSkillSubmitWithdrawEndpoint(t *testing.T) {
-	r, users := skillRouter(t)
+	r, users, _ := skillRouter(t)
 	u := &model.User{Email: "sk@d.com", PasswordHash: "x", Nickname: "SK", AvatarURL: "/x.png"}
 	_ = users.Create(u)
 	tok, _ := platform.GenerateAccessToken("s", time.Minute, u.ID)
@@ -204,5 +209,103 @@ func TestSkillSubmitWithdrawEndpoint(t *testing.T) {
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("double submit status = %d, body %s", w.Code, w.Body.String())
+	}
+}
+
+func TestSkillLikeEndpoint(t *testing.T) {
+	r, users, skillRepo := skillRouter(t)
+	u := &model.User{Email: "sk@e.com", PasswordHash: "x", Nickname: "SK", AvatarURL: "/x.png"}
+	_ = users.Create(u)
+	tok, _ := platform.GenerateAccessToken("s", time.Minute, u.ID)
+
+	body, _ := json.Marshal(map[string]interface{}{"name": "like-skill"})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/skills", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+tok)
+	r.ServeHTTP(w, req)
+	var created struct{ Data struct{ ID uint } `json:"data"` }
+	_ = json.Unmarshal(w.Body.Bytes(), &created)
+
+	sk, _ := skillRepo.FindByID(nil, created.Data.ID)
+	sk.Status = model.ResourceStatusPublished
+	now := sk.CreatedAt
+	sk.PublishedAt = &now
+	_ = skillRepo.Update(nil, sk)
+
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest(http.MethodPost, fmt.Sprintf("/api/v1/skills/%d/like", created.Data.ID), nil)
+	req.Header.Set("Authorization", "Bearer "+tok)
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("like status = %d, body %s", w.Code, w.Body.String())
+	}
+	var likeResp struct {
+		Data struct {
+			Liked      bool `json:"liked"`
+			LikesCount int  `json:"likes_count"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(w.Body.Bytes(), &likeResp)
+	if !likeResp.Data.Liked || likeResp.Data.LikesCount != 1 {
+		t.Fatalf("like resp = %+v", likeResp.Data)
+	}
+
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest(http.MethodPost, fmt.Sprintf("/api/v1/skills/%d/like", created.Data.ID), nil)
+	req.Header.Set("Authorization", "Bearer "+tok)
+	r.ServeHTTP(w, req)
+	_ = json.Unmarshal(w.Body.Bytes(), &likeResp)
+	if likeResp.Data.Liked || likeResp.Data.LikesCount != 0 {
+		t.Fatalf("unlike resp = %+v", likeResp.Data)
+	}
+}
+
+func TestSkillFavoriteEndpoint(t *testing.T) {
+	r, users, skillRepo := skillRouter(t)
+	u := &model.User{Email: "sk@f.com", PasswordHash: "x", Nickname: "SK", AvatarURL: "/x.png"}
+	_ = users.Create(u)
+	tok, _ := platform.GenerateAccessToken("s", time.Minute, u.ID)
+
+	body, _ := json.Marshal(map[string]interface{}{"name": "fav-skill"})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/skills", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+tok)
+	r.ServeHTTP(w, req)
+	var created struct{ Data struct{ ID uint } `json:"data"` }
+	_ = json.Unmarshal(w.Body.Bytes(), &created)
+
+	sk, _ := skillRepo.FindByID(nil, created.Data.ID)
+	sk.Status = model.ResourceStatusPublished
+	now := sk.CreatedAt
+	sk.PublishedAt = &now
+	_ = skillRepo.Update(nil, sk)
+
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest(http.MethodPost, fmt.Sprintf("/api/v1/skills/%d/favorite", created.Data.ID), nil)
+	req.Header.Set("Authorization", "Bearer "+tok)
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("favorite status = %d, body %s", w.Code, w.Body.String())
+	}
+	var favResp struct {
+		Data struct {
+			Favorited      bool `json:"favorited"`
+			FavoritesCount int  `json:"favorites_count"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(w.Body.Bytes(), &favResp)
+	if !favResp.Data.Favorited || favResp.Data.FavoritesCount != 1 {
+		t.Fatalf("fav resp = %+v", favResp.Data)
+	}
+
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest(http.MethodPost, fmt.Sprintf("/api/v1/skills/%d/favorite", created.Data.ID), nil)
+	req.Header.Set("Authorization", "Bearer "+tok)
+	r.ServeHTTP(w, req)
+	_ = json.Unmarshal(w.Body.Bytes(), &favResp)
+	if favResp.Data.Favorited || favResp.Data.FavoritesCount != 0 {
+		t.Fatalf("unfav resp = %+v", favResp.Data)
 	}
 }

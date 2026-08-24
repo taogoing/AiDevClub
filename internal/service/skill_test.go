@@ -209,6 +209,129 @@ func TestSkillVisibility(t *testing.T) {
 	}
 }
 
+func TestSkillUploadZip(t *testing.T) {
+	svc, u := newSkillTestEnv(t)
+	ctx := context.Background()
+	sk, _ := svc.Create(ctx, u.ID, CreateSkillInput{Name: "zip-skill"})
+	sk.Status = model.ResourceStatusPublished
+	now := sk.CreatedAt
+	sk.PublishedAt = &now
+	_ = svc.skills.Update(nil, sk)
+
+	if err := svc.UploadZip(ctx, u.ID, sk.ID, "/static/skills/abc.zip", "abc.zip", 1024); err != nil {
+		t.Fatal(err)
+	}
+	updated, _ := svc.skills.FindByID(nil, sk.ID)
+	if updated.Status != model.ResourceStatusPendingReview {
+		t.Fatalf("status = %s, want pending_review", updated.Status)
+	}
+	if updated.ZipURL != "/static/skills/abc.zip" {
+		t.Fatalf("zip_url = %q", updated.ZipURL)
+	}
+
+	if err := svc.UploadZip(ctx, u.ID+999, sk.ID, "/x.zip", "x.zip", 1); err == nil {
+		t.Fatal("non-author upload allowed")
+	}
+
+	sk2, _ := svc.Create(ctx, u.ID, CreateSkillInput{Name: "pending"})
+	sk2.Status = model.ResourceStatusPendingReview
+	_ = svc.skills.Update(nil, sk2)
+	if err := svc.UploadZip(ctx, u.ID, sk2.ID, "/x.zip", "x.zip", 1); err == nil {
+		t.Fatal("pending_review upload should fail")
+	}
+}
+
+func TestSkillDownload(t *testing.T) {
+	svc, u := newSkillTestEnv(t)
+	ctx := context.Background()
+	sk, _ := svc.Create(ctx, u.ID, CreateSkillInput{Name: "dl-skill"})
+	sk.Status = model.ResourceStatusPublished
+	sk.ZipURL = "/static/skills/dl.zip"
+	now := sk.CreatedAt
+	sk.PublishedAt = &now
+	_ = svc.skills.Update(nil, sk)
+
+	url, err := svc.Download(ctx, sk.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if url != "/static/skills/dl.zip" {
+		t.Fatalf("url = %q", url)
+	}
+	dl, _ := svc.skills.FindByID(nil, sk.ID)
+	if dl.Downloads != 1 {
+		t.Fatalf("downloads = %d, want 1", dl.Downloads)
+	}
+
+	sk2, _ := svc.Create(ctx, u.ID, CreateSkillInput{Name: "no-zip"})
+	sk2.Status = model.ResourceStatusPublished
+	now2 := sk2.CreatedAt
+	sk2.PublishedAt = &now2
+	_ = svc.skills.Update(nil, sk2)
+	if _, err := svc.Download(ctx, sk2.ID); err == nil {
+		t.Fatal("download with empty zip_url should fail")
+	}
+
+	if _, err := svc.Download(ctx, 99999); err == nil {
+		t.Fatal("download non-existent should fail")
+	}
+}
+
+func TestSkillToggleLike(t *testing.T) {
+	svc, u := newSkillTestEnv(t)
+	ctx := context.Background()
+	sk, _ := svc.Create(ctx, u.ID, CreateSkillInput{Name: "like-skill"})
+	sk.Status = model.ResourceStatusPublished
+	now := sk.CreatedAt
+	sk.PublishedAt = &now
+	_ = svc.skills.Update(nil, sk)
+
+	liked, count, err := svc.ToggleLike(ctx, u.ID, sk.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !liked || count != 1 {
+		t.Fatalf("liked=%v count=%d", liked, count)
+	}
+	liked, count, err = svc.ToggleLike(ctx, u.ID, sk.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if liked || count != 0 {
+		t.Fatalf("unliked=%v count=%d", liked, count)
+	}
+
+	draft, _ := svc.Create(ctx, u.ID, CreateSkillInput{Name: "draft-like"})
+	if _, _, err := svc.ToggleLike(ctx, u.ID, draft.ID); err == nil {
+		t.Fatal("like on draft should fail")
+	}
+}
+
+func TestSkillToggleFavorite(t *testing.T) {
+	svc, u := newSkillTestEnv(t)
+	ctx := context.Background()
+	sk, _ := svc.Create(ctx, u.ID, CreateSkillInput{Name: "fav-skill"})
+	sk.Status = model.ResourceStatusPublished
+	now := sk.CreatedAt
+	sk.PublishedAt = &now
+	_ = svc.skills.Update(nil, sk)
+
+	favorited, count, err := svc.ToggleFavorite(ctx, u.ID, sk.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !favorited || count != 1 {
+		t.Fatalf("favorited=%v count=%d", favorited, count)
+	}
+	favorited, count, err = svc.ToggleFavorite(ctx, u.ID, sk.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if favorited || count != 0 {
+		t.Fatalf("unfavorited=%v count=%d", favorited, count)
+	}
+}
+
 func TestSkillList(t *testing.T) {
 	svc, u := newSkillTestEnv(t)
 	ctx := context.Background()

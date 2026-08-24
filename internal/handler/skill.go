@@ -2,6 +2,9 @@ package handler
 
 import (
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -154,4 +157,83 @@ func (h *SkillHandler) Archive(c *gin.Context) {
 		return
 	}
 	platform.OK(c, gin.H{"id": sk.ID, "status": string(sk.Status)})
+}
+
+func (h *SkillHandler) Upload(c *gin.Context) {
+	id, err := parseUintParam(c, "id")
+	if err != nil {
+		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "参数错误")
+		return
+	}
+	file, err := c.FormFile("file")
+	if err != nil {
+		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "参数错误")
+		return
+	}
+	ext := strings.ToLower(filepath.Ext(file.Filename))
+	if ext != ".zip" {
+		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "仅支持 .zip 文件")
+		return
+	}
+	if file.Size > h.svc.MaxZipBytes() {
+		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "文件过大")
+		return
+	}
+	if err := os.MkdirAll(h.svc.ZipDir(), 0o755); err != nil {
+		platform.Fail(c, http.StatusInternalServerError, platform.CodeInternalError, "服务器内部错误")
+		return
+	}
+	name := randomHex(16) + ".zip"
+	if err := c.SaveUploadedFile(file, filepath.Join(h.svc.ZipDir(), name)); err != nil {
+		platform.Fail(c, http.StatusInternalServerError, platform.CodeInternalError, "服务器内部错误")
+		return
+	}
+	url := "/static/skills/" + name
+	if err := h.svc.UploadZip(c.Request.Context(), c.GetUint("user_id"), id, url, file.Filename, file.Size); err != nil {
+		platform.Fail(c, errStatus(err), errCode(err), err.Error())
+		return
+	}
+	platform.OK(c, gin.H{"url": url})
+}
+
+func (h *SkillHandler) Download(c *gin.Context) {
+	id, err := parseUintParam(c, "id")
+	if err != nil {
+		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "参数错误")
+		return
+	}
+	zipURL, err := h.svc.Download(c.Request.Context(), id)
+	if err != nil {
+		platform.Fail(c, errStatus(err), errCode(err), err.Error())
+		return
+	}
+	platform.OK(c, gin.H{"url": zipURL})
+}
+
+func (h *SkillHandler) Like(c *gin.Context) {
+	id, err := parseUintParam(c, "id")
+	if err != nil {
+		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "参数错误")
+		return
+	}
+	liked, count, err := h.svc.ToggleLike(c.Request.Context(), c.GetUint("user_id"), id)
+	if err != nil {
+		platform.Fail(c, errStatus(err), errCode(err), err.Error())
+		return
+	}
+	platform.OK(c, gin.H{"liked": liked, "likes_count": count})
+}
+
+func (h *SkillHandler) Favorite(c *gin.Context) {
+	id, err := parseUintParam(c, "id")
+	if err != nil {
+		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "参数错误")
+		return
+	}
+	favorited, count, err := h.svc.ToggleFavorite(c.Request.Context(), c.GetUint("user_id"), id)
+	if err != nil {
+		platform.Fail(c, errStatus(err), errCode(err), err.Error())
+		return
+	}
+	platform.OK(c, gin.H{"favorited": favorited, "favorites_count": count})
 }

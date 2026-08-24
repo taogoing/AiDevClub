@@ -321,6 +321,92 @@ func (s *SkillService) Get(ctx context.Context, userID, skillID uint) (*SkillDet
 	return d, nil
 }
 
+func (s *SkillService) UploadZip(ctx context.Context, userID, skillID uint, zipURL, zipFilename string, fileSize int64) error {
+	sk, err := s.skills.FindByID(nil, skillID)
+	if err != nil {
+		return ErrSkillNotFound
+	}
+	if sk.AuthorID != userID {
+		return ErrForbidden
+	}
+	if sk.Status == model.ResourceStatusPendingReview {
+		return ErrSkillState
+	}
+	sk.ZipURL = zipURL
+	sk.ZipFilename = zipFilename
+	sk.FileSize = fileSize
+	if sk.Status == model.ResourceStatusPublished {
+		sk.Status = model.ResourceStatusPendingReview
+	}
+	return s.skills.Update(nil, sk)
+}
+
+func (s *SkillService) Download(ctx context.Context, skillID uint) (string, error) {
+	sk, err := s.skills.FindByID(nil, skillID)
+	if err != nil || sk.Status != model.ResourceStatusPublished {
+		return "", ErrSkillNotFound
+	}
+	if sk.ZipURL == "" {
+		return "", ErrSkillState
+	}
+	if err := s.skills.IncrCount(nil, skillID, "downloads", 1); err != nil {
+		return "", err
+	}
+	return sk.ZipURL, nil
+}
+
+func (s *SkillService) ToggleLike(ctx context.Context, userID, skillID uint) (bool, int, error) {
+	sk, err := s.skills.FindByID(nil, skillID)
+	if err != nil || sk.Status != model.ResourceStatusPublished {
+		return false, 0, ErrSkillNotFound
+	}
+	var liked bool
+	var newCount int
+	err = s.skills.DB().Transaction(func(tx *gorm.DB) error {
+		var err error
+		liked, err = s.inter.ToggleSkillLike(tx, userID, skillID)
+		if err != nil {
+			return err
+		}
+		delta := 1
+		if !liked {
+			delta = -1
+		}
+		if err := s.skills.IncrCount(tx, skillID, "likes_count", delta); err != nil {
+			return err
+		}
+		newCount = sk.LikesCount + delta
+		return nil
+	})
+	return liked, newCount, err
+}
+
+func (s *SkillService) ToggleFavorite(ctx context.Context, userID, skillID uint) (bool, int, error) {
+	sk, err := s.skills.FindByID(nil, skillID)
+	if err != nil || sk.Status != model.ResourceStatusPublished {
+		return false, 0, ErrSkillNotFound
+	}
+	var favorited bool
+	var newCount int
+	err = s.skills.DB().Transaction(func(tx *gorm.DB) error {
+		var err error
+		favorited, err = s.inter.ToggleSkillFavorite(tx, userID, skillID)
+		if err != nil {
+			return err
+		}
+		delta := 1
+		if !favorited {
+			delta = -1
+		}
+		if err := s.skills.IncrCount(tx, skillID, "favorites_count", delta); err != nil {
+			return err
+		}
+		newCount = sk.FavoritesCount + delta
+		return nil
+	})
+	return favorited, newCount, err
+}
+
 func (s *SkillService) List(ctx context.Context, q SkillListQuery) (*SkillListResult, error) {
 	if q.Page <= 0 {
 		q.Page = 1
