@@ -82,3 +82,43 @@ func TestRegisterAfterSoftDeleteReturnsErrEmailExists(t *testing.T) {
 		t.Fatalf("re-register after soft delete = %v, want ErrEmailExists", err)
 	}
 }
+
+func TestRefreshRotatesToken(t *testing.T) {
+	ctx := context.Background()
+	svc := newTestAuthService(t)
+
+	if err := svc.Register(ctx, RegisterInput{Email: "a@example.com", Password: "secret123"}); err != nil {
+		t.Fatal(err)
+	}
+	pair, err := svc.Login(ctx, LoginInput{Email: "a@example.com", Password: "secret123"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	newPair, err := svc.Refresh(ctx, pair.RefreshToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if newPair.RefreshToken == pair.RefreshToken {
+		t.Fatal("refresh token not rotated")
+	}
+	// 旧 refresh 已作废
+	if _, err := svc.Refresh(ctx, pair.RefreshToken); err == nil {
+		t.Fatal("old refresh token still valid")
+	}
+}
+
+func TestLogoutRevokesRefresh(t *testing.T) {
+	ctx := context.Background()
+	svc := newTestAuthService(t)
+
+	_ = svc.Register(ctx, RegisterInput{Email: "b@example.com", Password: "secret123"})
+	pair, _ := svc.Login(ctx, LoginInput{Email: "b@example.com", Password: "secret123"})
+
+	if err := svc.Logout(ctx, pair.RefreshToken); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Refresh(ctx, pair.RefreshToken); err == nil {
+		t.Fatal("refresh token still valid after logout")
+	}
+}

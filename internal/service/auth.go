@@ -130,3 +130,18 @@ func (s *AuthService) issueTokens(ctx context.Context, userID uint) (*TokenPair,
 	}
 	return &TokenPair{AccessToken: access, RefreshToken: refresh}, nil
 }
+
+func (s *AuthService) Refresh(ctx context.Context, refresh string) (*TokenPair, error) {
+	userID, err := s.tokens.Validate(ctx, refresh)
+	if err != nil {
+		return nil, ErrInvalidParam
+	}
+	if err := s.tokens.Revoke(ctx, refresh); err != nil {
+		return nil, err
+	}
+	return s.issueTokens(ctx, userID)
+}
+
+func (s *AuthService) Logout(ctx context.Context, refresh string) error {
+	return s.tokens.Revoke(ctx, refresh)
+}
