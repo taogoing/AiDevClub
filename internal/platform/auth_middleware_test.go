@@ -33,3 +33,29 @@ func TestAuthMiddleware(t *testing.T) {
 		t.Fatalf("valid-token status = %d, want 200", w.Code)
 	}
 }
+
+func TestOptionalAuth(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(OptionalAuthMiddleware("s"))
+	r.GET("/test", func(c *gin.Context) {
+		uid, _ := c.Get("user_id")
+		c.JSON(200, gin.H{"user_id": uid})
+	})
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
+	r.ServeHTTP(w, req)
+	if w.Code != 200 {
+		t.Fatalf("no token status = %d", w.Code)
+	}
+
+	tok, _ := GenerateAccessToken("s", time.Minute, 42)
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Set("Authorization", "Bearer "+tok)
+	r.ServeHTTP(w, req)
+	if w.Code != 200 {
+		t.Fatalf("valid token status = %d", w.Code)
+	}
+}

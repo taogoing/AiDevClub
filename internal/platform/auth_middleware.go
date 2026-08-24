@@ -26,3 +26,16 @@ func AuthMiddleware(secret string) gin.HandlerFunc {
 		c.Next()
 	}
 }
+
+func OptionalAuthMiddleware(secret string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		h := c.GetHeader("Authorization")
+		const prefix = "Bearer "
+		if strings.HasPrefix(h, prefix) {
+			if uid, err := ParseAccessToken(secret, strings.TrimPrefix(h, prefix)); err == nil {
+				c.Set("user_id", uid)
+			}
+		}
+		c.Next()
+	}
+}
