@@ -1,7 +1,12 @@
 package handler
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -62,4 +67,44 @@ func (h *UserHandler) Delete(c *gin.Context) {
 		return
 	}
 	platform.OK(c, nil)
+}
+
+func (h *UserHandler) UploadAvatar(c *gin.Context) {
+	file, err := c.FormFile("file")
+	if err != nil {
+		platform.Fail(c, http.StatusBadRequest, 40001, "参数错误")
+		return
+	}
+	ext := strings.ToLower(filepath.Ext(file.Filename))
+	switch ext {
+	case ".jpg", ".jpeg", ".png", ".webp", ".gif":
+	default:
+		platform.Fail(c, http.StatusBadRequest, 40001, "不支持的图片格式")
+		return
+	}
+	if file.Size > h.svc.MaxAvatarBytes() {
+		platform.Fail(c, http.StatusBadRequest, 40001, "图片过大")
+		return
+	}
+	if err := os.MkdirAll(h.svc.AvatarDir(), 0o755); err != nil {
+		platform.Fail(c, http.StatusInternalServerError, 50000, "服务器内部错误")
+		return
+	}
+	name := randomHex(16) + ext
+	if err := c.SaveUploadedFile(file, filepath.Join(h.svc.AvatarDir(), name)); err != nil {
+		platform.Fail(c, http.StatusInternalServerError, 50000, "服务器内部错误")
+		return
+	}
+	url := "/static/avatars/" + name
+	if err := h.svc.UpdateProfile(c.Request.Context(), c.GetUint("user_id"), service.UpdateProfileInput{AvatarURL: url}); err != nil {
+		platform.Fail(c, errStatus(err), errCode(err), err.Error())
+		return
+	}
+	platform.OK(c, gin.H{"avatar_url": url})
+}
+
+func randomHex(n int) string {
+	b := make([]byte, n)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
 }

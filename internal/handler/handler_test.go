@@ -3,6 +3,7 @@ package handler
 import (
 	"bytes"
 	"encoding/json"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -47,6 +48,8 @@ func setupRouter(t *testing.T) *gin.Engine {
 	me.PATCH("/me", uh.Update)
 	me.PUT("/me/password", uh.ChangePassword)
 	me.DELETE("/me", uh.Delete)
+	me.POST("/me/avatar", uh.UploadAvatar)
+	r.Static("/static/avatars", cfg.AvatarDir)
 	return r
 }
 
@@ -83,5 +86,38 @@ func TestRegisterLoginMe(t *testing.T) {
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
 		t.Fatalf("me status = %d, body %s", w.Code, w.Body.String())
+	}
+}
+
+func validToken() string {
+	tok, _ := platform.GenerateAccessToken("s", time.Minute, 1)
+	return tok
+}
+
+func TestUploadAvatar(t *testing.T) {
+	r := setupRouter(t)
+
+	body, _ := json.Marshal(map[string]string{"email": "a@example.com", "password": "secret123"})
+	regW := httptest.NewRecorder()
+	regReq, _ := http.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewReader(body))
+	regReq.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(regW, regReq)
+	if regW.Code != http.StatusOK {
+		t.Fatalf("register status = %d, body %s", regW.Code, regW.Body.String())
+	}
+
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	fw, _ := mw.CreateFormFile("file", "avatar.png")
+	_, _ = fw.Write([]byte{0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3})
+	_ = mw.Close()
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/users/me/avatar", &buf)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	req.Header.Set("Authorization", "Bearer "+validToken())
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body %s", w.Code, w.Body.String())
 	}
 }

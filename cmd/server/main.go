@@ -54,6 +54,8 @@ func main() {
 	me.PATCH("/me", uh.Update)
 	me.PUT("/me/password", uh.ChangePassword)
 	me.DELETE("/me", uh.Delete)
+	me.POST("/me/avatar", uh.UploadAvatar)
+	r.Static("/static/avatars", cfg.AvatarDir)
 
 	logger.Info("server starting", "addr", cfg.HTTPAddr)
 	if err := r.Run(cfg.HTTPAddr); err != nil {
