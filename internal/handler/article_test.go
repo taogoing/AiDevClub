@@ -36,11 +36,14 @@ func articleRouter(t *testing.T) (*gin.Engine, *repo.UserRepo) {
 	_ = repo.NewCategoryRepo(db).Seed(t.Context())
 	h := NewArticleHandler(svc)
 	auth := platform.AuthMiddleware("s")
+	opt := platform.OptionalAuthMiddleware("s")
 	r := gin.New()
 	art := r.Group("/api/v1/articles")
 	art.POST("", auth, h.Create)
 	art.PUT("/:id", auth, h.Update)
 	art.DELETE("/:id", auth, h.Delete)
+	art.GET("", h.List)
+	art.GET("/:id", opt, h.Get)
 	return r, users
 }
 
@@ -121,5 +124,60 @@ func TestArticleUpdateDeleteEndpoint(t *testing.T) {
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
 		t.Fatalf("delete status = %d, body %s", w.Code, w.Body.String())
+	}
+}
+
+func TestArticleListGetEndpoint(t *testing.T) {
+	r, users := articleRouter(t)
+	u := &model.User{Email: "a@a.com", PasswordHash: "x", Nickname: "A", AvatarURL: "/x.png"}
+	_ = users.Create(u)
+	tok, _ := platform.GenerateAccessToken("s", time.Minute, u.ID)
+
+	body, _ := json.Marshal(map[string]interface{}{
+		"title": "公开", "content": "c", "category_id": 1, "status": "published",
+		"tag_names": []string{"gin"},
+	})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/articles", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+tok)
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("create status = %d", w.Code)
+	}
+	var created struct{ Data struct{ ID uint } `json:"data"` }
+	_ = json.Unmarshal(w.Body.Bytes(), &created)
+
+	body, _ = json.Marshal(map[string]interface{}{
+		"title": "草稿", "content": "c", "category_id": 1, "status": "draft",
+	})
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest(http.MethodPost, "/api/v1/articles", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+tok)
+	r.ServeHTTP(w, req)
+
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest(http.MethodGet, "/api/v1/articles", nil)
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("list status = %d", w.Code)
+	}
+	var listResp struct {
+		Data struct {
+			Total int64         `json:"total"`
+			List  []interface{} `json:"list"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(w.Body.Bytes(), &listResp)
+	if listResp.Data.Total != 1 {
+		t.Fatalf("list total = %d, want 1", listResp.Data.Total)
+	}
+
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/articles/%d", created.Data.ID), nil)
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("get status = %d, body %s", w.Code, w.Body.String())
 	}
 }

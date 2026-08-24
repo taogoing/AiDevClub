@@ -102,3 +102,44 @@ func TestArticleUpdateAndDelete(t *testing.T) {
 		t.Fatal("deleted article still found")
 	}
 }
+
+func TestArticleListAndGet(t *testing.T) {
+	svc, u, cat := newArticleTestEnv(t)
+	ctx := context.Background()
+	pub, _ := svc.Create(ctx, u.ID, CreateArticleInput{
+		Title: "公开", Content: "c", CategoryID: cat.ID,
+		Status: model.ArticleStatusPublished, TagNames: []string{"gin"},
+	})
+	draft, _ := svc.Create(ctx, u.ID, CreateArticleInput{
+		Title: "草稿", Content: "c", CategoryID: cat.ID,
+		Status: model.ArticleStatusDraft,
+	})
+
+	res, err := svc.List(ctx, ListQuery{Page: 1, PageSize: 20, Sort: "latest"})
+	if err != nil || res.Total != 1 || len(res.List) != 1 {
+		t.Fatalf("list = %+v, err %v", res, err)
+	}
+	if res.List[0].Title != "公开" || len(res.List[0].Tags) != 1 {
+		t.Fatalf("summary = %+v", res.List[0])
+	}
+
+	res, _ = svc.List(ctx, ListQuery{Page: 1, PageSize: 20, Sort: "latest", Keyword: "公开"})
+	if res.Total != 1 {
+		t.Fatalf("keyword total = %d", res.Total)
+	}
+
+	detail, err := svc.Get(ctx, 0, pub.ID)
+	if err != nil || detail.Content != "c" {
+		t.Fatalf("detail = %+v, err %v", detail, err)
+	}
+	if detail.Liked {
+		t.Fatal("guest should not have liked")
+	}
+
+	if _, err := svc.Get(ctx, 0, draft.ID); err == nil {
+		t.Fatal("draft visible to guest")
+	}
+	if _, err := svc.Get(ctx, u.ID, draft.ID); err != nil {
+		t.Fatalf("author can't see draft: %v", err)
+	}
+}

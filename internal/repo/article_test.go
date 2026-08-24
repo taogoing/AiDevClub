@@ -65,3 +65,41 @@ func TestArticleRepoCRUD(t *testing.T) {
 	}
 	_ = ctx
 }
+
+func TestArticleRepoList(t *testing.T) {
+	db := testutil.NewTestDB(t)
+	r := NewArticleRepo(db)
+	ctx := context.Background()
+
+	users := NewUserRepo(db)
+	_ = users.Create(&model.User{Email: "a@a.com", PasswordHash: "x", Nickname: "A"})
+	cats := NewCategoryRepo(db)
+	_ = cats.Seed(ctx)
+	catList, _ := cats.List(ctx)
+
+	now := time.Now()
+	for i := 0; i < 3; i++ {
+		a := &model.Article{
+			AuthorID: 1, CategoryID: catList[i%len(catList)].ID,
+			Title: "x", Content: "c",
+			Status: model.ArticleStatusPublished, PublishedAt: &now,
+		}
+		if err := r.Create(db, a); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_ = r.SetArticleTags(db, 1, []uint{1})
+
+	q := ArticleQuery{Page: 1, PageSize: 2, Sort: "latest"}
+	list, total, err := r.List(ctx, q)
+	if err != nil || total != 3 || len(list) != 2 {
+		t.Fatalf("list = %d total, %d len, err %v", total, len(list), err)
+	}
+
+	tagID := uint(1)
+	q.TagID = &tagID
+	list, total, _ = r.List(ctx, q)
+	if total != 1 {
+		t.Fatalf("tag filter total = %d", total)
+	}
+}

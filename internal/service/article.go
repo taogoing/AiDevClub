@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -238,4 +240,114 @@ func (s *ArticleService) Delete(ctx context.Context, userID, articleID uint) err
 		}
 		return s.articles.SetArticleTags(tx, articleID, nil)
 	})
+}
+
+func (s *ArticleService) List(ctx context.Context, q ListQuery) (*ArticleListResult, error) {
+	if q.Page <= 0 {
+		q.Page = 1
+	}
+	if q.PageSize <= 0 {
+		q.PageSize = s.cfg.DefaultPageSize
+	}
+	if q.PageSize > s.cfg.MaxPageSize {
+		q.PageSize = s.cfg.MaxPageSize
+	}
+	switch q.Sort {
+	case "hot", "pinned":
+	default:
+		q.Sort = "latest"
+	}
+	rq := repo.ArticleQuery{
+		Page: q.Page, PageSize: q.PageSize,
+		CategoryID: q.CategoryID, TagID: q.TagID,
+		Keyword: q.Keyword, AuthorID: q.AuthorID, Sort: q.Sort,
+	}
+
+	var key string
+	if q.Sort == "hot" && q.CategoryID == nil && q.TagID == nil && q.AuthorID == nil && q.Keyword == "" {
+		key = fmt.Sprintf("hot:articles:%d:%d", q.Page, q.PageSize)
+		if v, err := s.rdb.Get(ctx, key).Bytes(); err == nil {
+			var res ArticleListResult
+			if json.Unmarshal(v, &res) == nil {
+				return &res, nil
+			}
+		}
+	}
+
+	list, total, err := s.articles.List(ctx, rq)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]uint, 0, len(list))
+	for _, a := range list {
+		ids = append(ids, a.ID)
+	}
+	tagMap, err := s.articles.TagsForArticles(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	out := &ArticleListResult{
+		List: make([]ArticleSummary, 0, len(list)),
+		Total: total, Page: q.Page, PageSize: q.PageSize,
+	}
+	for _, a := range list {
+		out.List = append(out.List, s.summaryOf(a, tagMap[a.ID]))
+	}
+
+	if key != "" {
+		if b, err := json.Marshal(out); err == nil {
+			_ = s.rdb.Set(ctx, key, b, s.cfg.HotCacheTTL).Err()
+		}
+	}
+	return out, nil
+}
+
+func (s *ArticleService) summaryOf(a model.Article, tags []model.Tag) ArticleSummary {
+	sm := ArticleSummary{
+		ID: a.ID, Title: a.Title, Summary: a.Summary,
+		CategoryID: a.CategoryID, Tags: []TagBrief{},
+		Views: a.Views, LikesCount: a.LikesCount,
+		FavoritesCount: a.FavoritesCount, CommentsCount: a.CommentsCount,
+		PublishedAt: a.PublishedAt, Pinned: a.Pinned,
+		Author: AuthorBrief{ID: a.AuthorID},
+	}
+	if a.Category != nil {
+		sm.CategoryName = a.Category.Name
+	}
+	if a.Author != nil {
+		sm.Author = AuthorBrief{ID: a.Author.ID, Nickname: a.Author.Nickname, AvatarURL: a.Author.AvatarURL}
+	}
+	for _, t := range tags {
+		sm.Tags = append(sm.Tags, TagBrief{ID: t.ID, Name: t.Name})
+	}
+	return sm
+}
+
+func (s *ArticleService) Get(ctx context.Context, userID, articleID uint) (*ArticleDetail, error) {
+	a, err := s.articles.FindByID(nil, articleID)
+	if err != nil {
+		return nil, ErrArticleNotFound
+	}
+	if a.Status != model.ArticleStatusPublished && a.AuthorID != userID {
+		return nil, ErrArticleNotFound
+	}
+	if a.Status == model.ArticleStatusPublished {
+		_ = s.articles.IncrViews(ctx, articleID)
+		a.Views++
+	}
+	tagMap, err := s.articles.TagsForArticles(ctx, []uint{articleID})
+	if err != nil {
+		return nil, err
+	}
+	sm := s.summaryOf(*a, tagMap[a.ID])
+	d := &ArticleDetail{ArticleSummary: sm, Content: a.Content}
+	if userID > 0 {
+		if d.Liked, err = s.inter.ArticleLiked(nil, userID, articleID); err != nil {
+			return nil, err
+		}
+		if d.Favorited, err = s.inter.ArticleFavorited(nil, userID, articleID); err != nil {
+			return nil, err
+		}
+	}
+	return d, nil
 }
