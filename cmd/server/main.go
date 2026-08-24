@@ -30,6 +30,11 @@ func main() {
 		&model.User{}, &model.Category{}, &model.Tag{}, &model.Article{},
 		&model.ArticleTag{}, &model.ArticleLike{}, &model.ArticleFavorite{},
 		&model.Comment{}, &model.CommentLike{},
+		&model.Skill{}, &model.SkillTag{},
+		&model.McpServer{}, &model.McpServerTag{},
+		&model.SkillLike{}, &model.SkillFavorite{},
+		&model.McpServerLike{}, &model.McpServerFavorite{},
+		&model.ResourceComment{}, &model.ResourceCommentLike{},
 	); err != nil {
 		logger.Error("migrate", "err", err)
 		return
@@ -108,6 +113,63 @@ func main() {
 	coms.POST("/:id/like", p2Auth, comH.Like)
 
 	r.Static("/static/articles", cfg.ArticleImageDir)
+
+	skills := repo.NewSkillRepo(db)
+	mcpServers := repo.NewMcpServerRepo(db)
+	resComments := repo.NewResourceCommentRepo(db)
+
+	skillSvc := service.NewSkillService(skills, tags, inter, rdb, cfg)
+	mcpSvc := service.NewMcpServerService(mcpServers, tags, inter, rdb, cfg)
+	resCommentSvc := service.NewResourceCommentService(resComments, skills, mcpServers, inter, users)
+
+	skillH := handler.NewSkillHandler(skillSvc)
+	mcpH := handler.NewMcpServerHandler(mcpSvc)
+	resCommentH := handler.NewResourceCommentHandler(resCommentSvc)
+
+	skillsGroup := r.Group("/api/v1/skills")
+	skillsGroup.GET("", skillH.List)
+	skillsGroup.POST("", p2Auth, skillH.Create)
+	skillsGroup.GET("/:id", opt, skillH.Get)
+	skillsGroup.PUT("/:id", p2Auth, skillH.Update)
+	skillsGroup.DELETE("/:id", p2Auth, skillH.Delete)
+	skillsGroup.POST("/:id/upload", p2Auth, skillH.Upload)
+	skillsGroup.POST("/:id/submit", p2Auth, skillH.Submit)
+	skillsGroup.POST("/:id/withdraw", p2Auth, skillH.Withdraw)
+	skillsGroup.POST("/:id/archive", p2Auth, skillH.Archive)
+	skillsGroup.POST("/:id/download", skillH.Download)
+	skillsGroup.POST("/:id/like", p2Auth, skillH.Like)
+	skillsGroup.POST("/:id/favorite", p2Auth, skillH.Favorite)
+
+	skillComments := r.Group("/api/v1/skills/:id/comments")
+	skillComments.Use(func(c *gin.Context) { c.Set("resource_type", "skill") })
+	skillComments.GET("", resCommentH.List)
+	skillComments.POST("", p2Auth, resCommentH.Create)
+
+	mcpGroup := r.Group("/api/v1/mcp-servers")
+	mcpGroup.GET("", mcpH.List)
+	mcpGroup.POST("", p2Auth, mcpH.Create)
+	mcpGroup.GET("/:id", opt, mcpH.Get)
+	mcpGroup.PUT("/:id", p2Auth, mcpH.Update)
+	mcpGroup.DELETE("/:id", p2Auth, mcpH.Delete)
+	mcpGroup.POST("/:id/upload", p2Auth, mcpH.Upload)
+	mcpGroup.POST("/:id/submit", p2Auth, mcpH.Submit)
+	mcpGroup.POST("/:id/withdraw", p2Auth, mcpH.Withdraw)
+	mcpGroup.POST("/:id/archive", p2Auth, mcpH.Archive)
+	mcpGroup.POST("/:id/download", mcpH.Download)
+	mcpGroup.POST("/:id/like", p2Auth, mcpH.Like)
+	mcpGroup.POST("/:id/favorite", p2Auth, mcpH.Favorite)
+
+	mcpComments := r.Group("/api/v1/mcp-servers/:id/comments")
+	mcpComments.Use(func(c *gin.Context) { c.Set("resource_type", "mcp_server") })
+	mcpComments.GET("", resCommentH.List)
+	mcpComments.POST("", p2Auth, resCommentH.Create)
+
+	resComs := r.Group("/api/v1/resource-comments")
+	resComs.DELETE("/:id", p2Auth, resCommentH.Delete)
+	resComs.POST("/:id/like", p2Auth, resCommentH.Like)
+
+	r.Static("/static/skills", cfg.SkillZipDir)
+	r.Static("/static/mcp-servers", cfg.McpServerZipDir)
 
 	logger.Info("server starting", "addr", cfg.HTTPAddr)
 	if err := r.Run(cfg.HTTPAddr); err != nil {
