@@ -107,3 +107,78 @@ export interface FavoriteResult {
   favorited: boolean
   favorites_count: number
 }
+
+export interface SkillSummary {
+  id: number
+  name: string
+  description: string
+  repo_url: string
+  tags: TagBrief[]
+  author: AuthorBrief
+  views: number
+  downloads: number
+  likes_count: number
+  favorites_count: number
+  comments_count: number
+  status: string
+  published_at: string | null
+}
+
+export interface SkillDetail extends SkillSummary {
+  zip_url: string
+  zip_filename: string
+  file_size: number
+  liked: boolean
+  favorited: boolean
+}
+
+export interface SkillListResult {
+  list: SkillSummary[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export interface McpServerSummary {
+  id: number
+  name: string
+  description: string
+  repo_url: string
+  tags: TagBrief[]
+  author: AuthorBrief
+  views: number
+  downloads: number
+  likes_count: number
+  favorites_count: number
+  comments_count: number
+  status: string
+  published_at: string | null
+}
+
+export interface McpServerDetail extends McpServerSummary {
+  tools_json: string
+  readme: string
+  zip_url: string
+  zip_filename: string
+  file_size: number
+  liked: boolean
+  favorited: boolean
+}
+
+export interface McpServerListResult {
+  list: McpServerSummary[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export interface ResourceCommentItem {
+  id: number
+  resource_id: number
+  author_id: number
+  author: AuthorBrief
+  content: string
+  likes_count: number
+  created_at: string
+  replies: ResourceCommentItem[]
+}

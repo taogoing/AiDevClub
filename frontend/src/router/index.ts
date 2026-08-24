@@ -10,7 +10,13 @@ const router = createRouter({
       children: [
         { path: '', name: 'home', component: () => import('@/views/HomeView.vue') },
         { path: 'skills', name: 'skills', component: () => import('@/views/SkillsView.vue') },
+        { path: 'skills/new', name: 'skill-new', component: () => import('@/views/SkillEditView.vue'), meta: { requiresAuth: true } },
+        { path: 'skills/:id', name: 'skill-detail', component: () => import('@/views/SkillDetailView.vue') },
+        { path: 'skills/:id/edit', name: 'skill-edit', component: () => import('@/views/SkillEditView.vue'), meta: { requiresAuth: true } },
         { path: 'mcps', name: 'mcps', component: () => import('@/views/McpsView.vue') },
+        { path: 'mcps/new', name: 'mcp-new', component: () => import('@/views/McpServerEditView.vue'), meta: { requiresAuth: true } },
+        { path: 'mcps/:id', name: 'mcp-detail', component: () => import('@/views/McpServerDetailView.vue') },
+        { path: 'mcps/:id/edit', name: 'mcp-edit', component: () => import('@/views/McpServerEditView.vue'), meta: { requiresAuth: true } },
         { path: 'articles/:id', name: 'article-detail', component: () => import('@/views/ArticleDetailView.vue') },
         {
           path: 'articles/new',
