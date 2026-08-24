@@ -26,7 +26,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { View, Download, ChatDotRound, Star, CaretTop } from '@element-plus/icons-vue'
+import { View, Download, CaretTop } from '@element-plus/icons-vue'
 import type { McpServerSummary } from '@/types'
 
 const props = defineProps<{ server: McpServerSummary }>()
@@ -52,11 +52,6 @@ const statusLabel = computed(() => {
   }
   return map[props.server.status] || props.server.status
 })
-
-function formatTime(t: string | null) {
-  if (!t) return ''
-  return new Date(t).toLocaleDateString('zh-CN')
-}
 </script>
 
 <style scoped>
