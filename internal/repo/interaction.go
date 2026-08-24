@@ -79,3 +79,23 @@ func (r *InteractionRepo) ToggleSkillLike(db *gorm.DB, userID, skillID uint) (bo
 func (r *InteractionRepo) ToggleSkillFavorite(db *gorm.DB, userID, skillID uint) (bool, error) {
 	return toggleLike(r.exec(db), &model.SkillFavorite{UserID: userID, SkillID: skillID}, "skill_id = ? AND user_id = ?", skillID, userID)
 }
+
+func (r *InteractionRepo) McpServerLiked(db *gorm.DB, userID, serverID uint) (bool, error) {
+	var count int64
+	err := r.exec(db).Model(&model.McpServerLike{}).Where("mcp_server_id = ? AND user_id = ?", serverID, userID).Count(&count).Error
+	return count > 0, err
+}
+
+func (r *InteractionRepo) McpServerFavorited(db *gorm.DB, userID, serverID uint) (bool, error) {
+	var count int64
+	err := r.exec(db).Model(&model.McpServerFavorite{}).Where("mcp_server_id = ? AND user_id = ?", serverID, userID).Count(&count).Error
+	return count > 0, err
+}
+
+func (r *InteractionRepo) ToggleMcpServerLike(db *gorm.DB, userID, serverID uint) (bool, error) {
+	return toggleLike(r.exec(db), &model.McpServerLike{UserID: userID, McpServerID: serverID}, "mcp_server_id = ? AND user_id = ?", serverID, userID)
+}
+
+func (r *InteractionRepo) ToggleMcpServerFavorite(db *gorm.DB, userID, serverID uint) (bool, error) {
+	return toggleLike(r.exec(db), &model.McpServerFavorite{UserID: userID, McpServerID: serverID}, "mcp_server_id = ? AND user_id = ?", serverID, userID)
+}

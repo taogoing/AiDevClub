@@ -126,3 +126,56 @@ type SkillListQuery struct {
 	AuthorID *uint
 	Sort     string
 }
+
+type McpServerSummary struct {
+	ID             uint        `json:"id"`
+	Name           string      `json:"name"`
+	Description    string      `json:"description"`
+	RepoURL        string      `json:"repo_url"`
+	Tags           []TagBrief  `json:"tags"`
+	Author         AuthorBrief `json:"author"`
+	Views          int         `json:"views"`
+	Downloads      int         `json:"downloads"`
+	LikesCount     int         `json:"likes_count"`
+	FavoritesCount int         `json:"favorites_count"`
+	CommentsCount  int         `json:"comments_count"`
+	Status         string      `json:"status"`
+	PublishedAt    *time.Time  `json:"published_at"`
+}
+
+type McpServerDetail struct {
+	McpServerSummary
+	ToolsJSON   string `json:"tools_json"`
+	Readme      string `json:"readme"`
+	ZipURL      string `json:"zip_url"`
+	ZipFilename string `json:"zip_filename"`
+	FileSize    int64  `json:"file_size"`
+	Liked       bool   `json:"liked"`
+	Favorited   bool   `json:"favorited"`
+}
+
+type McpServerListResult struct {
+	List     []McpServerSummary `json:"list"`
+	Total    int64              `json:"total"`
+	Page     int                `json:"page"`
+	PageSize int                `json:"page_size"`
+}
+
+type CreateMcpServerInput struct {
+	Name        string
+	Description string
+	RepoURL     string
+	ToolsJSON   string
+	Readme      string
+	TagIDs      []uint
+	TagNames    []string
+}
+
+type McpServerListQuery struct {
+	Page     int
+	PageSize int
+	TagID    *uint
+	Keyword  string
+	AuthorID *uint
+	Sort     string
+}
