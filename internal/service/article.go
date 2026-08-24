@@ -139,3 +139,103 @@ func (s *ArticleService) Create(ctx context.Context, userID uint, in CreateArtic
 	}
 	return a, nil
 }
+
+func (s *ArticleService) Update(ctx context.Context, userID, articleID uint, in CreateArticleInput) (*model.Article, error) {
+	if in.Title == "" || in.Content == "" {
+		return nil, ErrBadParam
+	}
+	if len(in.Title) > 200 {
+		return nil, ErrBadParam
+	}
+	if err := s.validateStatus(in.Status); err != nil {
+		return nil, err
+	}
+	if _, err := s.cats.FindByID(ctx, in.CategoryID); err != nil {
+		return nil, ErrCategoryNotFound
+	}
+	a, err := s.articles.FindByID(nil, articleID)
+	if err != nil {
+		return nil, ErrArticleNotFound
+	}
+	if a.AuthorID != userID {
+		return nil, ErrForbidden
+	}
+	oldTags, err := s.articles.FindArticleTags(nil, articleID)
+	if err != nil {
+		return nil, err
+	}
+
+	a.Title = in.Title
+	a.Summary = in.Summary
+	a.Content = in.Content
+	a.CategoryID = in.CategoryID
+	if a.Status != in.Status {
+		a.Status = in.Status
+		if in.Status == model.ArticleStatusPublished && a.PublishedAt == nil {
+			now := time.Now()
+			a.PublishedAt = &now
+		}
+	}
+
+	err = s.articles.DB().Transaction(func(tx *gorm.DB) error {
+		if err := s.articles.Update(tx, a); err != nil {
+			return err
+		}
+		newTags, err := s.ResolveTagSet(ctx, tx, in.TagIDs, in.TagNames)
+		if err != nil {
+			return err
+		}
+		oldSet := map[uint]bool{}
+		for _, id := range oldTags {
+			oldSet[id] = true
+		}
+		newSet := map[uint]bool{}
+		for _, id := range newTags {
+			newSet[id] = true
+		}
+		for _, id := range oldTags {
+			if !newSet[id] {
+				if err := s.tags.IncrUsage(tx, id, -1); err != nil {
+					return err
+				}
+			}
+		}
+		for _, id := range newTags {
+			if !oldSet[id] {
+				if err := s.tags.IncrUsage(tx, id, 1); err != nil {
+					return err
+				}
+			}
+		}
+		return s.articles.SetArticleTags(tx, articleID, newTags)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return a, nil
+}
+
+func (s *ArticleService) Delete(ctx context.Context, userID, articleID uint) error {
+	a, err := s.articles.FindByID(nil, articleID)
+	if err != nil {
+		return ErrArticleNotFound
+	}
+	if a.AuthorID != userID {
+		return ErrForbidden
+	}
+	return s.articles.DB().Transaction(func(tx *gorm.DB) error {
+		tagIDs, err := s.articles.FindArticleTags(tx, articleID)
+		if err != nil {
+			return err
+		}
+		if err := s.articles.Delete(tx, articleID); err != nil {
+			return err
+		}
+		for _, id := range tagIDs {
+			if err := s.tags.IncrUsage(tx, id, -1); err != nil {
+				return err
+			}
+		}
+		return s.articles.SetArticleTags(tx, articleID, nil)
+	})
+}
