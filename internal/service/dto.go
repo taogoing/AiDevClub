@@ -66,3 +66,14 @@ type ListQuery struct {
 	AuthorID   *uint
 	Sort       string
 }
+
+type CommentItem struct {
+	ID         uint          `json:"id"`
+	ArticleID  uint          `json:"article_id"`
+	AuthorID   uint          `json:"author_id"`
+	Author     AuthorBrief   `json:"author"`
+	Content    string        `json:"content"`
+	LikesCount int           `json:"likes_count"`
+	CreatedAt  time.Time     `json:"created_at"`
+	Replies    []CommentItem `json:"replies"`
+}

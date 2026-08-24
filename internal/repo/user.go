@@ -35,3 +35,14 @@ func (r *UserRepo) Update(u *model.User) error {
 func (r *UserRepo) Delete(id uint) error {
 	return r.db.Delete(&model.User{}, id).Error
 }
+
+func (r *UserRepo) FindByIDs(ids []uint) ([]model.User, error) {
+	var users []model.User
+	if len(ids) == 0 {
+		return users, nil
+	}
+	if err := r.db.Where("id IN ?", ids).Find(&users).Error; err != nil {
+		return nil, err
+	}
+	return users, nil
+}
