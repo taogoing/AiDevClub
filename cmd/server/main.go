@@ -39,6 +39,7 @@ func main() {
 		logger.Error("migrate", "err", err)
 		return
 	}
+	platform.CreateFulltextIndexes(db)
 	cats := repo.NewCategoryRepo(db)
 	if err := cats.Seed(context.Background()); err != nil {
 		logger.Error("seed categories", "err", err)

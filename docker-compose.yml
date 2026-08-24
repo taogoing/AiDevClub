@@ -1,6 +1,7 @@
 services:
   mysql:
     image: mysql:8
+    command: --ngram-token-size=2
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: aidevclub
