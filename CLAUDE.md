@@ -32,17 +32,13 @@ AIDevClub 是一个面向开发者和 AI Agent 的技术内容与 AI 资源分�
 - 内容与资源采用**软删除**；Skill 与 MCP Server 需管理员审核（草稿 → 待审核 → 已发布 / 已拒绝 / 已下架）后才公开。
 - 用户无状态机，仅有登录 / 登出 / 注销账号（软删除）。认证采用 Access Token + Refresh Token，注册与登录接口限流。
 
-## 开发工作流（OpenSpec）
+## 开发工作流
 
-本项目使用 spec-driven 的 OpenSpec 工作流（配置见 [openspec/config.yaml](openspec/config.yaml)）：
-
-- 所有产物（proposal、design、spec、tasks）必须用 **zh-CN（中文）** 书写。
-- OpenSpec 的结构化标题与 SHALL/MUST 关键字保留英文。
-- 通过 `/opsx:*` 命令或 `openspec-*` skill 走 `propose → apply → archive` 流程创建和落地变更。
+使用 superpowers-zh 技能框架（见下文），走「brainstorming → writing-plans → 实现 → finishing-a-development-branch」流程。设计文档存 `docs/superpowers/specs/`，实现计划存 `docs/superpowers/plans/`。
 
 ## 现状
 
-当前处于需求/规格阶段，尚无 Go 代码、`go.mod` 或构建脚本。后端代码落地后，标准命令预期为 `go build ./...`、`go test ./...` 及 `go test ./<package>`（单测）。
+P0+P1（基础设施骨架 + 用户认证）已完成并合并到 master。标准命令：`go build ./...`、`go test ./...` 及 `go test ./<package>`（单测）。测试依赖真实 MySQL/Redis（先 `docker compose up -d`，Redis 端口为 16379）。
 
 ---
 
