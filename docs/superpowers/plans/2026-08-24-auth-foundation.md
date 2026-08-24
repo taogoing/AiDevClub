@@ -521,7 +521,7 @@ func envOr(key, def string) string {
 // 测试后端与生产隔离：独立 MySQL 库 aidevclub_test 与 Redis DB 15。
 var (
 	testMySQLDSN  = envOr("AIDEVCLUB_TEST_MYSQL_DSN", "root:root@tcp(localhost:3306)/aidevclub_test?charset=utf8mb4&parseTime=True&loc=Local")
-	testRedisAddr = envOr("AIDEVCLUB_TEST_REDIS_ADDR", "localhost:6379")
+	testRedisAddr = envOr("AIDEVCLUB_TEST_REDIS_ADDR", "localhost:16379")
 )
 
 const testRedisDB = 15

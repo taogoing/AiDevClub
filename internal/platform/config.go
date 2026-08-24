@@ -26,7 +26,7 @@ func LoadConfig() (*Config, error) {
 	v := viper.New()
 	v.SetDefault("http.addr", ":8080")
 	v.SetDefault("mysql.dsn", "root:root@tcp(localhost:3306)/aidevclub?charset=utf8mb4&parseTime=True&loc=Local")
-	v.SetDefault("redis.addr", "localhost:6379")
+	v.SetDefault("redis.addr", "localhost:16379")
 	v.SetDefault("redis.password", "")
 	v.SetDefault("redis.db", 0)
 	v.SetDefault("jwt.secret", "dev-secret-change-me")
