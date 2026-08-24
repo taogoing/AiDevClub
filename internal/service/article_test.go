@@ -143,3 +143,29 @@ func TestArticleListAndGet(t *testing.T) {
 		t.Fatalf("author can't see draft: %v", err)
 	}
 }
+
+func TestArticleHotSortAndCache(t *testing.T) {
+	svc, u, cat := newArticleTestEnv(t)
+	ctx := context.Background()
+	a1, _ := svc.Create(ctx, u.ID, CreateArticleInput{Title: "high", Content: "c", CategoryID: cat.ID, Status: model.ArticleStatusPublished})
+	a2, _ := svc.Create(ctx, u.ID, CreateArticleInput{Title: "low", Content: "c", CategoryID: cat.ID, Status: model.ArticleStatusPublished})
+
+	db := svc.articles.DB()
+	_ = repo.NewArticleRepo(db).IncrCount(db, a1.ID, "likes_count", 2)
+
+	res, err := svc.List(ctx, ListQuery{Page: 1, PageSize: 20, Sort: "hot"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.List) < 2 {
+		t.Fatalf("list len = %d, want >= 2", len(res.List))
+	}
+	if res.List[0].ID != a1.ID {
+		t.Fatalf("hot first = %d, want %d", res.List[0].ID, a1.ID)
+	}
+	res2, _ := svc.List(ctx, ListQuery{Page: 1, PageSize: 20, Sort: "hot"})
+	if res2.List[0].ID != a1.ID {
+		t.Fatal("cached hot list wrong")
+	}
+	_ = a2
+}
