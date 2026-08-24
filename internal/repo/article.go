@@ -98,8 +98,7 @@ func (r *ArticleRepo) baseQuery(ctx context.Context, q ArticleQuery) *gorm.DB {
 		d = d.Where("author_id = ?", *q.AuthorID)
 	}
 	if q.Keyword != "" {
-		kw := "%" + q.Keyword + "%"
-		d = d.Where("(title LIKE ? OR summary LIKE ? OR content LIKE ?)", kw, kw, kw)
+		d = d.Where("MATCH(title, summary, content) AGAINST(? IN BOOLEAN MODE)", q.Keyword)
 	}
 	if q.TagID != nil {
 		d = d.Where("id IN (SELECT article_id FROM article_tags WHERE tag_id = ?)", *q.TagID)

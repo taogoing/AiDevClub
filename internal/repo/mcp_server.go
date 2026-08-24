@@ -94,8 +94,7 @@ func (r *McpServerRepo) baseQuery(ctx context.Context, q McpServerQuery) *gorm.D
 		d = d.Where("author_id = ?", *q.AuthorID)
 	}
 	if q.Keyword != "" {
-		kw := "%" + q.Keyword + "%"
-		d = d.Where("(name LIKE ? OR description LIKE ?)", kw, kw)
+		d = d.Where("MATCH(name, description) AGAINST(? IN BOOLEAN MODE)", q.Keyword)
 	}
 	if q.TagID != nil {
 		d = d.Where("id IN (SELECT mcp_server_id FROM mcp_server_tags WHERE tag_id = ?)", *q.TagID)

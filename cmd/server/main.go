@@ -95,6 +95,11 @@ func main() {
 	r.GET("/api/v1/categories", catH.List)
 	r.GET("/api/v1/tags", tagH.List)
 
+	searchRepo := repo.NewSearchRepo(db)
+	searchSvc := service.NewSearchService(searchRepo)
+	searchH := handler.NewSearchHandler(searchSvc)
+	r.GET("/api/v1/search", searchH.Search)
+
 	arts := r.Group("/api/v1/articles")
 	arts.GET("", artH.List)
 	arts.POST("/images", p2Auth, artH.UploadImage)
