@@ -27,7 +27,8 @@ func TestUserRepoCreateAndFindByEmail(t *testing.T) {
 }
 
 func TestUserRepoSoftDelete(t *testing.T) {
-	r := NewUserRepo(testutil.NewTestDB(t))
+	db := testutil.NewTestDB(t)
+	r := NewUserRepo(db)
 
 	u := &model.User{Email: "b@example.com", PasswordHash: "x", Nickname: "用户_abc", AvatarURL: "/static/avatars/default.png"}
 	if err := r.Create(u); err != nil {
@@ -38,5 +39,14 @@ func TestUserRepoSoftDelete(t *testing.T) {
 	}
 	if _, err := r.FindByEmail("b@example.com"); err != gorm.ErrRecordNotFound {
 		t.Fatalf("err = %v, want ErrRecordNotFound", err)
+	}
+
+	// 证明是软删除：Unscoped 仍能查到原记录（硬删除则会 ErrRecordNotFound）。
+	var raw model.User
+	if err := db.Unscoped().First(&raw, u.ID).Error; err != nil {
+		t.Fatalf("软删除后 Unscoped 应仍能查到记录: %v", err)
+	}
+	if !raw.DeletedAt.Valid {
+		t.Fatalf("DeletedAt.Valid = false, 期望软删除已写入删除时间戳")
 	}
 }
