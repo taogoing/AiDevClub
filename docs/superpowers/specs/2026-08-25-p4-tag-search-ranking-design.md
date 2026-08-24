@@ -344,13 +344,21 @@ ALTER TABLE tags ADD COLUMN description VARCHAR(255) DEFAULT '' AFTER name;
 
 ### 4.2 FULLTEXT 索引
 
-```sql
--- 设置 ngram token size（MySQL 全局变量，需在配置文件中设置）
--- ngram_token_size=2
+**MySQL 配置**（docker-compose.yml）：
+```yaml
+mysql:
+  command: --ngram_token_size=2
+```
 
-ALTER TABLE articles ADD FULLTEXT INDEX idx_ft_article_search (title, summary, content) WITH PARSER ngram;
-ALTER TABLE skills ADD FULLTEXT INDEX idx_ft_skill_search (name, description) WITH PARSER ngram;
-ALTER TABLE mcp_servers ADD FULLTEXT INDEX idx_ft_mcp_search (name, description) WITH PARSER ngram;
+**创建索引**（在 `internal/platform/database.go` 初始化流程中执行）：
+```go
+// 在 AutoMigrate 之后执行
+func createFulltextIndexes(db *gorm.DB) {
+    // 使用 IF NOT EXISTS 避免重复创建报错
+    db.Exec("ALTER TABLE articles ADD FULLTEXT INDEX idx_ft_article_search (title, summary, content) WITH PARSER ngram")
+    db.Exec("ALTER TABLE skills ADD FULLTEXT INDEX idx_ft_skill_search (name, description) WITH PARSER ngram")
+    db.Exec("ALTER TABLE mcp_servers ADD FULLTEXT INDEX idx_ft_mcp_search (name, description) WITH PARSER ngram")
+}
 ```
 
 ### 4.3 GORM AutoMigrate
@@ -359,9 +367,8 @@ ALTER TABLE mcp_servers ADD FULLTEXT INDEX idx_ft_mcp_search (name, description)
 
 ```go
 db.AutoMigrate(&model.Tag{})
+createFulltextIndexes(db)
 ```
-
-FULLTEXT 索引需要手动创建（GORM 不自动创建 FULLTEXT）。
 
 ## 5. 前端变更
 
