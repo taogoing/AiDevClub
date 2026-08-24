@@ -5,8 +5,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"aidevclub/internal/handler"
 	"aidevclub/internal/model"
 	"aidevclub/internal/platform"
+	"aidevclub/internal/repo"
+	"aidevclub/internal/service"
 )
 
 func main() {
@@ -26,13 +29,31 @@ func main() {
 		return
 	}
 	rdb := platform.OpenRedis(cfg.RedisAddr, cfg.RedisPassword, cfg.RedisDB)
-	_ = rdb
+
+	users := repo.NewUserRepo(db)
+	tokens := repo.NewTokenRepo(rdb, cfg.RefreshTokenTTL)
+	authSvc := service.NewAuthService(users, tokens, cfg)
+	userSvc := service.NewUserService(users, tokens, cfg)
 
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.GET("/healthz", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
+
+	ah := handler.NewAuthHandler(authSvc)
+	auth := r.Group("/api/v1/auth")
+	auth.POST("/register", ah.Register)
+	auth.POST("/login", ah.Login)
+	auth.POST("/refresh", ah.Refresh)
+	auth.POST("/logout", ah.Logout)
+
+	uh := handler.NewUserHandler(userSvc)
+	me := r.Group("/api/v1/users", platform.AuthMiddleware(cfg.JWTSecret))
+	me.GET("/me", uh.Me)
+	me.PATCH("/me", uh.Update)
+	me.PUT("/me/password", uh.ChangePassword)
+	me.DELETE("/me", uh.Delete)
 
 	logger.Info("server starting", "addr", cfg.HTTPAddr)
 	if err := r.Run(cfg.HTTPAddr); err != nil {
