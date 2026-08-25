@@ -53,7 +53,7 @@ const hotArticles = ref<ArticleSummary[]>([])
 onMounted(async () => {
   try {
     const [tagRes, articleRes] = await Promise.all([
-      getHotTags(),
+      getHotTags(5),
       getArticles({ page: 1, page_size: 5, sort: 'hot' }),
     ])
     hotTags.value = tagRes.data.data
