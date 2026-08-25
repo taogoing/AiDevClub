@@ -8,6 +8,15 @@
           <router-link to="/skills" class="nav-link" active-class="active" exact-active-class="active">Skills Hub</router-link>
           <router-link to="/mcps" class="nav-link" active-class="active" exact-active-class="active">MCP Hub</router-link>
         </nav>
+        <div class="navbar-search">
+          <el-input
+            v-model="searchKeyword"
+            placeholder="搜索..."
+            clearable
+            @keyup.enter="handleSearch"
+            :prefix-icon="Search"
+          />
+        </div>
         <div class="navbar-right">
           <template v-if="auth.isLoggedIn">
             <el-dropdown trigger="click" @command="handleCommand">
@@ -42,18 +51,26 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { Search } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
 const auth = useAuthStore()
+const searchKeyword = ref('')
 
 onMounted(async () => {
   if (auth.isLoggedIn && !auth.user) {
     await auth.fetchUser()
   }
 })
+
+function handleSearch() {
+  if (searchKeyword.value.trim()) {
+    router.push({ path: '/search', query: { q: searchKeyword.value.trim() } })
+  }
+}
 
 function handleCommand(cmd: string) {
   if (cmd === 'profile') router.push('/users/me')
@@ -99,7 +116,11 @@ function handleCommand(cmd: string) {
 .navbar-nav {
   display: flex;
   gap: 32px;
-  flex: 1;
+}
+
+.navbar-search {
+  margin-left: 32px;
+  width: 200px;
 }
 
 .nav-link {

@@ -9,6 +9,7 @@ const router = createRouter({
       component: () => import('@/components/AppLayout.vue'),
       children: [
         { path: '', name: 'home', component: () => import('@/views/HomeView.vue') },
+        { path: 'search', name: 'search', component: () => import('@/views/SearchView.vue') },
         { path: 'skills', name: 'skills', component: () => import('@/views/SkillsView.vue') },
         { path: 'skills/new', name: 'skill-new', component: () => import('@/views/SkillEditView.vue'), meta: { requiresAuth: true } },
         { path: 'skills/:id', name: 'skill-detail', component: () => import('@/views/SkillDetailView.vue') },
@@ -38,6 +39,15 @@ const router = createRouter({
           component: () => import('@/views/ProfileView.vue'),
           meta: { requiresAuth: true },
         },
+      ],
+    },
+    {
+      path: '/admin',
+      component: () => import('@/components/AdminLayout.vue'),
+      meta: { requiresAuth: true, requiresAdmin: true },
+      children: [
+        { path: '', name: 'admin-home', redirect: '/admin/tags' },
+        { path: 'tags', name: 'admin-tags', component: () => import('@/views/admin/TagManagement.vue') },
       ],
     },
   ],

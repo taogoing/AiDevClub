@@ -43,6 +43,7 @@
 import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { TrendCharts, Download } from '@element-plus/icons-vue'
+import { getSkillRanking, getMcpServerRanking } from '@/api/ranking'
 import { getSkills } from '@/api/skill'
 import { getMcpServers } from '@/api/mcpServer'
 import type { SkillSummary, McpServerSummary } from '@/types'
@@ -65,17 +66,34 @@ watch(() => props.type, () => {
 
 async function fetchData() {
   try {
-    const [hotRes, downloadRes] = await Promise.all([
-      props.type === 'skill'
-        ? getSkills({ page: 1, page_size: 5, sort: 'hot' })
-        : getMcpServers({ page: 1, page_size: 5, sort: 'hot' }),
-      props.type === 'skill'
-        ? getSkills({ page: 1, page_size: 5, sort: 'downloads' })
-        : getMcpServers({ page: 1, page_size: 5, sort: 'downloads' }),
+    const getRanking = props.type === 'skill' ? getSkillRanking : getMcpServerRanking
+    const getList = props.type === 'skill' ? getSkills : getMcpServers
+
+    const [hotRankingRes, downloadRankingRes] = await Promise.all([
+      getRanking({ type: 'hot', page_size: 5 }),
+      getRanking({ type: 'downloads', page_size: 5 }),
     ])
-    hotResources.value = hotRes.data.data.list
-    topDownloads.value = downloadRes.data.data.list
-  } catch { /* ignore */ }
+
+    const hotIds = hotRankingRes.data.data.ids
+    const downloadIds = downloadRankingRes.data.data.ids
+
+    if (hotIds.length > 0) {
+      const hotListRes = await getList({ page: 1, page_size: 5, sort: 'hot' })
+      hotResources.value = hotListRes.data.data.list.slice(0, 5)
+    } else {
+      hotResources.value = []
+    }
+
+    if (downloadIds.length > 0) {
+      const downloadListRes = await getList({ page: 1, page_size: 5, sort: 'downloads' })
+      topDownloads.value = downloadListRes.data.data.list.slice(0, 5)
+    } else {
+      topDownloads.value = []
+    }
+  } catch {
+    hotResources.value = []
+    topDownloads.value = []
+  }
 }
 
 function handleResourceClick(id: number) {

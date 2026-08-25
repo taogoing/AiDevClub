@@ -16,6 +16,7 @@ export interface TagBrief {
 }
 
 export interface Tag extends TagBrief {
+  description?: string
   usage_count: number
 }
 
@@ -181,4 +182,26 @@ export interface ResourceCommentItem {
   likes_count: number
   created_at: string
   replies: ResourceCommentItem[]
+}
+
+export interface SearchResult {
+  id: number
+  type: 'article' | 'skill' | 'mcp_server'
+  title: string
+  summary: string
+  views: number
+  likes_count: number
+  created_at: string
+}
+
+export interface SearchResponse {
+  items: SearchResult[]
+  total: number
+  page: number
+  page_size: number
+  counts?: {
+    article: number
+    skill: number
+    mcp_server: number
+  }
 }
