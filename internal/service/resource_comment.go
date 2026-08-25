@@ -98,7 +98,7 @@ func (s *ResourceCommentService) Create(ctx context.Context, userID uint, resour
 		return s.incrCommentsCount(resourceType, resourceID, 1)
 	})
 	if err == nil {
-		go s.sendResCommentNotification(ctx, userID, resourceType, resourceID, replyToID, content)
+		go s.sendResCommentNotification(context.Background(), userID, resourceType, resourceID, replyToID, content)
 	}
 	return c, err
 }
@@ -247,7 +247,7 @@ func (s *ResourceCommentService) ToggleLike(ctx context.Context, userID, comment
 	})
 	if err == nil && liked {
 		go func() {
-			_ = s.notifSvc.Create(ctx, c.AuthorID, model.NotifTypeLikeResourceComment, "点赞", "有人赞了你的评论", c.ResourceType, commentID, userID)
+			_ = s.notifSvc.Create(context.Background(), c.AuthorID, model.NotifTypeLikeResourceComment, "点赞", "有人赞了你的评论", c.ResourceType, commentID, userID)
 		}()
 	}
 	return liked, newCount, err

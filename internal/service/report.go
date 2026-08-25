@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"time"
 
+	"gorm.io/gorm"
+
 	"aidevclub/internal/model"
 	"aidevclub/internal/platform"
 	"aidevclub/internal/repo"
@@ -119,16 +121,15 @@ func (s *ReportService) Resolve(ctx context.Context, adminID, reportID uint, act
 
 	adminTargetType := mapReportTargetType(report.TargetType)
 
+	now := time.Now()
+	report.HandlerID = adminID
+	report.HandleResult = result
+	report.ResolvedAt = &now
+
 	switch action {
 	case "hide":
-		if err := s.adminSvc.HideContent(adminTargetType, report.TargetID); err != nil {
-			return err
-		}
 		report.Status = model.ReportStatusResolved
 	case "unhide":
-		if err := s.adminSvc.UnhideContent(adminTargetType, report.TargetID); err != nil {
-			return err
-		}
 		report.Status = model.ReportStatusResolved
 	case "dismiss":
 		report.Status = model.ReportStatusDismissed
@@ -136,11 +137,20 @@ func (s *ReportService) Resolve(ctx context.Context, adminID, reportID uint, act
 		return platform.NewBizError(http.StatusBadRequest, platform.CodeBizError, "不支持的处理操作")
 	}
 
-	now := time.Now()
-	report.HandlerID = adminID
-	report.HandleResult = result
-	report.ResolvedAt = &now
-	if err := s.repo.Update(report); err != nil {
+	err = s.repo.DB().Transaction(func(tx *gorm.DB) error {
+		switch action {
+		case "hide":
+			if err := s.adminSvc.HideContentTx(tx, adminTargetType, report.TargetID); err != nil {
+				return err
+			}
+		case "unhide":
+			if err := s.adminSvc.UnhideContentTx(tx, adminTargetType, report.TargetID); err != nil {
+				return err
+			}
+		}
+		return tx.Save(report).Error
+	})
+	if err != nil {
 		return err
 	}
 

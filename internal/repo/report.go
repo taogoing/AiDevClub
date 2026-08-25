@@ -12,6 +12,8 @@ type ReportRepo struct{ db *gorm.DB }
 
 func NewReportRepo(db *gorm.DB) *ReportRepo { return &ReportRepo{db: db} }
 
+func (r *ReportRepo) DB() *gorm.DB { return r.db }
+
 func (r *ReportRepo) Create(report *model.Report) error {
 	return r.db.Create(report).Error
 }

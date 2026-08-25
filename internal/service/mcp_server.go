@@ -393,7 +393,7 @@ func (s *McpServerService) ToggleLike(ctx context.Context, userID, serverID uint
 		go s.updateHotScoreAsync(serverID)
 		if liked {
 			go func() {
-				_ = s.notifSvc.Create(ctx, sv.AuthorID, model.NotifTypeLikeMcpServer, "点赞", "有人赞了你的 MCP Server", "mcp_server", serverID, userID)
+				_ = s.notifSvc.Create(context.Background(), sv.AuthorID, model.NotifTypeLikeMcpServer, "点赞", "有人赞了你的 MCP Server", "mcp_server", serverID, userID)
 			}()
 		}
 	}

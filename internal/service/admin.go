@@ -3,6 +3,9 @@ package service
 import (
 	"context"
 	"net/http"
+	"time"
+
+	"gorm.io/gorm"
 
 	"aidevclub/internal/model"
 	"aidevclub/internal/platform"
@@ -106,6 +109,44 @@ func (s *AdminService) UnhideContent(targetType string, targetID uint) error {
 	return platform.NewBizError(http.StatusBadRequest, platform.CodeParamError, "不支持的目标类型")
 }
 
+func (s *AdminService) HideContentTx(tx *gorm.DB, targetType string, targetID uint) error {
+	switch targetType {
+	case "article":
+		return tx.Model(&model.Article{}).Where("id = ?", targetID).Update("hidden", true).Error
+	case "skill":
+		return tx.Model(&model.Skill{}).Where("id = ?", targetID).Update("hidden", true).Error
+	case "mcp_server":
+		return tx.Model(&model.McpServer{}).Where("id = ?", targetID).Update("hidden", true).Error
+	case "comment":
+		if err := tx.Model(&model.Comment{}).Where("id = ?", targetID).Update("hidden", true).Error; err != nil {
+			return err
+		}
+		return tx.Model(&model.Comment{}).Where("parent_id = ?", targetID).Update("hidden", true).Error
+	case "resource_comment":
+		if err := tx.Model(&model.ResourceComment{}).Where("id = ?", targetID).Update("hidden", true).Error; err != nil {
+			return err
+		}
+		return tx.Model(&model.ResourceComment{}).Where("parent_id = ?", targetID).Update("hidden", true).Error
+	}
+	return platform.NewBizError(http.StatusBadRequest, platform.CodeParamError, "不支持的目标类型")
+}
+
+func (s *AdminService) UnhideContentTx(tx *gorm.DB, targetType string, targetID uint) error {
+	switch targetType {
+	case "article":
+		return tx.Model(&model.Article{}).Where("id = ?", targetID).Update("hidden", false).Error
+	case "skill":
+		return tx.Model(&model.Skill{}).Where("id = ?", targetID).Update("hidden", false).Error
+	case "mcp_server":
+		return tx.Model(&model.McpServer{}).Where("id = ?", targetID).Update("hidden", false).Error
+	case "comment":
+		return tx.Model(&model.Comment{}).Where("id = ?", targetID).Update("hidden", false).Error
+	case "resource_comment":
+		return tx.Model(&model.ResourceComment{}).Where("id = ?", targetID).Update("hidden", false).Error
+	}
+	return platform.NewBizError(http.StatusBadRequest, platform.CodeParamError, "不支持的目标类型")
+}
+
 func (s *AdminService) HideArticle(ctx context.Context, adminID, articleID uint) error {
 	if err := s.articles.DB().Model(&model.Article{}).Where("id = ?", articleID).Update("hidden", true).Error; err != nil {
 		return err
@@ -163,7 +204,7 @@ func (s *AdminService) ReviewSkill(ctx context.Context, adminID, skillID uint, a
 		newStatus = model.ResourceStatusPublished
 		action = model.AdminLogActionApproveResource
 		notifType = model.NotifTypeResourceApproved
-		now := sk.UpdatedAt
+		now := time.Now()
 		sk.Status = newStatus
 		sk.PublishedAt = &now
 	} else {
@@ -195,7 +236,7 @@ func (s *AdminService) ReviewMcpServer(ctx context.Context, adminID, mcpServerID
 		newStatus = model.ResourceStatusPublished
 		action = model.AdminLogActionApproveResource
 		notifType = model.NotifTypeResourceApproved
-		now := ms.UpdatedAt
+		now := time.Now()
 		ms.Status = newStatus
 		ms.PublishedAt = &now
 	} else {

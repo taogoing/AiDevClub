@@ -54,7 +54,7 @@ func (s *CommentService) Create(ctx context.Context, userID, articleID uint, con
 		return s.articles.IncrCount(tx, articleID, "comments_count", 1)
 	})
 	if err == nil {
-		go s.sendCommentNotification(ctx, a.AuthorID, userID, articleID, replyToID, content)
+		go s.sendCommentNotification(context.Background(), a.AuthorID, userID, articleID, replyToID, content)
 	}
 	return c, err
 }
@@ -200,7 +200,7 @@ func (s *CommentService) ToggleLike(ctx context.Context, userID, commentID uint)
 	})
 	if err == nil && liked {
 		go func() {
-			_ = s.notifSvc.Create(ctx, c.AuthorID, model.NotifTypeLikeComment, "点赞", "有人赞了你的评论", "comment", commentID, userID)
+			_ = s.notifSvc.Create(context.Background(), c.AuthorID, model.NotifTypeLikeComment, "点赞", "有人赞了你的评论", "comment", commentID, userID)
 		}()
 	}
 	return liked, newCount, err

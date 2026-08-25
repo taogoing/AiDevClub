@@ -383,7 +383,7 @@ func (s *SkillService) ToggleLike(ctx context.Context, userID, skillID uint) (bo
 		go s.updateHotScoreAsync(skillID)
 		if liked {
 			go func() {
-				_ = s.notifSvc.Create(ctx, sk.AuthorID, model.NotifTypeLikeSkill, "点赞", "有人赞了你的 Skill", "skill", skillID, userID)
+				_ = s.notifSvc.Create(context.Background(), sk.AuthorID, model.NotifTypeLikeSkill, "点赞", "有人赞了你的 Skill", "skill", skillID, userID)
 			}()
 		}
 	}
