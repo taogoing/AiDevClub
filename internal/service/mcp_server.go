@@ -388,6 +388,9 @@ func (s *McpServerService) ToggleLike(ctx context.Context, userID, serverID uint
 		newCount = sv.LikesCount + delta
 		return nil
 	})
+	if err == nil {
+		go s.updateHotScoreAsync(serverID)
+	}
 	return liked, newCount, err
 }
 
@@ -414,7 +417,22 @@ func (s *McpServerService) ToggleFavorite(ctx context.Context, userID, serverID 
 		newCount = sv.FavoritesCount + delta
 		return nil
 	})
+	if err == nil {
+		go s.updateHotScoreAsync(serverID)
+	}
 	return favorited, newCount, err
+}
+
+func (s *McpServerService) updateHotScoreAsync(serverID uint) {
+	sv, err := s.servers.FindByID(nil, serverID)
+	if err != nil {
+		return
+	}
+	score := CalculateHotScore(sv.Views, sv.LikesCount, sv.FavoritesCount, sv.CommentsCount, sv.CreatedAt, 1.5)
+	_ = s.rdb.ZAdd(context.Background(), "rank:mcp_servers:hot", redis.Z{
+		Score:  score,
+		Member: serverID,
+	}).Err()
 }
 
 func (s *McpServerService) List(ctx context.Context, q McpServerListQuery) (*McpServerListResult, error) {

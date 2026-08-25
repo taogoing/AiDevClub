@@ -16,6 +16,8 @@ import (
 	"aidevclub/internal/repo"
 )
 
+var _ = redis.Z{}
+
 var (
 	ErrArticleNotFound  = platform.NewBizError(http.StatusNotFound, platform.CodeArticleNotFound, "文章不存在或不可见")
 	ErrCommentNotFound  = platform.NewBizError(http.StatusNotFound, platform.CodeCommentNotFound, "评论不存在")
@@ -346,6 +348,9 @@ func (s *ArticleService) ToggleLike(ctx context.Context, userID, articleID uint)
 		newCount = a.LikesCount + delta
 		return nil
 	})
+	if err == nil {
+		go s.updateHotScoreAsync(articleID)
+	}
 	return liked, newCount, err
 }
 
@@ -372,7 +377,26 @@ func (s *ArticleService) ToggleFavorite(ctx context.Context, userID, articleID u
 		newCount = a.FavoritesCount + delta
 		return nil
 	})
+	if err == nil {
+		go s.updateHotScoreAsync(articleID)
+	}
 	return favorited, newCount, err
+}
+
+func (s *ArticleService) updateHotScoreAsync(articleID uint) {
+	a, err := s.articles.FindByID(nil, articleID)
+	if err != nil {
+		return
+	}
+	publishedAt := a.PublishedAt
+	if publishedAt == nil {
+		publishedAt = &a.CreatedAt
+	}
+	score := CalculateHotScore(a.Views, a.LikesCount, a.FavoritesCount, a.CommentsCount, *publishedAt, 1.5)
+	_ = s.rdb.ZAdd(context.Background(), "rank:articles:hot", redis.Z{
+		Score:  score,
+		Member: articleID,
+	}).Err()
 }
 
 func (s *ArticleService) Get(ctx context.Context, userID, articleID uint) (*ArticleDetail, error) {

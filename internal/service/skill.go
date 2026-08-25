@@ -378,6 +378,9 @@ func (s *SkillService) ToggleLike(ctx context.Context, userID, skillID uint) (bo
 		newCount = sk.LikesCount + delta
 		return nil
 	})
+	if err == nil {
+		go s.updateHotScoreAsync(skillID)
+	}
 	return liked, newCount, err
 }
 
@@ -404,7 +407,22 @@ func (s *SkillService) ToggleFavorite(ctx context.Context, userID, skillID uint)
 		newCount = sk.FavoritesCount + delta
 		return nil
 	})
+	if err == nil {
+		go s.updateHotScoreAsync(skillID)
+	}
 	return favorited, newCount, err
+}
+
+func (s *SkillService) updateHotScoreAsync(skillID uint) {
+	sk, err := s.skills.FindByID(nil, skillID)
+	if err != nil {
+		return
+	}
+	score := CalculateHotScore(sk.Views, sk.LikesCount, sk.FavoritesCount, sk.CommentsCount, sk.CreatedAt, 1.5)
+	_ = s.rdb.ZAdd(context.Background(), "rank:skills:hot", redis.Z{
+		Score:  score,
+		Member: skillID,
+	}).Err()
 }
 
 func (s *SkillService) List(ctx context.Context, q SkillListQuery) (*SkillListResult, error) {
