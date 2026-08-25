@@ -93,7 +93,7 @@ const (
 CREATE TABLE reports (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   reporter_id BIGINT NOT NULL,       -- 举报人
-  target_type VARCHAR(32) NOT NULL,  -- 举报对象类型（article/skill/mcp_server/comment）
+  target_type VARCHAR(32) NOT NULL,  -- 举报对象类型（article/skill/mcp_server/article_comment/resource_comment）
   target_id BIGINT NOT NULL,         -- 举报对象 ID
   reason VARCHAR(32) NOT NULL,       -- 举报原因（spam/abuse/copyright/other）
   description TEXT,                  -- 详细说明
@@ -106,6 +106,8 @@ CREATE TABLE reports (
   INDEX idx_target (target_type, target_id)
 );
 ```
+
+**注意：** `target_type` 区分 `article_comment`（文章评论）和 `resource_comment`（资源评论），因为系统有两张不同的评论表。
 
 **举报原因枚举：**
 ```go
@@ -189,7 +191,7 @@ type User struct {
 }
 ```
 
-**初始管理员：** 通过环境变量 `ADMIN_EMAIL` 配置，启动时自动提升为管理员。
+**初始管理员：** 通过环境变量 `ADMIN_EMAILS` 配置（逗号分隔多个邮箱），启动时自动提升为管理员。
 
 #### 内容隐藏字段
 
@@ -203,6 +205,12 @@ type Article struct {
 
 // Comment 模型
 type Comment struct {
+    // ... 现有字段
+    Hidden bool `gorm:"not null;default:false"` // 新增：是否隐藏
+}
+
+// ResourceComment 模型
+type ResourceComment struct {
     // ... 现有字段
     Hidden bool `gorm:"not null;default:false"` // 新增：是否隐藏
 }
@@ -226,6 +234,40 @@ type McpServer struct {
 - 隐藏内容不出现在列表、搜索、排行中
 - 隐藏内容不出现在热门排行 Redis ZSet 中
 - 作者个人主页仍可见
+
+**隐藏评论的级联规则：**
+- 隐藏根评论时，级联隐藏所有子评论
+- 恢复根评论时，不级联恢复子评论（子评论需单独恢复）
+
+#### 评论回复字段
+
+Comment 和 ResourceComment 模型增加 ReplyToID 字段：
+```go
+// Comment 模型
+type Comment struct {
+    // ... 现有字段
+    ParentID  *uint  // 指向根评论（用于展示归属）
+    ReplyToID *uint  // 新增：指向被回复的评论（用于通知）
+}
+
+// ResourceComment 模型
+type ResourceComment struct {
+    // ... 现有字段
+    ParentID  *uint  // 指向根评论（用于展示归属）
+    ReplyToID *uint  // 新增：指向被回复的评论（用于通知）
+}
+```
+
+**字段说明：**
+- `ParentID`：指向根评论，用于 UI 展示层级归属
+- `ReplyToID`：指向被回复的评论，用于发送通知和前端展示"回复了谁"
+
+**场景示例：**
+- A 发根评论（ID=1）
+- B 回复 A（parentID=1, replyToID=1）
+- C 回复 B（parentID=1, replyToID=2）
+
+通知发给 B（replyToID=2 的作者），展示归属于 A 的根评论下。
 
 ---
 
@@ -361,11 +403,13 @@ type McpServer struct {
 | 触发场景 | 通知接收人 | 通知类型 |
 |----------|-----------|----------|
 | 用户评论文章 | 文章作者 | `comment_article` |
-| 用户回复评论 | 被回复评论的作者 | `reply_comment` |
+| 用户回复评论 | 被回复评论的作者（replyToID 对应的用户） | `reply_comment` |
 
 **触发位置：** `CommentService.Create()` 和 `ResourceCommentService.Create()`
 
 **去重规则：** 自己评论自己的文章/回复自己的评论，不发送通知。
+
+**回复通知说明：** 通知发给 `replyToID` 对应的用户（被回复的人），而非根评论作者。
 
 ### 5.2 点赞通知
 
@@ -413,6 +457,8 @@ type McpServer struct {
 | 管理员发布公告 | 所有用户 | `announcement` |
 
 **触发位置：** 发布公告时，查询所有用户 ID，批量插入通知记录（写时扩散）。
+
+**性能说明：** 当前写时扩散方案适用于千级用户规模。当用户量达到万级以上时，需改为读时合并方案（查询通知时动态合并公告，不再为每个用户插入记录）。
 
 ---
 
@@ -473,8 +519,8 @@ func AdminMiddleware(cfg *platform.Config) gin.HandlerFunc {
 ```
 
 **初始管理员配置：**
-- 环境变量：`ADMIN_EMAIL=admin@example.com`
-- 启动时检查该邮箱用户，自动提升为 admin 角色
+- 环境变量：`ADMIN_EMAILS=admin@example.com,admin2@example.com`（逗号分隔多个邮箱）
+- 启动时检查这些邮箱用户，自动提升为 admin 角色
 
 ---
 
@@ -505,12 +551,13 @@ func AdminMiddleware(cfg *platform.Config) gin.HandlerFunc {
 
 ## 11. 后续优化方向
 
-- **异步通知：** 引入 Redis Stream 异步队列，提升接口响应速度
+- **异步通知：** 引入 Redis Stream 异步队列，提升接口响应速度（当前同步写入方案可作为性能基准）
 - **通知聚合：** 前端展示时按类型+目标聚合（如"张三等 10 人赞了你的文章"）
 - **通知偏好：** 用户可配置接收哪些类型的通知
 - **举报申诉：** 作者可对隐藏内容发起申诉
+- **公告通知优化：** 用户量达到万级以上时，公告通知改为读时合并方案
 
 ---
 
-**文档版本：** v1.0  
+**文档版本：** v1.1（修复 review 问题）  
 **最后更新：** 2026-08-25
