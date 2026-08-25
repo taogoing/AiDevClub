@@ -110,6 +110,10 @@ func NewTestDB(t *testing.T) *gorm.DB {
 			t.Fatal(err)
 		}
 	}
+	// 创建 FULLTEXT 索引（忽略已存在的错误）
+	_ = db.Exec(`CREATE FULLTEXT INDEX idx_ft_article_search ON articles(title, summary, content) WITH PARSER ngram`).Error
+	_ = db.Exec(`CREATE FULLTEXT INDEX idx_ft_skill_search ON skills(name, description) WITH PARSER ngram`).Error
+	_ = db.Exec(`CREATE FULLTEXT INDEX idx_ft_mcp_search ON mcp_servers(name, description) WITH PARSER ngram`).Error
 	t.Cleanup(func() {
 		for _, m := range allModels {
 			_ = db.Migrator().DropTable(m)
