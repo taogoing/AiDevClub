@@ -20,6 +20,7 @@ func (r *SearchRepo) SearchArticles(ctx context.Context, keyword string, tagID, 
 	query := r.db.WithContext(ctx).
 		Model(&model.Article{}).
 		Where("status = ?", "published").
+		Where("hidden = ?", false).
 		Where("MATCH(title, summary, content) AGAINST(? IN BOOLEAN MODE)", keyword)
 
 	if tagID != nil {
@@ -51,6 +52,7 @@ func (r *SearchRepo) SearchSkills(ctx context.Context, keyword string, tagID *ui
 	query := r.db.WithContext(ctx).
 		Model(&model.Skill{}).
 		Where("status = ?", "published").
+		Where("hidden = ?", false).
 		Where("MATCH(name, description) AGAINST(? IN BOOLEAN MODE)", keyword)
 
 	if tagID != nil {
@@ -78,6 +80,7 @@ func (r *SearchRepo) SearchMcpServers(ctx context.Context, keyword string, tagID
 	query := r.db.WithContext(ctx).
 		Model(&model.McpServer{}).
 		Where("status = ?", "published").
+		Where("hidden = ?", false).
 		Where("MATCH(name, description) AGAINST(? IN BOOLEAN MODE)", keyword)
 
 	if tagID != nil {

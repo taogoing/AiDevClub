@@ -90,6 +90,9 @@ type SkillQuery struct {
 
 func (r *SkillRepo) baseQuery(ctx context.Context, q SkillQuery) *gorm.DB {
 	d := r.db.WithContext(ctx).Model(&model.Skill{}).Where("status = ?", model.ResourceStatusPublished)
+	if q.AuthorID == nil {
+		d = d.Where("hidden = ?", false)
+	}
 	if q.AuthorID != nil {
 		d = d.Where("author_id = ?", *q.AuthorID)
 	}

@@ -91,6 +91,9 @@ type ArticleQuery struct {
 
 func (r *ArticleRepo) baseQuery(ctx context.Context, q ArticleQuery) *gorm.DB {
 	d := r.db.WithContext(ctx).Model(&model.Article{}).Where("status = ?", model.ArticleStatusPublished)
+	if q.AuthorID == nil {
+		d = d.Where("hidden = ?", false)
+	}
 	if q.CategoryID != nil {
 		d = d.Where("category_id = ?", *q.CategoryID)
 	}

@@ -90,6 +90,9 @@ type McpServerQuery struct {
 
 func (r *McpServerRepo) baseQuery(ctx context.Context, q McpServerQuery) *gorm.DB {
 	d := r.db.WithContext(ctx).Model(&model.McpServer{}).Where("status = ?", model.ResourceStatusPublished)
+	if q.AuthorID == nil {
+		d = d.Where("hidden = ?", false)
+	}
 	if q.AuthorID != nil {
 		d = d.Where("author_id = ?", *q.AuthorID)
 	}
