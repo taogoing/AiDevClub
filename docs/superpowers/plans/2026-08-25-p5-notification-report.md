@@ -10,6 +10,13 @@
 
 **设计文档：** `docs/superpowers/specs/2026-08-25-p5-notification-report-design.md`
 
+**执行顺序注意：** 由于服务间存在依赖关系，实际执行顺序应为：
+1. 任务 1-5：基础模块（模型、配置、中间件、通知）
+2. 任务 7：AdminLogService（无依赖）
+3. 任务 8：AdminService（依赖 AdminLogService）
+4. 任务 6：ReportService（依赖 AdminService）
+5. 任务 9-13：Handler、集成、测试、文档
+
 ---
 
 ## 文件结构
@@ -46,11 +53,12 @@
 | `internal/model/skill.go` | 增加 Hidden 字段 |
 | `internal/model/mcp_server.go` | 增加 Hidden 字段 |
 | `internal/repo/user.go` | 增加 AllUserIDs、UpdateRole、Count 方法 |
-| `internal/repo/article.go` | 查询增加 hidden 过滤 |
-| `internal/repo/comment.go` | 增加 Hide/Unhide 方法 |
-| `internal/repo/resource_comment.go` | 增加 Hide/Unhide 方法 |
-| `internal/repo/skill.go` | 查询增加 hidden 过滤、增加 CountByStatus |
-| `internal/repo/mcp_server.go` | 查询增加 hidden 过滤、增加 CountByStatus |
+| `internal/repo/article.go` | 查询增加 hidden 过滤（作者本人除外） |
+| `internal/repo/comment.go` | 增加 hidden 过滤、HideChildren 方法 |
+| `internal/repo/resource_comment.go` | 增加 hidden 过滤、HideChildren 方法 |
+| `internal/repo/skill.go` | 查询增加 hidden 过滤（作者本人除外）、增加 CountByStatus |
+| `internal/repo/mcp_server.go` | 查询增加 hidden 过滤（作者本人除外）、增加 CountByStatus |
+| `internal/repo/search.go` | 搜索增加 hidden 过滤 |
 | `internal/service/comment.go` | 集成通知触发、修改 Create 保留原始 parentID 用于通知 |
 | `internal/service/resource_comment.go` | 集成通知触发、修改 Create 保留原始 parentID 用于通知 |
 | `internal/service/article.go` | 集成点赞通知 |
@@ -344,6 +352,8 @@ git commit -m "feat(notification): add notification handler and tests"
 - 创建：`internal/repo/report.go`
 - 创建：`internal/service/report.go`
 
+**注意：** 本任务依赖任务 7（AdminLogService）和任务 8（AdminService），需要先完成它们。
+
 - [ ] **步骤 1：创建 ReportRepo**
 
 实现：
@@ -356,19 +366,39 @@ git commit -m "feat(notification): add notification handler and tests"
 
 - [ ] **步骤 2：增加举报 DTO**
 
-在 `internal/service/dto.go` 中增加 `ReportItem`、`ReportListResult`、`DashboardData`、`AdminLogItem`、`AdminLogListResult`。
+在 `internal/service/dto.go` 中增加 `ReportItem`、`ReportListResult`。
 
 - [ ] **步骤 3：创建 ReportService**
+
+**依赖注入：**
+```go
+type ReportService struct {
+    repo       *repo.ReportRepo
+    adminSvc   *AdminService      // 用于隐藏/恢复内容
+    adminLogSvc *AdminLogService  // 用于记录日志
+    notifSvc   *NotificationService // 用于发送通知
+}
+
+func NewReportService(
+    repo *repo.ReportRepo,
+    adminSvc *AdminService,
+    adminLogSvc *AdminLogService,
+    notifSvc *NotificationService,
+) *ReportService
+```
 
 实现：
 - `Create(ctx, userID, targetType, targetID, reason, description)` — 验证目标存在
 - `List(ctx, status, page, pageSize)` — 管理员列表
 - `ListByReporter(ctx, reporterID, page, pageSize)` — 用户查看自己的举报
-- `Resolve(ctx, adminID, reportID, action, result)` — 处理举报（hide/unhide/dismiss）
+- `Resolve(ctx, adminID, reportID, action, result)` — 处理举报
 
-处理逻辑：
+Resolve 处理逻辑：
 1. 验证举报存在且状态为 pending
-2. 根据 action 执行内容操作（hide 时级联隐藏子评论）
+2. 根据 action 调用 AdminService 方法：
+   - `hide` → 调用 `adminSvc.HideContent(targetType, targetID)`（级联隐藏子评论）
+   - `unhide` → 调用 `adminSvc.UnhideContent(targetType, targetID)`
+   - `dismiss` → 不操作内容
 3. 更新举报状态
 4. 发送通知（根据 action 规则通知举报人和/或作者）
 5. 记录管理员日志
@@ -381,7 +411,7 @@ git commit -m "feat(notification): add notification handler and tests"
 
 ```bash
 git add internal/repo/report.go internal/service/report.go internal/service/dto.go
-git commit -m "feat(report): add report repo, service and DTO"
+git commit -m "feat(report): add report repo and service"
 ```
 
 ---
@@ -434,19 +464,24 @@ git commit -m "feat(admin): add admin log repo and service"
 
 实现：
 - `Dashboard(ctx) (*DashboardData, error)` — 统计数据
-- `HideArticle/UnhideArticle(ctx, adminID, articleID)` — 隐藏/恢复文章
-- `HideSkill/UnhideSkill(ctx, adminID, skillID)` — 隐藏/恢复 Skill
-- `HideMcpServer/UnhideMcpServer(ctx, adminID, mcpServerID)` — 隐藏/恢复 MCP Server
+- `HideContent(targetType, targetID)` — 统一隐藏内容接口（供 ReportService 调用）
+  - 文章/Skill/MCP Server：设置 hidden=true
+  - 评论：设置 hidden=true，**级联隐藏所有子评论**
+- `UnhideContent(targetType, targetID)` — 统一恢复内容接口（供 ReportService 调用）
+  - 仅恢复指定内容，**不级联恢复子评论**
+- `HideArticle/UnhideArticle(ctx, adminID, articleID)` — 隐藏/恢复文章（记录日志）
+- `HideSkill/UnhideSkill(ctx, adminID, skillID)` — 隐藏/恢复 Skill（记录日志）
+- `HideMcpServer/UnhideMcpServer(ctx, adminID, mcpServerID)` — 隐藏/恢复 MCP Server（记录日志）
 - `ReviewSkill(ctx, adminID, skillID, approved, reason)` — 审核 Skill
 - `ReviewMcpServer(ctx, adminID, mcpServerID, approved, reason)` — 审核 MCP Server
 - `CreateAnnouncement(ctx, adminID, title, content)` — 发布公告（写时扩散通知）
 - `ListAnnouncements(ctx, page, pageSize)` — 公告列表
 
-所有写操作记录管理员日志。
+所有写操作（除 HideContent/UnhideContent 外）记录管理员日志。
 
 - [ ] **步骤 3：创建 AdminHandler**
 
-实现接口：
+实现接口方法：
 - `Dashboard` — GET `/api/v1/admin/dashboard`
 - `HideArticle/UnhideArticle` — PUT `/api/v1/admin/articles/:id/hide|unhide`
 - `HideSkill/UnhideSkill` — PUT `/api/v1/admin/skills/:id/hide|unhide`
@@ -458,6 +493,27 @@ git commit -m "feat(admin): add admin log repo and service"
 - `ListReports` — GET `/api/v1/admin/reports`
 - `ResolveReport` — PUT `/api/v1/admin/reports/:id/resolve`
 - `ListLogs` — GET `/api/v1/admin/logs`
+
+实现 `RegisterRoutes(r *gin.RouterGroup)` 方法，逐个注册上述路由：
+
+```go
+func (h *AdminHandler) RegisterRoutes(r *gin.RouterGroup) {
+    r.GET("/dashboard", h.Dashboard)
+    r.PUT("/articles/:id/hide", h.HideArticle)
+    r.PUT("/articles/:id/unhide", h.UnhideArticle)
+    r.PUT("/skills/:id/hide", h.HideSkill)
+    r.PUT("/skills/:id/unhide", h.UnhideSkill)
+    r.PUT("/skills/:id/review", h.ReviewSkill)
+    r.PUT("/mcp-servers/:id/hide", h.HideMcpServer)
+    r.PUT("/mcp-servers/:id/unhide", h.UnhideMcpServer)
+    r.PUT("/mcp-servers/:id/review", h.ReviewMcpServer)
+    r.POST("/announcements", h.CreateAnnouncement)
+    r.GET("/announcements", h.ListAnnouncements)
+    r.GET("/reports", h.ListReports)
+    r.PUT("/reports/:id/resolve", h.ResolveReport)
+    r.GET("/logs", h.ListLogs)
+}
+```
 
 - [ ] **步骤 4：运行编译验证**
 
@@ -496,7 +552,7 @@ git commit -m "feat(report): add report handler"
 
 ---
 
-## 任务 10：Repo 层 hidden 过滤和 CountByStatus
+## 任务 10：Repo 层 hidden 过滤、CountByStatus 和搜索过滤
 
 **文件：**
 - 修改：`internal/repo/article.go`
@@ -504,83 +560,82 @@ git commit -m "feat(report): add report handler"
 - 修改：`internal/repo/mcp_server.go`
 - 修改：`internal/repo/comment.go`
 - 修改：`internal/repo/resource_comment.go`
+- 修改：`internal/repo/search.go`
 
-- [ ] **步骤 1：ArticleRepo 增加 hidden 过滤**
+- [ ] **步骤 1：ArticleRepo 增加 hidden 过滤（作者本人除外）**
 
-在 `baseQuery` 中增加 `Where("hidden = ?", false)`。
+在 `baseQuery` 中增加 hidden 过滤，但当查询作者自己的内容时不过滤：
 
-- [ ] **步骤 2：SkillRepo 增加 hidden 过滤和 CountByStatus**
+```go
+func (r *ArticleRepo) baseQuery(ctx context.Context, q ArticleQuery) *gorm.DB {
+    d := r.db.WithContext(ctx).Model(&model.Article{}).Where("status = ?", model.ArticleStatusPublished)
+    // 作者查看自己的内容时，不过滤 hidden
+    if q.AuthorID == nil {
+        d = d.Where("hidden = ?", false)
+    }
+    // ... 其他条件
+}
+```
 
-在列表查询中增加 `Where("hidden = ?", false)`。
-增加 `CountByStatus(ctx, status) (int64, error)` 方法。
+- [ ] **步骤 2：SkillRepo 增加 hidden 过滤（作者本人除外）和 CountByStatus**
 
-- [ ] **步骤 3：McpServerRepo 增加 hidden 过滤和 CountByStatus**
+同 ArticleRepo 逻辑。增加 `CountByStatus` 方法：
+
+```go
+func (r *SkillRepo) CountByStatus(ctx context.Context, status model.ResourceStatus) (int64, error) {
+    var total int64
+    err := r.db.WithContext(ctx).Model(&model.Skill{}).Where("status = ?", status).Count(&total).Error
+    return total, err
+}
+```
+
+- [ ] **步骤 3：McpServerRepo 增加 hidden 过滤（作者本人除外）和 CountByStatus**
 
 同 SkillRepo。
 
-- [ ] **步骤 4：CommentRepo 增加 Hide/Unhide**
+- [ ] **步骤 4：CommentRepo 增加 hidden 过滤和 HideChildren**
 
-增加 `Hide(id uint) error` 和 `Unhide(id uint) error` 方法。
-在列表查询中增加 `Where("hidden = ?", false)`。
+在 `ListByArticle` 中增加 `Where("hidden = ?", false)`：
 
-- [ ] **步骤 5：ResourceCommentRepo 增加 Hide/Unhide**
+```go
+func (r *CommentRepo) ListByArticle(db *gorm.DB, articleID uint) ([]model.Comment, error) {
+    var list []model.Comment
+    err := r.exec(db).Where("article_id = ? AND hidden = ?", articleID, false).
+        Order("created_at asc, id asc").Find(&list).Error
+    return list, err
+}
+```
+
+增加 `HideChildren` 方法（级联隐藏子评论）：
+
+```go
+func (r *CommentRepo) HideChildren(db *gorm.DB, parentID uint) error {
+    return r.exec(db).Model(&model.Comment{}).
+        Where("parent_id = ?", parentID).
+        Update("hidden", true).Error
+}
+```
+
+- [ ] **步骤 5：ResourceCommentRepo 增加 hidden 过滤和 HideChildren**
 
 同 CommentRepo。
 
-- [ ] **步骤 6：运行编译验证**
+- [ ] **步骤 6：SearchRepo 增加 hidden 过滤**
 
-运行：`go build ./...`
+在 `SearchArticles`、`SearchSkills`、`SearchMcpServers` 中增加 `Where("hidden = ?", false)`：
 
-- [ ] **步骤 7：Commit**
-
-```bash
-git add internal/repo/
-git commit -m "feat(repo): add hidden filtering and CountByStatus methods"
+```go
+func (r *SearchRepo) SearchArticles(ctx context.Context, keyword string, tagID, categoryID *uint, page, pageSize int) ([]model.Article, int64, error) {
+    query := r.db.WithContext(ctx).
+        Model(&model.Article{}).
+        Where("status = ?", "published").
+        Where("hidden = ?", false).  // 新增
+        Where("MATCH(title, summary, content) AGAINST(? IN BOOLEAN MODE)", keyword)
+    // ...
+}
 ```
 
----
-
-## 任务 11：集成通知触发点到业务模块
-
-**文件：**
-- 修改：`internal/service/comment.go`
-- 修改：`internal/service/resource_comment.go`
-- 修改：`internal/service/article.go`
-- 修改：`internal/service/skill.go`
-- 修改：`internal/service/mcp_server.go`
-
-- [ ] **步骤 1：修改 CommentService 集成通知**
-
-- 注入 `NotificationService`
-- `Create()` 中保留原始 parentID（用于 ReplyToID），评论成功后异步发送通知
-- 评论文章 → 通知文章作者（`comment_article`）
-- 回复评论 → 通知被回复评论的作者（`reply_comment`）
-- 自己评论/回复自己不发通知
-
-- [ ] **步骤 2：修改 ResourceCommentService 集成通知**
-
-同 CommentService，但通知类型为资源评论相关。
-
-- [ ] **步骤 3：修改 ArticleService 集成通知**
-
-- 注入 `NotificationService`
-- `ToggleLike()` 中点赞时通知文章作者（`like_article`）
-- 自己点赞不发通知
-
-- [ ] **步骤 4：修改 SkillService 集成通知**
-
-- 注入 `NotificationService`
-- `ToggleLike()` 中点赞时通知 Skill 作者（`like_skill`）
-
-- [ ] **步骤 5：修改 McpServerService 集成通知**
-
-- 注入 `NotificationService`
-- `ToggleLike()` 中点赞时通知 MCP Server 作者（`like_mcp_server`）
-
-- [ ] **步骤 6：修改 CommentService 和 ResourceCommentService 的 ToggleLike 集成通知**
-
-- 文章评论点赞 → 通知评论作者（`like_comment`）
-- 资源评论点赞 → 通知评论作者（`like_resource_comment`）
+同样修改 `SearchSkills` 和 `SearchMcpServers`。
 
 - [ ] **步骤 7：运行编译验证**
 
@@ -589,21 +644,29 @@ git commit -m "feat(repo): add hidden filtering and CountByStatus methods"
 - [ ] **步骤 8：Commit**
 
 ```bash
-git add internal/service/
-git commit -m "feat(service): integrate notification triggers into business modules"
+git add internal/repo/
+git commit -m "feat(repo): add hidden filtering, CountByStatus, and search hidden filter"
 ```
 
 ---
 
-## 任务 12：修改 Comment 创建逻辑支持 ReplyToID
+## 任务 11：集成通知触发点 + ReplyToID + 路由注册 + 初始管理员
+
+**重要：** 本任务将通知集成、ReplyToID、路由注册和 main.go 更新合并为一个任务，避免编译断裂。
 
 **文件：**
-- 修改：`internal/service/comment.go`
-- 修改：`internal/service/resource_comment.go`
+- 修改：`internal/service/comment.go` — 集成通知 + ReplyToID
+- 修改：`internal/service/resource_comment.go` — 集成通知 + ReplyToID
+- 修改：`internal/service/article.go` — 集成点赞通知
+- 修改：`internal/service/skill.go` — 集成点赞通知
+- 修改：`internal/service/mcp_server.go` — 集成点赞通知
+- 修改：`cmd/server/main.go` — 更新构造函数、注册路由、初始管理员
 
-- [ ] **步骤 1：修改 CommentService.Create()**
+- [ ] **步骤 1：修改 CommentService 集成通知 + ReplyToID**
 
-在修正 parentID 为根评论 ID 之前，保存原始 parentID 作为 ReplyToID：
+- 注入 `NotificationService` 到 struct
+- 修改 `NewCommentService` 增加 `notifSvc *NotificationService` 参数
+- `Create()` 中保留原始 parentID 作为 ReplyToID：
 
 ```go
 replyToID := parentID // 保存原始值用于通知和 ReplyToID
@@ -621,78 +684,94 @@ c := &model.Comment{
 }
 ```
 
-通知时使用 replyToID 查找被回复用户。
+- 评论成功后发送通知：
+  - 评论文章 → 通知文章作者（`comment_article`）
+  - 回复评论 → 查询 replyToID 对应的用户，通知该用户（`reply_comment`）
+  - 自己评论/回复自己不发通知
+- `ToggleLike()` 中点赞时通知评论作者（`like_comment`）
 
-- [ ] **步骤 2：修改 ResourceCommentService.Create()**
+- [ ] **步骤 2：修改 ResourceCommentService 集成通知 + ReplyToID**
 
-同上逻辑。
+同 CommentService 逻辑。通知类型为 `like_resource_comment`。
 
-- [ ] **步骤 3：运行编译验证**
+- [ ] **步骤 3：修改 ArticleService 集成通知**
 
-运行：`go build ./...`
+- 注入 `NotificationService`
+- 修改 `NewArticleService` 增加 `notifSvc *NotificationService` 参数
+- `ToggleLike()` 中点赞时通知文章作者（`like_article`）
+- 自己点赞不发通知
 
-- [ ] **步骤 4：Commit**
+- [ ] **步骤 4：修改 SkillService 集成通知**
 
-```bash
-git add internal/service/comment.go internal/service/resource_comment.go
-git commit -m "feat(comment): add ReplyToID support for reply notifications"
+- 注入 `NotificationService`
+- 修改 `NewSkillService` 增加 `notifSvc *NotificationService` 参数
+- `ToggleLike()` 中点赞时通知 Skill 作者（`like_skill`）
+
+- [ ] **步骤 5：修改 McpServerService 集成通知**
+
+- 注入 `NotificationService`
+- 修改 `NewMcpServerService` 增加 `notifSvc *NotificationService` 参数
+- `ToggleLike()` 中点赞时通知 MCP Server 作者（`like_mcp_server`）
+
+- [ ] **步骤 6：更新 main.go 构造函数调用**
+
+由于步骤 1-5 修改了构造函数签名，需要同步更新 main.go 中的调用：
+
+```go
+// 先初始化通知服务
+notifSvc := service.NewNotificationService(notifRepo, users)
+
+// 更新现有 Service 构造函数调用
+comSvc := service.NewCommentService(comments, articles, inter, users, notifSvc)
+artSvc := service.NewArticleService(articles, tags, cats, inter, rdb, cfg, notifSvc)
+skillSvc := service.NewSkillService(skills, tags, inter, rdb, cfg, notifSvc)
+mcpSvc := service.NewMcpServerService(mcpServers, tags, inter, rdb, cfg, notifSvc)
+resCommentSvc := service.NewResourceCommentService(resComments, skills, mcpServers, inter, users, notifSvc)
 ```
 
----
-
-## 任务 13：路由注册和初始管理员
-
-**文件：**
-- 修改：`cmd/server/main.go`
-
-- [ ] **步骤 1：自动迁移新模型**
+- [ ] **步骤 7：自动迁移新模型**
 
 在 `db.AutoMigrate()` 中增加：
 ```go
 &model.Notification{}, &model.Report{}, &model.AdminLog{}, &model.Announcement{}
 ```
 
-- [ ] **步骤 2：初始化新 Repo 和 Service**
+- [ ] **步骤 8：初始化新 Service 和注册路由**
 
-按依赖顺序初始化：
 ```go
-notifRepo := repo.NewNotificationRepo(db)
-reportRepo := repo.NewReportRepo(db)
+// 初始化新 Repo
 adminLogRepo := repo.NewAdminLogRepo(db)
 announcementRepo := repo.NewAnnouncementRepo(db)
+reportRepo := repo.NewReportRepo(db)
 
+// 初始化新 Service（注意依赖顺序）
 adminLogSvc := service.NewAdminLogService(adminLogRepo)
-notifSvc := service.NewNotificationService(notifRepo, users)
-reportSvc := service.NewReportService(reportRepo, articles, skills, mcpServers, comments, resComments, users, notifSvc, adminLogSvc)
 adminSvc := service.NewAdminService(users, articles, skills, mcpServers, reportRepo, announcementRepo, adminLogSvc, notifSvc)
-```
+reportSvc := service.NewReportService(reportRepo, adminSvc, adminLogSvc, notifSvc)
 
-- [ ] **步骤 3：注册路由**
-
-```go
-// 用户通知
-notifs := r.Group("/api/v1/notifications", p2Auth)
+// 用户通知路由
 nh := handler.NewNotificationHandler(notifSvc)
+notifs := r.Group("/api/v1/notifications", p2Auth)
 notifs.GET("", nh.List)
 notifs.GET("/unread-count", nh.UnreadCount)
 notifs.PUT("/:id/read", nh.MarkRead)
 notifs.PUT("/read", nh.MarkAllRead)
 
-// 用户举报
+// 用户举报路由
 rh := handler.NewReportHandler(reportSvc)
 reports := r.Group("/api/v1/reports", p2Auth)
 reports.POST("", rh.Create)
 reports.GET("", rh.List)
 
-// 管理员接口
+// 管理员路由（逐个注册，不使用 RegisterRoutes）
 adminAuth := r.Group("/api/v1/admin", p2Auth, platform.AdminMiddleware(users))
 adminH := handler.NewAdminHandler(adminSvc, reportSvc, adminLogSvc)
-adminH.RegisterRoutes(adminAuth)
+adminH.RegisterRoutes(adminAuth)  // 在 AdminHandler 中实现此方法，逐个注册路由
 ```
 
-- [ ] **步骤 4：初始管理员设置**
+- [ ] **步骤 9：初始管理员设置**
 
-在启动时检查 `cfg.AdminEmails`，将匹配的用户提升为 admin：
+在启动时（AutoMigrate 之后）检查 `cfg.AdminEmails`，将匹配的用户提升为 admin：
 ```go
 for _, email := range cfg.AdminEmails {
     u, err := users.FindByEmail(email)
@@ -702,24 +781,20 @@ for _, email := range cfg.AdminEmails {
 }
 ```
 
-- [ ] **步骤 5：更新现有 Service 构造函数**
-
-修改 `NewCommentService`、`NewResourceCommentService`、`NewArticleService`、`NewSkillService`、`NewMcpServerService` 增加 `notifSvc` 参数。
-
-- [ ] **步骤 6：运行编译验证**
+- [ ] **步骤 10：运行编译验证**
 
 运行：`go build ./...`
 
-- [ ] **步骤 7：Commit**
+- [ ] **步骤 11：Commit**
 
 ```bash
-git add cmd/server/main.go
-git commit -m "feat(server): register P5 routes, init services, and seed admin users"
+git add internal/service/ cmd/server/main.go
+git commit -m "feat: integrate notifications, ReplyToID, register P5 routes and seed admin users"
 ```
 
 ---
 
-## 任务 14：集成测试
+## 任务 12：集成测试
 
 **文件：**
 - 创建：`internal/handler/report_test.go`
@@ -747,7 +822,7 @@ git commit -m "test: add report and admin handler tests"
 
 ---
 
-## 任务 15：文档归档
+## 任务 13：文档归档
 
 **文件：**
 - 创建：`docs/phase5-summary.md`
