@@ -18,10 +18,11 @@ type CommentService struct {
 	articles *repo.ArticleRepo
 	inter    *repo.InteractionRepo
 	users    *repo.UserRepo
+	notifSvc *NotificationService
 }
 
-func NewCommentService(comments *repo.CommentRepo, articles *repo.ArticleRepo, inter *repo.InteractionRepo, users *repo.UserRepo) *CommentService {
-	return &CommentService{comments: comments, articles: articles, inter: inter, users: users}
+func NewCommentService(comments *repo.CommentRepo, articles *repo.ArticleRepo, inter *repo.InteractionRepo, users *repo.UserRepo, notifSvc *NotificationService) *CommentService {
+	return &CommentService{comments: comments, articles: articles, inter: inter, users: users, notifSvc: notifSvc}
 }
 
 func (s *CommentService) Create(ctx context.Context, userID, articleID uint, content string, parentID *uint) (*model.Comment, error) {
@@ -35,6 +36,7 @@ func (s *CommentService) Create(ctx context.Context, userID, articleID uint, con
 	if err != nil || a.Status != model.ArticleStatusPublished {
 		return nil, ErrArticleNotFound
 	}
+	replyToID := parentID
 	if parentID != nil {
 		p, err := s.comments.FindByID(nil, *parentID)
 		if err != nil || p.ArticleID != articleID {
@@ -44,14 +46,30 @@ func (s *CommentService) Create(ctx context.Context, userID, articleID uint, con
 			parentID = p.ParentID
 		}
 	}
-	c := &model.Comment{ArticleID: articleID, AuthorID: userID, ParentID: parentID, Content: content}
+	c := &model.Comment{ArticleID: articleID, AuthorID: userID, ParentID: parentID, ReplyToID: replyToID, Content: content}
 	err = s.articles.DB().Transaction(func(tx *gorm.DB) error {
 		if err := s.comments.Create(tx, c); err != nil {
 			return err
 		}
 		return s.articles.IncrCount(tx, articleID, "comments_count", 1)
 	})
+	if err == nil {
+		go s.sendCommentNotification(ctx, a.AuthorID, userID, articleID, replyToID, content)
+	}
 	return c, err
+}
+
+func (s *CommentService) sendCommentNotification(ctx context.Context, articleAuthorID, userID, articleID uint, replyToID *uint, content string) {
+	if replyToID != nil {
+		rc, err := s.comments.FindByID(nil, *replyToID)
+		if err == nil && rc.AuthorID != userID {
+			_ = s.notifSvc.Create(ctx, rc.AuthorID, model.NotifTypeReplyComment, "新回复", content, "article", articleID, userID)
+		}
+		return
+	}
+	if articleAuthorID != userID {
+		_ = s.notifSvc.Create(ctx, articleAuthorID, model.NotifTypeCommentArticle, "新评论", content, "article", articleID, userID)
+	}
 }
 
 func (s *CommentService) List(ctx context.Context, articleID uint) ([]CommentItem, error) {
@@ -180,5 +198,10 @@ func (s *CommentService) ToggleLike(ctx context.Context, userID, commentID uint)
 		newCount = c.LikesCount + delta
 		return nil
 	})
+	if err == nil && liked {
+		go func() {
+			_ = s.notifSvc.Create(ctx, c.AuthorID, model.NotifTypeLikeComment, "点赞", "有人赞了你的评论", "comment", commentID, userID)
+		}()
+	}
 	return liked, newCount, err
 }
