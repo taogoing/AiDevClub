@@ -28,7 +28,7 @@ AIDevClub 是一个面向开发者和 AI Agent 的技术内容与 AI 资源分�
 
 - REST API 与整站 MCP Server **共用同一套领域服务、权限规则和数据**，不重复实现业务逻辑。
 - MySQL 持久化业务数据；Redis 负责缓存、限流、Token 状态与热门排行。
-- 文章使用独立分类体系；Skill 与 MCP Server 不设分类，主要通过**统一标签（tag）**组织——文章、Skill、MCP Server 共用同一套标签。
+- 文章、Skill、MCP Server 不设分类，统一通过**统一标签（tag）**组织——三种内容共用同一套标签。
 - 内容与资源采用**软删除**；Skill 与 MCP Server 需管理员审核（草稿 → 待审核 → 已发布 / 已拒绝 / 已下架）后才公开。
 - 用户无状态机，仅有登录 / 登出 / 注销账号（软删除）。认证采用 Access Token + Refresh Token，注册与登录接口限流。
 
@@ -38,7 +38,7 @@ AIDevClub 是一个面向开发者和 AI Agent 的技术内容与 AI 资源分�
 
 ## 现状与路线
 
-P0+P1+P2+P3（基础设施 + 用户认证 + 技术社区 + AI 资源）已完成并合并到 master。前端 Vue 3 用户端已完成（文章 / Skills Hub / MCP Hub 浏览与发布）。下一步是 P4（标签 / 搜索 / 排行优化）。总体路线见 [docs/roadmap.md](docs/roadmap.md)，阶段总结见 [docs/phase1-summary.md](docs/phase1-summary.md)、[docs/phase2-summary.md](docs/phase2-summary.md) 和 [docs/phase3-summary.md](docs/phase3-summary.md)。
+P0+P1+P2+P3+P4（基础设施 + 用户认证 + 技术社区 + AI 资源 + 标签/搜索/排行优化）已完成并合并到 master。前端 Vue 3 用户端已完成（文章 / Skills Hub / MCP Hub 浏览与发布、搜索、管理后台标签管理）。下一步是 P5（消息通知 + 举报审核）。总体路线见 [docs/roadmap.md](docs/roadmap.md)，阶段总结见 [docs/phase1-summary.md](docs/phase1-summary.md)、[docs/phase2-summary.md](docs/phase2-summary.md)、[docs/phase3-summary.md](docs/phase3-summary.md) 和 [docs/phase4-summary.md](docs/phase4-summary.md)。
 
 标准命令：`go build ./...`、`go test ./...` 及 `go test ./<package>`（单测）。测试依赖真实 MySQL/Redis（先 `docker compose up -d`，Redis 宿主机端口为 16379）。前端标准命令：`cd frontend && npm run typecheck && npm run build`。
 
