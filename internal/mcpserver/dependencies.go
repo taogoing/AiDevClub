@@ -44,6 +44,26 @@ type TagReader interface {
 	ListForMCP(context.Context, string, int) ([]model.Tag, error)
 }
 
+type ProfileReader interface {
+	Get(context.Context, uint) (*model.User, error)
+}
+
+type OwnedArticleReader interface {
+	ListOwned(context.Context, uint, string, int, int) (*service.ArticleListResult, error)
+}
+
+type OwnedSkillReader interface {
+	ListOwned(context.Context, uint, string, int, int) (*service.SkillListResult, error)
+}
+
+type OwnedMCPServerReader interface {
+	ListOwned(context.Context, uint, string, int, int) (*service.McpServerListResult, error)
+}
+
+type NotificationReader interface {
+	List(context.Context, uint, string, bool, int, int) (*service.NotificationListResult, error)
+}
+
 type PublicDependencies struct {
 	Search     SearchReader
 	Articles   ArticleReader
@@ -52,6 +72,14 @@ type PublicDependencies struct {
 	Ranking    RankingReader
 	Categories CategoryReader
 	Tags       TagReader
+}
+
+type AccountDependencies struct {
+	Profile       ProfileReader
+	Articles      OwnedArticleReader
+	Skills        OwnedSkillReader
+	MCPServers    OwnedMCPServerReader
+	Notifications NotificationReader
 }
 
 func mustInputSchema[T any]() *jsonschema.Schema {
