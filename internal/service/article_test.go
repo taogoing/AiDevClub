@@ -172,6 +172,50 @@ func TestArticleGetLoadsInteractionState(t *testing.T) {
 	}
 }
 
+func TestArticleGetRejectsHiddenForNonOwnersWithoutIncrementingViews(t *testing.T) {
+	svc, owner, category := newArticleTestEnv(t)
+	ctx := context.Background()
+	other := &model.User{Email: "article-hidden-other@t.com", PasswordHash: "x", Nickname: "Other"}
+	if err := repo.NewUserRepo(svc.articles.DB()).Create(other); err != nil {
+		t.Fatal(err)
+	}
+	hidden, err := svc.Create(ctx, owner.ID, CreateArticleInput{
+		Title: "hidden-get", Content: "content", CategoryID: category.ID, Status: model.ArticleStatusPublished,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	hidden.Hidden = true
+	hidden.Views = 7
+	if err := svc.articles.Update(nil, hidden); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tc := range []struct {
+		name   string
+		userID uint
+	}{
+		{name: "anonymous", userID: 0},
+		{name: "non-owner", userID: other.ID},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := svc.Get(ctx, tc.userID, hidden.ID); err != ErrArticleNotFound {
+				t.Errorf("Get hidden article error = %v, want %v", err, ErrArticleNotFound)
+			}
+		})
+	}
+	persisted, err := svc.articles.FindByID(nil, hidden.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if persisted.Views != 7 {
+		t.Errorf("views after rejected reads = %d, want 7", persisted.Views)
+	}
+	if _, err := svc.Get(ctx, owner.ID, hidden.ID); err != nil {
+		t.Fatalf("owner cannot get hidden article: %v", err)
+	}
+}
+
 func TestArticlePublicListWithAuthorIDHidesHidden(t *testing.T) {
 	svc, owner, category := newArticleTestEnv(t)
 	ctx := context.Background()

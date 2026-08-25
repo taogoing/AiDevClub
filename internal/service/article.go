@@ -406,23 +406,26 @@ func (s *ArticleService) updateHotScoreAsync(articleID uint) {
 }
 
 func (s *ArticleService) Get(ctx context.Context, userID, articleID uint) (*ArticleDetail, error) {
-	return s.detail(ctx, userID, articleID, true, true, false)
+	return s.detail(ctx, userID, articleID, true, true)
 }
 
 func (s *ArticleService) Read(ctx context.Context, userID, articleID uint) (*ArticleDetail, error) {
-	return s.detail(ctx, userID, articleID, false, false, true)
+	return s.detail(ctx, userID, articleID, false, false)
 }
 
-func (s *ArticleService) detail(ctx context.Context, userID, articleID uint, trackView, loadInteractions, strictVisibility bool) (*ArticleDetail, error) {
+func (s *ArticleService) canView(a *model.Article, userID uint) bool {
+	if userID > 0 && a.AuthorID == userID {
+		return true
+	}
+	return a.Status == model.ArticleStatusPublished && !a.Hidden
+}
+
+func (s *ArticleService) detail(ctx context.Context, userID, articleID uint, trackView, loadInteractions bool) (*ArticleDetail, error) {
 	a, err := s.articles.FindByIDWithContext(ctx, articleID)
 	if err != nil {
 		return nil, ErrArticleNotFound
 	}
-	if strictVisibility {
-		if a.AuthorID != userID && (a.Status != model.ArticleStatusPublished || a.Hidden) {
-			return nil, ErrArticleNotFound
-		}
-	} else if a.Status != model.ArticleStatusPublished && a.AuthorID != userID {
+	if !s.canView(a, userID) {
 		return nil, ErrArticleNotFound
 	}
 	if trackView && a.Status == model.ArticleStatusPublished {

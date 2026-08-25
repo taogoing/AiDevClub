@@ -265,10 +265,10 @@ func (s *SkillService) Archive(ctx context.Context, userID, skillID uint) (*mode
 }
 
 func (s *SkillService) canView(sk *model.Skill, userID uint) bool {
-	if sk.Status == model.ResourceStatusPublished {
+	if userID > 0 && sk.AuthorID == userID {
 		return true
 	}
-	return sk.AuthorID == userID
+	return sk.Status == model.ResourceStatusPublished && !sk.Hidden
 }
 
 func (s *SkillService) summaryOf(sk model.Skill, tags []model.Tag) SkillSummary {
@@ -291,23 +291,19 @@ func (s *SkillService) summaryOf(sk model.Skill, tags []model.Tag) SkillSummary 
 }
 
 func (s *SkillService) Get(ctx context.Context, userID, skillID uint) (*SkillDetail, error) {
-	return s.detail(ctx, userID, skillID, true, true, false)
+	return s.detail(ctx, userID, skillID, true, true)
 }
 
 func (s *SkillService) Read(ctx context.Context, userID, skillID uint) (*SkillDetail, error) {
-	return s.detail(ctx, userID, skillID, false, false, true)
+	return s.detail(ctx, userID, skillID, false, false)
 }
 
-func (s *SkillService) detail(ctx context.Context, userID, skillID uint, trackView, loadInteractions, strictVisibility bool) (*SkillDetail, error) {
+func (s *SkillService) detail(ctx context.Context, userID, skillID uint, trackView, loadInteractions bool) (*SkillDetail, error) {
 	sk, err := s.skills.FindByIDWithContext(ctx, skillID)
 	if err != nil {
 		return nil, ErrSkillNotFound
 	}
-	if strictVisibility {
-		if sk.AuthorID != userID && (sk.Status != model.ResourceStatusPublished || sk.Hidden) {
-			return nil, ErrSkillNotFound
-		}
-	} else if !s.canView(sk, userID) {
+	if !s.canView(sk, userID) {
 		return nil, ErrSkillNotFound
 	}
 	if trackView && sk.Status == model.ResourceStatusPublished {
@@ -389,7 +385,7 @@ func (s *SkillService) UploadZip(ctx context.Context, userID, skillID uint, zipU
 
 func (s *SkillService) Download(ctx context.Context, skillID uint) (string, error) {
 	sk, err := s.skills.FindByID(nil, skillID)
-	if err != nil || sk.Status != model.ResourceStatusPublished {
+	if err != nil || !s.canView(sk, 0) {
 		return "", ErrSkillNotFound
 	}
 	if sk.ZipURL == "" {
@@ -520,7 +516,7 @@ func (s *SkillService) List(ctx context.Context, q SkillListQuery) (*SkillListRe
 		return nil, err
 	}
 	out := &SkillListResult{
-		List:  make([]SkillSummary, 0, len(list)),
+		List: make([]SkillSummary, 0, len(list)),
 		Total: total, Page: q.Page, PageSize: q.PageSize,
 	}
 	for _, sk := range list {

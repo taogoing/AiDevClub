@@ -271,10 +271,10 @@ func (s *McpServerService) Archive(ctx context.Context, userID, serverID uint) (
 }
 
 func (s *McpServerService) canView(sv *model.McpServer, userID uint) bool {
-	if sv.Status == model.ResourceStatusPublished {
+	if userID > 0 && sv.AuthorID == userID {
 		return true
 	}
-	return sv.AuthorID == userID
+	return sv.Status == model.ResourceStatusPublished && !sv.Hidden
 }
 
 func (s *McpServerService) summaryOf(sv model.McpServer, tags []model.Tag) McpServerSummary {
@@ -297,23 +297,19 @@ func (s *McpServerService) summaryOf(sv model.McpServer, tags []model.Tag) McpSe
 }
 
 func (s *McpServerService) Get(ctx context.Context, userID, serverID uint) (*McpServerDetail, error) {
-	return s.detail(ctx, userID, serverID, true, true, false)
+	return s.detail(ctx, userID, serverID, true, true)
 }
 
 func (s *McpServerService) Read(ctx context.Context, userID, serverID uint) (*McpServerDetail, error) {
-	return s.detail(ctx, userID, serverID, false, false, true)
+	return s.detail(ctx, userID, serverID, false, false)
 }
 
-func (s *McpServerService) detail(ctx context.Context, userID, serverID uint, trackView, loadInteractions, strictVisibility bool) (*McpServerDetail, error) {
+func (s *McpServerService) detail(ctx context.Context, userID, serverID uint, trackView, loadInteractions bool) (*McpServerDetail, error) {
 	sv, err := s.servers.FindByIDWithContext(ctx, serverID)
 	if err != nil {
 		return nil, ErrMcpServerNotFound
 	}
-	if strictVisibility {
-		if sv.AuthorID != userID && (sv.Status != model.ResourceStatusPublished || sv.Hidden) {
-			return nil, ErrMcpServerNotFound
-		}
-	} else if !s.canView(sv, userID) {
+	if !s.canView(sv, userID) {
 		return nil, ErrMcpServerNotFound
 	}
 	if trackView && sv.Status == model.ResourceStatusPublished {
@@ -366,7 +362,7 @@ func (s *McpServerService) UploadZip(ctx context.Context, userID, serverID uint,
 
 func (s *McpServerService) Download(ctx context.Context, serverID uint) (string, error) {
 	sv, err := s.servers.FindByID(nil, serverID)
-	if err != nil || sv.Status != model.ResourceStatusPublished {
+	if err != nil || !s.canView(sv, 0) {
 		return "", ErrMcpServerNotFound
 	}
 	if sv.ZipURL == "" {

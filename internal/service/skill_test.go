@@ -244,6 +244,49 @@ func TestSkillGetLoadsInteractionState(t *testing.T) {
 	}
 }
 
+func TestSkillGetRejectsHiddenForNonOwnersWithoutIncrementingViews(t *testing.T) {
+	svc, owner := newSkillTestEnv(t)
+	ctx := context.Background()
+	other := &model.User{Email: "skill-hidden-other@t.com", PasswordHash: "x", Nickname: "Other"}
+	if err := repo.NewUserRepo(svc.skills.DB()).Create(other); err != nil {
+		t.Fatal(err)
+	}
+	hidden, err := svc.Create(ctx, owner.ID, CreateSkillInput{Name: "hidden-get"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	hidden.Status = model.ResourceStatusPublished
+	hidden.Hidden = true
+	hidden.Views = 7
+	if err := svc.skills.Update(nil, hidden); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tc := range []struct {
+		name   string
+		userID uint
+	}{
+		{name: "anonymous", userID: 0},
+		{name: "non-owner", userID: other.ID},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := svc.Get(ctx, tc.userID, hidden.ID); err != ErrSkillNotFound {
+				t.Errorf("Get hidden skill error = %v, want %v", err, ErrSkillNotFound)
+			}
+		})
+	}
+	persisted, err := svc.skills.FindByID(nil, hidden.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if persisted.Views != 7 {
+		t.Errorf("views after rejected reads = %d, want 7", persisted.Views)
+	}
+	if _, err := svc.Get(ctx, owner.ID, hidden.ID); err != nil {
+		t.Fatalf("owner cannot get hidden skill: %v", err)
+	}
+}
+
 func TestSkillUploadZip(t *testing.T) {
 	svc, u := newSkillTestEnv(t)
 	ctx := context.Background()
@@ -394,6 +437,25 @@ func TestSkillDownload(t *testing.T) {
 	_ = svc.skills.Update(nil, sk2)
 	if _, err := svc.Download(ctx, sk2.ID); err == nil {
 		t.Fatal("download with empty zip_url should fail")
+	}
+
+	hidden, _ := svc.Create(ctx, u.ID, CreateSkillInput{Name: "hidden-download"})
+	hidden.Status = model.ResourceStatusPublished
+	hidden.Hidden = true
+	hidden.ZipURL = "/static/skills/hidden.zip"
+	hidden.Downloads = 7
+	if err := svc.skills.Update(nil, hidden); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Download(ctx, hidden.ID); err != ErrSkillNotFound {
+		t.Errorf("hidden download error = %v, want %v", err, ErrSkillNotFound)
+	}
+	persistedHidden, err := svc.skills.FindByID(nil, hidden.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if persistedHidden.Downloads != 7 {
+		t.Errorf("hidden downloads = %d, want 7", persistedHidden.Downloads)
 	}
 
 	if _, err := svc.Download(ctx, 99999); err == nil {
