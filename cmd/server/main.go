@@ -40,7 +40,9 @@ func main() {
 		logger.Error("migrate", "err", err)
 		return
 	}
-	platform.CreateFulltextIndexes(db)
+	if err := platform.CreateFulltextIndexes(db); err != nil {
+		logger.Warn("fulltext indexes", "err", err)
+	}
 	cats := repo.NewCategoryRepo(db)
 	if err := cats.Seed(context.Background()); err != nil {
 		logger.Error("seed categories", "err", err)
@@ -95,6 +97,14 @@ func main() {
 
 	r.GET("/api/v1/categories", catH.List)
 	r.GET("/api/v1/tags", tagH.List)
+
+	adminTagH := handler.NewAdminTagHandler(tagSvc)
+	adminTags := r.Group("/api/v1/admin/tags")
+	adminTags.POST("", adminTagH.Create)
+	adminTags.PUT("/:id", adminTagH.Update)
+	adminTags.PATCH("/:id/enable", adminTagH.Enable)
+	adminTags.PATCH("/:id/disable", adminTagH.Disable)
+	adminTags.GET("", adminTagH.List)
 
 	searchRepo := repo.NewSearchRepo(db)
 	searchSvc := service.NewSearchService(searchRepo)

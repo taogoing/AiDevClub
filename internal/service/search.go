@@ -4,7 +4,6 @@ import (
 	"context"
 	"html"
 	"regexp"
-	"strings"
 
 	"aidevclub/internal/model"
 	"aidevclub/internal/repo"
@@ -109,9 +108,18 @@ func (s *SearchService) Search(ctx context.Context, keyword, searchType string, 
 		}
 
 	default:
-		_, articleCount, _ := s.searchRepo.SearchArticles(ctx, keyword, tagID, categoryID, 1, 1)
-		_, skillCount, _ := s.searchRepo.SearchSkills(ctx, keyword, tagID, 1, 1)
-		_, mcpCount, _ := s.searchRepo.SearchMcpServers(ctx, keyword, tagID, 1, 1)
+		_, articleCount, err := s.searchRepo.SearchArticles(ctx, keyword, tagID, categoryID, 1, 1)
+		if err != nil {
+			return nil, err
+		}
+		_, skillCount, err := s.searchRepo.SearchSkills(ctx, keyword, tagID, 1, 1)
+		if err != nil {
+			return nil, err
+		}
+		_, mcpCount, err := s.searchRepo.SearchMcpServers(ctx, keyword, tagID, 1, 1)
+		if err != nil {
+			return nil, err
+		}
 
 		counts["article"] = articleCount
 		counts["skill"] = skillCount
@@ -141,8 +149,4 @@ func (s *SearchService) Search(ctx context.Context, keyword, searchType string, 
 
 func HighlightText(text, keyword string) string {
 	return highlightText(text, keyword)
-}
-
-func init() {
-	_ = strings.NewReader
 }

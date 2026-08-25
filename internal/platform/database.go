@@ -1,6 +1,8 @@
 package platform
 
 import (
+	"fmt"
+
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
@@ -9,8 +11,15 @@ func OpenMySQL(dsn string) (*gorm.DB, error) {
 	return gorm.Open(mysql.Open(dsn), &gorm.Config{})
 }
 
-func CreateFulltextIndexes(db *gorm.DB) {
-	db.Exec(`CREATE FULLTEXT INDEX idx_ft_article_search ON articles(title, summary, content) WITH PARSER ngram`)
-	db.Exec(`CREATE FULLTEXT INDEX idx_ft_skill_search ON skills(name, description) WITH PARSER ngram`)
-	db.Exec(`CREATE FULLTEXT INDEX idx_ft_mcp_search ON mcp_servers(name, description) WITH PARSER ngram`)
+func CreateFulltextIndexes(db *gorm.DB) error {
+	if err := db.Exec(`CREATE FULLTEXT INDEX idx_ft_article_search ON articles(title, summary, content) WITH PARSER ngram`).Error; err != nil {
+		return fmt.Errorf("create article fulltext index: %w", err)
+	}
+	if err := db.Exec(`CREATE FULLTEXT INDEX idx_ft_skill_search ON skills(name, description) WITH PARSER ngram`).Error; err != nil {
+		return fmt.Errorf("create skill fulltext index: %w", err)
+	}
+	if err := db.Exec(`CREATE FULLTEXT INDEX idx_ft_mcp_search ON mcp_servers(name, description) WITH PARSER ngram`).Error; err != nil {
+		return fmt.Errorf("create mcp_server fulltext index: %w", err)
+	}
+	return nil
 }

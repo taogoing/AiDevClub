@@ -38,7 +38,8 @@ func (r *SearchRepo) SearchArticles(ctx context.Context, keyword string, tagID, 
 
 	var articles []model.Article
 	err := query.
-		Order("MATCH(title, summary, content) AGAINST('" + keyword + "' IN BOOLEAN MODE) DESC").
+		Select("*, MATCH(title, summary, content) AGAINST(? IN BOOLEAN MODE) AS relevance", keyword).
+		Order("relevance DESC").
 		Offset((page - 1) * pageSize).
 		Limit(pageSize).
 		Find(&articles).Error
@@ -64,7 +65,8 @@ func (r *SearchRepo) SearchSkills(ctx context.Context, keyword string, tagID *ui
 
 	var skills []model.Skill
 	err := query.
-		Order("MATCH(name, description) AGAINST('" + keyword + "' IN BOOLEAN MODE) DESC").
+		Select("*, MATCH(name, description) AGAINST(? IN BOOLEAN MODE) AS relevance", keyword).
+		Order("relevance DESC").
 		Offset((page - 1) * pageSize).
 		Limit(pageSize).
 		Find(&skills).Error
@@ -90,7 +92,8 @@ func (r *SearchRepo) SearchMcpServers(ctx context.Context, keyword string, tagID
 
 	var servers []model.McpServer
 	err := query.
-		Order("MATCH(name, description) AGAINST('" + keyword + "' IN BOOLEAN MODE) DESC").
+		Select("*, MATCH(name, description) AGAINST(? IN BOOLEAN MODE) AS relevance", keyword).
+		Order("relevance DESC").
 		Offset((page - 1) * pageSize).
 		Limit(pageSize).
 		Find(&servers).Error

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -27,7 +28,7 @@ func (s *TagService) List(ctx context.Context, prefix string, hot bool, limit in
 	}
 
 	if hot && prefix == "" && s.rdb != nil {
-		key := "hot:tags:" + string(rune(limit))
+		key := fmt.Sprintf("hot:tags:%d", limit)
 		if v, err := s.rdb.Get(ctx, key).Bytes(); err == nil {
 			var tags []model.Tag
 			if json.Unmarshal(v, &tags) == nil {

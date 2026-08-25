@@ -11,12 +11,14 @@ import (
 type RankingScheduler struct {
 	rankingSvc *service.RankingService
 	interval   time.Duration
+	stopCh     chan struct{}
 }
 
 func NewRankingScheduler(rankingSvc *service.RankingService, interval time.Duration) *RankingScheduler {
 	return &RankingScheduler{
 		rankingSvc: rankingSvc,
 		interval:   interval,
+		stopCh:     make(chan struct{}),
 	}
 }
 
@@ -26,10 +28,18 @@ func (s *RankingScheduler) Start() {
 		defer ticker.Stop()
 
 		for {
-			<-ticker.C
-			s.recalculate()
+			select {
+			case <-ticker.C:
+				s.recalculate()
+			case <-s.stopCh:
+				return
+			}
 		}
 	}()
+}
+
+func (s *RankingScheduler) Stop() {
+	close(s.stopCh)
 }
 
 func (s *RankingScheduler) recalculate() {
