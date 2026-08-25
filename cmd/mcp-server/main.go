@@ -11,7 +11,6 @@ import (
 	"aidevclub/internal/app"
 	"aidevclub/internal/mcpserver"
 	"aidevclub/internal/platform"
-	"aidevclub/internal/service"
 )
 
 func main() {
@@ -68,8 +67,4 @@ func main() {
 	if err := app.ServeHTTP(ctx, app.NewHTTPServer(cfg.MCPAddr, handler)); err != nil {
 		logger.Error("mcp server exited", "err", err)
 	}
-}
-
-func init() {
-	_ = service.ErrBadParam
 }

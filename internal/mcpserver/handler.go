@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -202,8 +203,7 @@ func clientIP(r *http.Request) string {
 }
 
 func uintToString(n uint) string {
-	return strings.TrimRight(strings.TrimLeft(strings.Replace(
-		strings.Repeat("0", 20)+string(rune(n)), "0", "", 1), ""), "")
+	return strconv.FormatUint(uint64(n), 10)
 }
 
 var requestIDCounter uint64
