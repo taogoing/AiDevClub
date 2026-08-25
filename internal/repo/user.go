@@ -1,6 +1,8 @@
 package repo
 
 import (
+	"context"
+
 	"gorm.io/gorm"
 
 	"aidevclub/internal/model"
@@ -21,8 +23,16 @@ func (r *UserRepo) FindByEmail(email string) (*model.User, error) {
 }
 
 func (r *UserRepo) FindByID(id uint) (*model.User, error) {
+	return r.findByID(r.db, id)
+}
+
+func (r *UserRepo) FindByIDWithContext(ctx context.Context, id uint) (*model.User, error) {
+	return r.findByID(r.db.WithContext(ctx), id)
+}
+
+func (r *UserRepo) findByID(db *gorm.DB, id uint) (*model.User, error) {
 	var u model.User
-	if err := r.db.First(&u, id).Error; err != nil {
+	if err := db.First(&u, id).Error; err != nil {
 		return nil, err
 	}
 	return &u, nil

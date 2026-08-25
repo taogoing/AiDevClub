@@ -2,6 +2,9 @@ package service
 
 import (
 	"context"
+	"errors"
+
+	"gorm.io/gorm"
 
 	"aidevclub/internal/model"
 	"aidevclub/internal/platform"
@@ -28,11 +31,11 @@ func (s *UserService) AvatarDir() string     { return s.cfg.AvatarDir }
 func (s *UserService) MaxAvatarBytes() int64 { return s.cfg.MaxAvatarBytes }
 
 func (s *UserService) Get(ctx context.Context, id uint) (*model.User, error) {
-	u, err := s.users.FindByID(id)
-	if err != nil {
+	u, err := s.users.FindByIDWithContext(ctx, id)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrUserNotFound
 	}
-	return u, nil
+	return u, err
 }
 
 func (s *UserService) UpdateProfile(ctx context.Context, id uint, in UpdateProfileInput) error {

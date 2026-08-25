@@ -205,7 +205,8 @@ func listMyContent(deps AccountDependencies, actor Actor, publicBaseURL string) 
 		default:
 			return nil, listMyContentOutput{}, invalidArgument("content_type must be article, skill, or mcp_server")
 		}
-		return summaryResult(fmt.Sprintf("Account content returned %d result(s).", output.Total)), output, nil
+		returned := len(output.Articles) + len(output.Skills) + len(output.MCPServers)
+		return summaryResult(fmt.Sprintf("Account content returned %d result(s) on this page (%d total).", returned, output.Total)), output, nil
 	}
 }
 
@@ -230,7 +231,7 @@ func listMyNotifications(deps AccountDependencies, actor Actor, publicBaseURL st
 			Total:         result.Total,
 			PageInfo:      PageInfo{Page: result.Page, PageSize: result.PageSize},
 		}
-		return summaryResult(fmt.Sprintf("Notifications returned %d result(s).", output.Total)), output, nil
+		return summaryResult(fmt.Sprintf("Notifications returned %d result(s) on this page (%d total).", len(output.Notifications), output.Total)), output, nil
 	}
 }
 

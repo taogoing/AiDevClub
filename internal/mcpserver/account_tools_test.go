@@ -357,6 +357,43 @@ func TestListMyContentBindsActorSelectsOwnedReaderAndRetainsStatus(t *testing.T)
 	}
 }
 
+func TestAccountListSummariesDistinguishCurrentPageFromTotal(t *testing.T) {
+	actor := Actor{UserID: 42, Authenticated: true}
+	profile := &fakeProfileReader{user: &model.User{ID: 42}}
+
+	contentDeps := accountTestDependencies(profile)
+	contentDeps.Articles = &fakeOwnedArticleReader{result: &service.ArticleListResult{
+		List:  []service.ArticleSummary{{ID: 1, Author: service.AuthorBrief{ID: 42}, Tags: []service.TagBrief{}}},
+		Total: 5, Page: 2, PageSize: 1,
+	}}
+	contentResult := callToolResult(t, newAccountTestServer(actor, contentDeps), "list_my_content", map[string]any{
+		"content_type": "article", "page": 2, "page_size": 1,
+	})
+	if contentResult.IsError {
+		t.Fatalf("list_my_content returned tool error: %s", toolText(contentResult))
+	}
+	contentSummary := toolText(contentResult)
+	if !strings.Contains(contentSummary, "returned 1 result(s)") || !strings.Contains(contentSummary, "5 total") {
+		t.Fatalf("content summary = %q, want current-page returned count 1 and total 5", contentSummary)
+	}
+
+	notificationDeps := accountTestDependencies(profile)
+	notificationDeps.Notifications = &fakeAccountNotificationReader{result: &service.NotificationListResult{
+		List:  []service.NotificationItem{{ID: 1}},
+		Total: 4, Page: 3, PageSize: 1,
+	}}
+	notificationResult := callToolResult(t, newAccountTestServer(actor, notificationDeps), "list_my_notifications", map[string]any{
+		"page": 3, "page_size": 1,
+	})
+	if notificationResult.IsError {
+		t.Fatalf("list_my_notifications returned tool error: %s", toolText(notificationResult))
+	}
+	notificationSummary := toolText(notificationResult)
+	if !strings.Contains(notificationSummary, "returned 1 result(s)") || !strings.Contains(notificationSummary, "4 total") {
+		t.Fatalf("notification summary = %q, want current-page returned count 1 and total 4", notificationSummary)
+	}
+}
+
 func TestListMyContentRejectsInvalidInputBeforeOwnedReads(t *testing.T) {
 	tests := []map[string]any{
 		{},

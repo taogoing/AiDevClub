@@ -1,6 +1,8 @@
 package repo
 
 import (
+	"context"
+	"errors"
 	"testing"
 
 	"gorm.io/gorm"
@@ -8,6 +10,17 @@ import (
 	"aidevclub/internal/model"
 	"aidevclub/internal/testutil"
 )
+
+func TestUserRepoFindByIDWithContextHonorsCancellation(t *testing.T) {
+	r := NewUserRepo(testutil.NewTestDB(t))
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := r.FindByIDWithContext(ctx, 1)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v, want context.Canceled", err)
+	}
+}
 
 func TestUserRepoCreateAndFindByEmail(t *testing.T) {
 	r := NewUserRepo(testutil.NewTestDB(t))

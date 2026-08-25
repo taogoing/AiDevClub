@@ -2,8 +2,26 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
+
+	"aidevclub/internal/repo"
+	"aidevclub/internal/testutil"
 )
+
+func TestUserServiceGetPropagatesNonNotFoundRepoError(t *testing.T) {
+	users := repo.NewUserRepo(testutil.NewTestDB(t))
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := NewUserService(users, nil, nil).Get(ctx, 1)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v, want context.Canceled", err)
+	}
+	if errors.Is(err, ErrUserNotFound) {
+		t.Fatalf("err = %v, must not be ErrUserNotFound", err)
+	}
+}
 
 func TestUserProfileUpdateChangePasswordDelete(t *testing.T) {
 	ctx := context.Background()
