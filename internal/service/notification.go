@@ -53,7 +53,7 @@ func (s *NotificationService) CreateBatchForAllUsers(ctx context.Context, notifT
 	return s.repo.CreateBatch(batch)
 }
 
-func (s *NotificationService) List(ctx context.Context, userID uint, notifType string, page, pageSize int) (*NotificationListResult, error) {
+func (s *NotificationService) List(ctx context.Context, userID uint, notifType string, unreadOnly bool, page, pageSize int) (*NotificationListResult, error) {
 	if page <= 0 {
 		page = 1
 	}
@@ -63,7 +63,7 @@ func (s *NotificationService) List(ctx context.Context, userID uint, notifType s
 	if pageSize > 50 {
 		pageSize = 50
 	}
-	list, total, err := s.repo.List(ctx, userID, notifType, page, pageSize)
+	list, total, err := s.repo.List(ctx, userID, notifType, unreadOnly, page, pageSize)
 	if err != nil {
 		return nil, err
 	}

@@ -45,7 +45,10 @@ func (h *SearchHandler) Search(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
 
-	result, err := h.svc.Search(c.Request.Context(), keyword, searchType, tagID, categoryID, page, pageSize)
+	result, err := h.svc.Search(c.Request.Context(), service.SearchQuery{
+		Keyword: keyword, ContentType: searchType, TagID: tagID, CategoryID: categoryID,
+		Page: page, PageSize: pageSize, Highlight: true,
+	})
 	if err != nil {
 		platform.Fail(c, errStatus(err), errCode(err), err.Error())
 		return

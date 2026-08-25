@@ -19,7 +19,7 @@ func (h *NotificationHandler) List(c *gin.Context) {
 	page := queryInt(c, "page", 1)
 	pageSize := queryInt(c, "page_size", 20)
 	notifType := c.Query("type")
-	res, err := h.svc.List(c.Request.Context(), c.GetUint("user_id"), notifType, page, pageSize)
+	res, err := h.svc.List(c.Request.Context(), c.GetUint("user_id"), notifType, false, page, pageSize)
 	if err != nil {
 		platform.Fail(c, errStatus(err), errCode(err), err.Error())
 		return

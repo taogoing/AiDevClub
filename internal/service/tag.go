@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -52,6 +53,13 @@ func (s *TagService) List(ctx context.Context, prefix string, hot bool, limit in
 		return s.tags.ListHot(ctx, limit)
 	}
 	return s.tags.List(ctx, prefix, limit)
+}
+
+func (s *TagService) ListForMCP(ctx context.Context, keyword string, limit int) ([]model.Tag, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	return s.tags.List(ctx, strings.TrimSpace(keyword), limit)
 }
 
 func (s *TagService) AdminCreate(ctx context.Context, name, description string) (*model.Tag, error) {

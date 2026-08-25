@@ -231,6 +231,171 @@ func (s *RankingService) GetMcpServerDownloadRanking(ctx context.Context, page, 
 	return result, nil
 }
 
+// ListArticleHot loads the current Redis hot page in ZSet order. Stale rank
+// members are expected: public visibility and GORM's soft-delete scope are
+// reapplied while the page is hydrated.
+func (s *RankingService) ListArticleHot(ctx context.Context, page, pageSize int) ([]ArticleSummary, error) {
+	ids, err := s.GetArticleHotRanking(ctx, page, pageSize)
+	if err != nil {
+		return nil, err
+	}
+	if len(ids) == 0 {
+		return []ArticleSummary{}, nil
+	}
+
+	var articles []model.Article
+	if err := s.articleRepo.DB().WithContext(ctx).
+		Where("id IN ?", ids).
+		Where("status = ?", model.ArticleStatusPublished).
+		Where("hidden = ?", false).
+		Preload("Category").Preload("Author").Find(&articles).Error; err != nil {
+		return nil, err
+	}
+	tagMap, err := s.articleRepo.TagsForArticles(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	byID := make(map[uint]ArticleSummary, len(articles))
+	for _, article := range articles {
+		byID[article.ID] = rankingArticleSummary(article, tagMap[article.ID])
+	}
+	result := make([]ArticleSummary, 0, len(articles))
+	for _, id := range ids {
+		if summary, ok := byID[id]; ok {
+			result = append(result, summary)
+		}
+	}
+	return result, nil
+}
+
+// ListSkillHot loads the current Redis hot page in ZSet order and silently
+// omits stale, hidden, unpublished, or soft-deleted members.
+func (s *RankingService) ListSkillHot(ctx context.Context, page, pageSize int) ([]SkillSummary, error) {
+	ids, err := s.GetSkillHotRanking(ctx, page, pageSize)
+	if err != nil {
+		return nil, err
+	}
+	if len(ids) == 0 {
+		return []SkillSummary{}, nil
+	}
+
+	var skills []model.Skill
+	if err := s.skillRepo.DB().WithContext(ctx).
+		Where("id IN ?", ids).
+		Where("status = ?", model.ResourceStatusPublished).
+		Where("hidden = ?", false).
+		Preload("Author").Find(&skills).Error; err != nil {
+		return nil, err
+	}
+	tagMap, err := s.skillRepo.TagsForSkills(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	byID := make(map[uint]SkillSummary, len(skills))
+	for _, skill := range skills {
+		byID[skill.ID] = rankingSkillSummary(skill, tagMap[skill.ID])
+	}
+	result := make([]SkillSummary, 0, len(skills))
+	for _, id := range ids {
+		if summary, ok := byID[id]; ok {
+			result = append(result, summary)
+		}
+	}
+	return result, nil
+}
+
+// ListMcpServerHot loads the current Redis hot page in ZSet order and omits
+// rows that are no longer public without mutating their view counts.
+func (s *RankingService) ListMcpServerHot(ctx context.Context, page, pageSize int) ([]McpServerSummary, error) {
+	ids, err := s.GetMcpServerHotRanking(ctx, page, pageSize)
+	if err != nil {
+		return nil, err
+	}
+	if len(ids) == 0 {
+		return []McpServerSummary{}, nil
+	}
+
+	var servers []model.McpServer
+	if err := s.mcpRepo.DB().WithContext(ctx).
+		Where("id IN ?", ids).
+		Where("status = ?", model.ResourceStatusPublished).
+		Where("hidden = ?", false).
+		Preload("Author").Find(&servers).Error; err != nil {
+		return nil, err
+	}
+	tagMap, err := s.mcpRepo.TagsForMcpServers(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	byID := make(map[uint]McpServerSummary, len(servers))
+	for _, server := range servers {
+		byID[server.ID] = rankingMcpServerSummary(server, tagMap[server.ID])
+	}
+	result := make([]McpServerSummary, 0, len(servers))
+	for _, id := range ids {
+		if summary, ok := byID[id]; ok {
+			result = append(result, summary)
+		}
+	}
+	return result, nil
+}
+
+func rankingArticleSummary(article model.Article, tags []model.Tag) ArticleSummary {
+	summary := ArticleSummary{
+		ID: article.ID, Title: article.Title, Summary: article.Summary,
+		CategoryID: article.CategoryID, Tags: rankingTagBriefs(tags),
+		Views: article.Views, LikesCount: article.LikesCount,
+		FavoritesCount: article.FavoritesCount, CommentsCount: article.CommentsCount,
+		Status: string(article.Status), PublishedAt: article.PublishedAt, Pinned: article.Pinned,
+		Author: AuthorBrief{ID: article.AuthorID},
+	}
+	if article.Category != nil {
+		summary.CategoryName = article.Category.Name
+	}
+	if article.Author != nil {
+		summary.Author = AuthorBrief{ID: article.Author.ID, Nickname: article.Author.Nickname, AvatarURL: article.Author.AvatarURL}
+	}
+	return summary
+}
+
+func rankingSkillSummary(skill model.Skill, tags []model.Tag) SkillSummary {
+	summary := SkillSummary{
+		ID: skill.ID, Name: skill.Name, Description: skill.Description,
+		RepoURL: skill.RepoURL, Tags: rankingTagBriefs(tags),
+		Views: skill.Views, Downloads: skill.Downloads,
+		LikesCount: skill.LikesCount, FavoritesCount: skill.FavoritesCount,
+		CommentsCount: skill.CommentsCount, Status: string(skill.Status),
+		PublishedAt: skill.PublishedAt, Author: AuthorBrief{ID: skill.AuthorID},
+	}
+	if skill.Author != nil {
+		summary.Author = AuthorBrief{ID: skill.Author.ID, Nickname: skill.Author.Nickname, AvatarURL: skill.Author.AvatarURL}
+	}
+	return summary
+}
+
+func rankingMcpServerSummary(server model.McpServer, tags []model.Tag) McpServerSummary {
+	summary := McpServerSummary{
+		ID: server.ID, Name: server.Name, Description: server.Description,
+		RepoURL: server.RepoURL, Tags: rankingTagBriefs(tags),
+		Views: server.Views, Downloads: server.Downloads,
+		LikesCount: server.LikesCount, FavoritesCount: server.FavoritesCount,
+		CommentsCount: server.CommentsCount, Status: string(server.Status),
+		PublishedAt: server.PublishedAt, Author: AuthorBrief{ID: server.AuthorID},
+	}
+	if server.Author != nil {
+		summary.Author = AuthorBrief{ID: server.Author.ID, Nickname: server.Author.Nickname, AvatarURL: server.Author.AvatarURL}
+	}
+	return summary
+}
+
+func rankingTagBriefs(tags []model.Tag) []TagBrief {
+	briefs := make([]TagBrief, 0, len(tags))
+	for _, tag := range tags {
+		briefs = append(briefs, TagBrief{ID: tag.ID, Name: tag.Name})
+	}
+	return briefs
+}
+
 func (s *RankingService) UpdateArticleHotScore(ctx context.Context, article *model.Article) error {
 	publishedAt := article.PublishedAt
 	if publishedAt == nil {

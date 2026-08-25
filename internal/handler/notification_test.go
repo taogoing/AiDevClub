@@ -78,7 +78,7 @@ func TestNotifMarkRead(t *testing.T) {
 	r, svc := setupNotifRouter(t)
 	_ = svc.Create(nil, 1, model.NotifTypeLikeArticle, "test", "content", "article", 1, 2)
 
-	res, _ := svc.List(nil, 1, "", 1, 20)
+	res, _ := svc.List(nil, 1, "", false, 1, 20)
 	if len(res.List) == 0 {
 		t.Fatal("no notifications")
 	}

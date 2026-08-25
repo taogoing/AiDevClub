@@ -23,10 +23,13 @@ func (r *NotificationRepo) CreateBatch(notifications []*model.Notification) erro
 	return r.db.Create(notifications).Error
 }
 
-func (r *NotificationRepo) List(ctx context.Context, userID uint, notifType string, page, pageSize int) ([]model.Notification, int64, error) {
+func (r *NotificationRepo) List(ctx context.Context, userID uint, notifType string, unreadOnly bool, page, pageSize int) ([]model.Notification, int64, error) {
 	d := r.db.WithContext(ctx).Model(&model.Notification{}).Where("user_id = ?", userID)
 	if notifType != "" {
 		d = d.Where("type = ?", notifType)
+	}
+	if unreadOnly {
+		d = d.Where("is_read = ?", false)
 	}
 	var total int64
 	if err := d.Count(&total).Error; err != nil {
