@@ -2,21 +2,17 @@
   <div class="home-container">
     <div class="main-area">
       <div class="filter-bar">
-        <div class="category-tabs">
-          <el-button :type="!selectedCategory ? 'primary' : 'default'" size="small" @click="selectedCategory = 0">全部分类</el-button>
+        <div class="tag-tabs">
+          <el-button :type="!selectedTag ? 'primary' : 'default'" size="small" @click="selectedTag = 0">全部标签</el-button>
           <el-button
-            v-for="cat in categories"
-            :key="cat.id"
-            :type="selectedCategory === cat.id ? 'primary' : 'default'"
+            v-for="tag in hotTags"
+            :key="tag.id"
+            :type="selectedTag === tag.id ? 'primary' : 'default'"
             size="small"
-            @click="selectedCategory = cat.id"
+            @click="selectedTag = tag.id"
           >
-            {{ cat.name }}
+            {{ tag.name }}
           </el-button>
-        </div>
-        <div class="tag-tabs" v-if="selectedTag">
-          <span class="filter-label">标签：</span>
-          <el-tag closable @close="clearTagFilter">{{ currentTagName }}</el-tag>
         </div>
         <div class="sort-bar">
           <el-select v-model="sortBy" size="small" style="width: 100px">
@@ -47,54 +43,37 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, computed } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { ref, watch, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import ArticleCard from '@/components/ArticleCard.vue'
 import Sidebar from '@/components/Sidebar.vue'
 import { getArticles } from '@/api/article'
-import { getCategories } from '@/api/category'
 import { getHotTags } from '@/api/tag'
-import type { ArticleSummary, Category, Tag } from '@/types'
+import type { ArticleSummary, Tag } from '@/types'
 
 const route = useRoute()
-const router = useRouter()
 const articles = ref<ArticleSummary[]>([])
-const categories = ref<Category[]>([])
 const hotTags = ref<Tag[]>([])
 const loading = ref(false)
 const currentPage = ref(1)
 const pageSize = 20
 const total = ref(0)
-const selectedCategory = ref(0)
 const selectedTag = ref(0)
 const sortBy = ref('latest')
 const keyword = ref('')
-
-const currentTagName = computed(() => {
-  const tag = hotTags.value.find(t => t.id === selectedTag.value)
-  return tag?.name || ''
-})
-
-function clearTagFilter() {
-  router.push({ name: 'home', query: { ...route.query, tag_id: undefined } })
-}
 
 onMounted(async () => {
   keyword.value = (route.query.keyword as string) || ''
   selectedTag.value = Number(route.query.tag_id) || 0
   try {
-    const [catRes, tagRes] = await Promise.all([
-      getCategories(),
-      getHotTags(50)
-    ])
-    categories.value = catRes.data.data
+    const tagRes = await getHotTags(50)
     hotTags.value = tagRes.data.data
   } catch { /* ignore */ }
   await fetchArticles()
 })
 
-watch([selectedCategory, selectedTag, sortBy], () => {
+watch([selectedTag, sortBy], () => {
   currentPage.value = 1
   fetchArticles()
 })
@@ -120,7 +99,6 @@ async function fetchArticles() {
       page_size: pageSize,
       sort: sortBy.value,
     }
-    if (selectedCategory.value) params.category_id = selectedCategory.value
     if (selectedTag.value) params.tag_id = selectedTag.value
     if (keyword.value) params.keyword = keyword.value
     const res = await getArticles(params)
@@ -158,26 +136,11 @@ async function fetchArticles() {
   margin-bottom: 20px;
 }
 
-.category-tabs {
+.tag-tabs {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
   margin-bottom: 12px;
-}
-
-.tag-tabs {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-  padding: 8px 12px;
-  background: #f5f7fa;
-  border-radius: 4px;
-}
-
-.filter-label {
-  font-size: 14px;
-  color: #606266;
 }
 
 .sort-bar {

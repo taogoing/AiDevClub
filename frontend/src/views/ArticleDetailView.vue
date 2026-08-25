@@ -8,7 +8,6 @@
             {{ article.author.nickname?.charAt(0) || '?' }}
           </el-avatar>
           <span>{{ article.author.nickname }}</span>
-          <el-tag size="small" type="info">{{ article.category_name }}</el-tag>
           <el-tag v-for="tag in article.tags" :key="tag.id" size="small">{{ tag.name }}</el-tag>
           <span class="meta-time">{{ formatTime(article.published_at) }}</span>
         </div>

@@ -8,11 +8,6 @@
       <el-form-item label="摘要">
         <el-input v-model="form.summary" type="textarea" :rows="2" placeholder="请输入摘要（可选）" maxlength="500" />
       </el-form-item>
-      <el-form-item label="分类">
-        <el-select v-model="form.category_id" placeholder="选择分类">
-          <el-option v-for="cat in categories" :key="cat.id" :label="cat.name" :value="cat.id" />
-        </el-select>
-      </el-form-item>
       <el-form-item label="标签">
         <div class="tag-selector">
           <el-select
@@ -53,14 +48,12 @@ import { MdEditor } from 'md-editor-v3'
 import type { ToolbarNames } from 'md-editor-v3'
 import 'md-editor-v3/lib/style.css'
 import { createArticle, updateArticle, getArticle, uploadArticleImage } from '@/api/article'
-import { getCategories } from '@/api/category'
 import { getTags } from '@/api/tag'
-import type { Category, Tag, ArticleForm } from '@/types'
+import type { Tag, ArticleForm } from '@/types'
 
 const route = useRoute()
 const router = useRouter()
 const isEdit = computed(() => !!route.params.id)
-const categories = ref<Category[]>([])
 const availableTags = ref<Tag[]>([])
 const pageLoading = ref(false)
 const submitting = ref(false)
@@ -69,7 +62,6 @@ const form = ref<ArticleForm>({
   title: '',
   summary: '',
   content: '',
-  category_id: 0,
   status: 'published',
   tag_ids: [],
   tag_names: [],
@@ -85,8 +77,7 @@ const toolbars: ToolbarNames[] = [
 
 onMounted(async () => {
   try {
-    const [catRes, tagRes] = await Promise.all([getCategories(), getTags()])
-    categories.value = catRes.data.data
+    const tagRes = await getTags()
     availableTags.value = tagRes.data.data
   } catch { /* ignore */ }
 
@@ -99,7 +90,6 @@ onMounted(async () => {
         title: data.title,
         summary: data.summary,
         content: data.content,
-        category_id: data.category_id,
         status: 'published',
         tag_ids: data.tags.map((t) => t.id),
         tag_names: [],
@@ -136,10 +126,6 @@ async function handleImageUpload(files: File[]) {
 async function handleSubmit(status: 'draft' | 'published') {
   if (!form.value.title.trim()) {
     ElMessage.warning('请输入标题')
-    return
-  }
-  if (!form.value.category_id) {
-    ElMessage.warning('请选择分类')
     return
   }
   submitting.value = true
