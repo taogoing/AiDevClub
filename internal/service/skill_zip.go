@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 	"path"
-	"path/filepath"
 	"strings"
 
 	"aidevclub/internal/platform"
@@ -30,10 +29,17 @@ func extractSkillMD(r io.ReaderAt, size int64) (string, error) {
 		if !safeSkillArchivePath(file.Name) || file.Flags&0x1 != 0 || (file.Method != zip.Store && file.Method != zip.Deflate) {
 			return "", platform.ErrInvalidInput
 		}
+		mode := file.Mode()
+		if mode&(os.ModeType&^os.ModeDir) != 0 {
+			return "", platform.ErrInvalidInput
+		}
 		if file.FileInfo().IsDir() {
+			if file.CompressedSize64 != 0 || file.UncompressedSize64 != 0 {
+				return "", platform.ErrInvalidInput
+			}
 			continue
 		}
-		if file.Mode()&os.ModeType != 0 {
+		if mode&os.ModeType != 0 {
 			return "", platform.ErrInvalidInput
 		}
 
@@ -72,7 +78,7 @@ func extractSkillMD(r io.ReaderAt, size int64) (string, error) {
 }
 
 func safeSkillArchivePath(name string) bool {
-	if name == "" || strings.Contains(name, "\\") || path.IsAbs(name) || filepath.IsAbs(name) || filepath.VolumeName(name) != "" {
+	if name == "" || strings.Contains(name, "\\") || path.IsAbs(name) || hasWindowsDrivePrefix(name) {
 		return false
 	}
 	for _, segment := range strings.Split(name, "/") {
@@ -81,4 +87,11 @@ func safeSkillArchivePath(name string) bool {
 		}
 	}
 	return true
+}
+
+func hasWindowsDrivePrefix(name string) bool {
+	if len(name) < 2 || name[1] != ':' {
+		return false
+	}
+	return (name[0] >= 'a' && name[0] <= 'z') || (name[0] >= 'A' && name[0] <= 'Z')
 }

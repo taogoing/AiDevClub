@@ -325,20 +325,23 @@ func (s *SkillService) Get(ctx context.Context, userID, skillID uint) (*SkillDet
 }
 
 func (s *SkillService) UploadZip(ctx context.Context, userID, skillID uint, zipURL, zipFilename string, fileSize int64) error {
-	sk, err := s.skills.FindByID(nil, skillID)
-	if err != nil {
-		return ErrSkillNotFound
-	}
 	zipPath := filepath.Join(s.ZipDir(), filepath.Base(zipURL))
+	originalZipPath := ""
 	published := false
 	defer func() {
-		if published || zipURL == sk.ZipURL {
+		if published || zipPath == originalZipPath {
 			return
 		}
 		if info, statErr := os.Lstat(zipPath); statErr == nil && info.Mode().IsRegular() {
 			_ = os.Remove(zipPath)
 		}
 	}()
+
+	sk, err := s.skills.FindByID(nil, skillID)
+	if err != nil {
+		return ErrSkillNotFound
+	}
+	originalZipPath = filepath.Join(s.ZipDir(), filepath.Base(sk.ZipURL))
 	if sk.AuthorID != userID {
 		return ErrForbidden
 	}

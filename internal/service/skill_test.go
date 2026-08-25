@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"aidevclub/internal/model"
@@ -288,6 +289,51 @@ func TestSkillUploadZipRejectsInvalidReplacementWithoutChangingStoredMetadata(t 
 	}
 	if updated.ZipURL != "/static/skills/old.zip" || updated.ZipFilename != "old.zip" || updated.FileSize != 10 || updated.SkillMD != "# Old" {
 		t.Fatalf("metadata changed after invalid replacement: %+v", updated)
+	}
+}
+
+func TestSkillUploadZipRemovesNewFileWhenMetadataUpdateFails(t *testing.T) {
+	svc, u := newSkillTestEnv(t)
+	ctx := context.Background()
+	sk, err := svc.Create(ctx, u.ID, CreateSkillInput{Name: "zip-update-failure"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldZip := makeSkillZip(t, zipFixture{name: "SKILL.md", content: "# Old"})
+	oldPath := filepath.Join(svc.ZipDir(), "old.zip")
+	if err := os.WriteFile(oldPath, oldZip, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	sk.ZipURL = "/static/skills/old.zip"
+	sk.ZipFilename = "old.zip"
+	sk.FileSize = int64(len(oldZip))
+	sk.SkillMD = "# Old"
+	if err := svc.skills.Update(nil, sk); err != nil {
+		t.Fatal(err)
+	}
+
+	newZip := makeSkillZip(t, zipFixture{name: "SKILL.md", content: "# New"})
+	newPath := filepath.Join(svc.ZipDir(), "new.zip")
+	if err := os.WriteFile(newPath, newZip, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	err = svc.UploadZip(ctx, u.ID, sk.ID, "/static/skills/new.zip", strings.Repeat("a", 256), int64(len(newZip)))
+	if err == nil {
+		t.Fatal("upload with an oversized filename should fail database update")
+	}
+	if _, err := os.Stat(newPath); !os.IsNotExist(err) {
+		t.Fatalf("new file still exists after failed update: %v", err)
+	}
+	if got, err := os.ReadFile(oldPath); err != nil || string(got) != string(oldZip) {
+		t.Fatalf("old file = %q, err = %v, want original contents", got, err)
+	}
+	updated, err := svc.skills.FindByID(nil, sk.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.ZipURL != "/static/skills/old.zip" || updated.ZipFilename != "old.zip" || updated.FileSize != int64(len(oldZip)) || updated.SkillMD != "# Old" {
+		t.Fatalf("metadata changed after failed update: %+v", updated)
 	}
 }
 

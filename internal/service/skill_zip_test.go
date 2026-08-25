@@ -64,6 +64,17 @@ func markZipUnsupported(data []byte) {
 	}
 }
 
+func markZipDirectoryName(data []byte, ordinaryName, directoryName string) {
+	if len(ordinaryName) != len(directoryName) {
+		panic("ZIP entry name replacement must keep the same length")
+	}
+	for i := 0; i+len(ordinaryName) <= len(data); i++ {
+		if string(data[i:i+len(ordinaryName)]) == ordinaryName {
+			copy(data[i:i+len(directoryName)], directoryName)
+		}
+	}
+}
+
 func requireInvalidSkillZip(t *testing.T, err error) {
 	t.Helper()
 	if !errors.Is(err, platform.ErrInvalidInput) {
@@ -100,6 +111,16 @@ func TestExtractSkillMDRejectsUnsafeArchive(t *testing.T) {
 	markZipEncrypted(encrypted)
 	unsupported := makeSkillZip(t, zipFixture{name: "SKILL.md", content: "unsupported"})
 	markZipUnsupported(unsupported)
+	directorySymlink := makeSkillZip(t,
+		zipFixture{name: "linkX", content: "target", mode: os.ModeSymlink | 0o777},
+		zipFixture{name: "SKILL.md", content: "valid"},
+	)
+	markZipDirectoryName(directorySymlink, "linkX", "link/")
+	directoryPayload := makeSkillZip(t,
+		zipFixture{name: "payloadX", content: strings.Repeat("x", 10<<20+1)},
+		zipFixture{name: "SKILL.md", content: "valid"},
+	)
+	markZipDirectoryName(directoryPayload, "payloadX", "payload/")
 
 	tooManyEntries := make([]zipFixture, 0, 257)
 	tooManyEntries = append(tooManyEntries, zipFixture{name: "SKILL.md", content: "valid"})
@@ -114,6 +135,8 @@ func TestExtractSkillMDRejectsUnsafeArchive(t *testing.T) {
 		{name: "missing skill file", data: makeSkillZip(t, zipFixture{name: "README.md", content: "missing"})},
 		{name: "traversal", data: makeSkillZip(t, zipFixture{name: "../SKILL.md", content: "escape"})},
 		{name: "absolute path", data: makeSkillZip(t, zipFixture{name: "/SKILL.md", content: "escape"})},
+		{name: "windows drive relative path", data: makeSkillZip(t, zipFixture{name: "C:dir/SKILL.md", content: "escape"})},
+		{name: "windows drive absolute path", data: makeSkillZip(t, zipFixture{name: "C:/SKILL.md", content: "escape"})},
 		{name: "duplicate skill files", data: makeSkillZip(t,
 			zipFixture{name: "a/SKILL.md", content: "one"},
 			zipFixture{name: "b/SKILL.md", content: "two"},
@@ -121,6 +144,8 @@ func TestExtractSkillMDRejectsUnsafeArchive(t *testing.T) {
 		{name: "encrypted entry", data: encrypted},
 		{name: "unsupported compression", data: unsupported},
 		{name: "symlink", data: makeSkillZip(t, zipFixture{name: "SKILL.md", content: "target", mode: os.ModeSymlink | 0o777})},
+		{name: "directory marked symlink", data: directorySymlink},
+		{name: "directory payload bypass", data: directoryPayload},
 		{name: "expanded archive is too large", data: makeSkillZip(t,
 			zipFixture{name: "SKILL.md", content: "valid"},
 			zipFixture{name: "large.txt", content: strings.Repeat("x", 10<<20+1)},
