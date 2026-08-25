@@ -3,7 +3,7 @@
     <div class="main-area">
       <div class="filter-bar">
         <div class="category-tabs">
-          <el-button :type="!selectedCategory ? 'primary' : 'default'" size="small" @click="selectedCategory = 0">全部</el-button>
+          <el-button :type="!selectedCategory ? 'primary' : 'default'" size="small" @click="selectedCategory = 0">全部分类</el-button>
           <el-button
             v-for="cat in categories"
             :key="cat.id"
@@ -13,6 +13,10 @@
           >
             {{ cat.name }}
           </el-button>
+        </div>
+        <div class="tag-tabs" v-if="selectedTag">
+          <span class="filter-label">标签：</span>
+          <el-tag closable @close="clearTagFilter">{{ currentTagName }}</el-tag>
         </div>
         <div class="sort-bar">
           <el-select v-model="sortBy" size="small" style="width: 100px">
@@ -43,18 +47,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, watch, onMounted, computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import ArticleCard from '@/components/ArticleCard.vue'
 import Sidebar from '@/components/Sidebar.vue'
 import { getArticles } from '@/api/article'
 import { getCategories } from '@/api/category'
-import type { ArticleSummary, Category } from '@/types'
+import { getHotTags } from '@/api/tag'
+import type { ArticleSummary, Category, Tag } from '@/types'
 
 const route = useRoute()
+const router = useRouter()
 const articles = ref<ArticleSummary[]>([])
 const categories = ref<Category[]>([])
+const hotTags = ref<Tag[]>([])
 const loading = ref(false)
 const currentPage = ref(1)
 const pageSize = 20
@@ -64,12 +71,25 @@ const selectedTag = ref(0)
 const sortBy = ref('latest')
 const keyword = ref('')
 
+const currentTagName = computed(() => {
+  const tag = hotTags.value.find(t => t.id === selectedTag.value)
+  return tag?.name || ''
+})
+
+function clearTagFilter() {
+  router.push({ name: 'home', query: { ...route.query, tag_id: undefined } })
+}
+
 onMounted(async () => {
   keyword.value = (route.query.keyword as string) || ''
   selectedTag.value = Number(route.query.tag_id) || 0
   try {
-    const res = await getCategories()
-    categories.value = res.data.data
+    const [catRes, tagRes] = await Promise.all([
+      getCategories(),
+      getHotTags(50)
+    ])
+    categories.value = catRes.data.data
+    hotTags.value = tagRes.data.data
   } catch { /* ignore */ }
   await fetchArticles()
 })
@@ -86,9 +106,10 @@ watch(() => route.query.keyword, (val) => {
 })
 
 watch(() => route.query.tag_id, (val) => {
-  selectedTag.value = Number(val) || 0
-  currentPage.value = 1
-  fetchArticles()
+  const newTagId = Number(val) || 0
+  if (selectedTag.value !== newTagId) {
+    selectedTag.value = newTagId
+  }
 })
 
 async function fetchArticles() {
@@ -142,6 +163,21 @@ async function fetchArticles() {
   gap: 8px;
   flex-wrap: wrap;
   margin-bottom: 12px;
+}
+
+.tag-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: #f5f7fa;
+  border-radius: 4px;
+}
+
+.filter-label {
+  font-size: 14px;
+  color: #606266;
 }
 
 .sort-bar {
