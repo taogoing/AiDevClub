@@ -32,9 +32,10 @@ func articleRouter(t *testing.T) (*gin.Engine, *repo.UserRepo) {
 		ArticleImageDir:      t.TempDir(),
 		MaxArticleImageBytes: 5 << 20,
 	}
+	notifSvc := service.NewNotificationService(repo.NewNotificationRepo(db), users)
 	svc := service.NewArticleService(
 		repo.NewArticleRepo(db), repo.NewTagRepo(db), repo.NewCategoryRepo(db),
-		repo.NewInteractionRepo(db), rdb, cfg,
+		repo.NewInteractionRepo(db), rdb, cfg, notifSvc,
 	)
 	_ = repo.NewCategoryRepo(db).Seed(t.Context())
 	h := NewArticleHandler(svc)

@@ -91,6 +91,7 @@ var allModels = []interface{}{
 	&model.SkillLike{}, &model.SkillFavorite{},
 	&model.McpServerLike{}, &model.McpServerFavorite{},
 	&model.ResourceComment{}, &model.ResourceCommentLike{},
+	&model.Notification{}, &model.Report{}, &model.AdminLog{}, &model.Announcement{},
 }
 
 // NewTestDB 连接测试 MySQL（按进程隔离的库）并重置全部业务表，测试结束后清理。
@@ -109,6 +110,10 @@ func NewTestDB(t *testing.T) *gorm.DB {
 			t.Fatal(err)
 		}
 	}
+	// 创建 FULLTEXT 索引（忽略已存在的错误）
+	_ = db.Exec(`CREATE FULLTEXT INDEX idx_ft_article_search ON articles(title, summary, content) WITH PARSER ngram`).Error
+	_ = db.Exec(`CREATE FULLTEXT INDEX idx_ft_skill_search ON skills(name, description) WITH PARSER ngram`).Error
+	_ = db.Exec(`CREATE FULLTEXT INDEX idx_ft_mcp_search ON mcp_servers(name, description) WITH PARSER ngram`).Error
 	t.Cleanup(func() {
 		for _, m := range allModels {
 			_ = db.Migrator().DropTable(m)

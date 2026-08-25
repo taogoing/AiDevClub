@@ -25,12 +25,14 @@ func resCommentRouter(t *testing.T) (*gin.Engine, *repo.UserRepo, *repo.SkillRep
 	users := repo.NewUserRepo(db)
 	skillRepo := repo.NewSkillRepo(db)
 	mcpRepo := repo.NewMcpServerRepo(db)
+	notifSvc := service.NewNotificationService(repo.NewNotificationRepo(db), users)
 	rcSvc := service.NewResourceCommentService(
 		repo.NewResourceCommentRepo(db),
 		skillRepo,
 		mcpRepo,
 		repo.NewInteractionRepo(db),
 		users,
+		notifSvc,
 	)
 	h := NewResourceCommentHandler(rcSvc)
 	auth := platform.AuthMiddleware("s")

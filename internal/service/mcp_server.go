@@ -21,15 +21,16 @@ var (
 )
 
 type McpServerService struct {
-	servers *repo.McpServerRepo
-	tags    *repo.TagRepo
-	inter   *repo.InteractionRepo
-	rdb     *redis.Client
-	cfg     *platform.Config
+	servers  *repo.McpServerRepo
+	tags     *repo.TagRepo
+	inter    *repo.InteractionRepo
+	rdb      *redis.Client
+	cfg      *platform.Config
+	notifSvc *NotificationService
 }
 
-func NewMcpServerService(servers *repo.McpServerRepo, tags *repo.TagRepo, inter *repo.InteractionRepo, rdb *redis.Client, cfg *platform.Config) *McpServerService {
-	return &McpServerService{servers: servers, tags: tags, inter: inter, rdb: rdb, cfg: cfg}
+func NewMcpServerService(servers *repo.McpServerRepo, tags *repo.TagRepo, inter *repo.InteractionRepo, rdb *redis.Client, cfg *platform.Config, notifSvc *NotificationService) *McpServerService {
+	return &McpServerService{servers: servers, tags: tags, inter: inter, rdb: rdb, cfg: cfg, notifSvc: notifSvc}
 }
 
 func (s *McpServerService) ZipDir() string     { return s.cfg.McpServerZipDir }
@@ -390,6 +391,11 @@ func (s *McpServerService) ToggleLike(ctx context.Context, userID, serverID uint
 	})
 	if err == nil {
 		go s.updateHotScoreAsync(serverID)
+		if liked {
+			go func() {
+				_ = s.notifSvc.Create(context.Background(), sv.AuthorID, model.NotifTypeLikeMcpServer, "点赞", "有人赞了你的 MCP Server", "mcp_server", serverID, userID)
+			}()
+		}
 	}
 	return liked, newCount, err
 }

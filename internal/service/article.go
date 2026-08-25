@@ -34,10 +34,11 @@ type ArticleService struct {
 	inter    *repo.InteractionRepo
 	rdb      *redis.Client
 	cfg      *platform.Config
+	notifSvc *NotificationService
 }
 
-func NewArticleService(articles *repo.ArticleRepo, tags *repo.TagRepo, cats *repo.CategoryRepo, inter *repo.InteractionRepo, rdb *redis.Client, cfg *platform.Config) *ArticleService {
-	return &ArticleService{articles: articles, tags: tags, cats: cats, inter: inter, rdb: rdb, cfg: cfg}
+func NewArticleService(articles *repo.ArticleRepo, tags *repo.TagRepo, cats *repo.CategoryRepo, inter *repo.InteractionRepo, rdb *redis.Client, cfg *platform.Config, notifSvc *NotificationService) *ArticleService {
+	return &ArticleService{articles: articles, tags: tags, cats: cats, inter: inter, rdb: rdb, cfg: cfg, notifSvc: notifSvc}
 }
 
 func (s *ArticleService) ImageDir() string     { return s.cfg.ArticleImageDir }
@@ -350,6 +351,11 @@ func (s *ArticleService) ToggleLike(ctx context.Context, userID, articleID uint)
 	})
 	if err == nil {
 		go s.updateHotScoreAsync(articleID)
+		if liked {
+			go func() {
+				_ = s.notifSvc.Create(context.Background(), a.AuthorID, model.NotifTypeLikeArticle, "点赞", "有人赞了你的文章", "article", articleID, userID)
+			}()
+		}
 	}
 	return liked, newCount, err
 }

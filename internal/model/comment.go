@@ -11,8 +11,10 @@ type Comment struct {
 	ArticleID  uint           `gorm:"not null;index"`
 	AuthorID   uint           `gorm:"not null;index"`
 	ParentID   *uint          `gorm:"index"`
+	ReplyToID  *uint          `gorm:"index"`
 	Content    string         `gorm:"type:text;not null"`
 	LikesCount int            `gorm:"not null;default:0"`
+	Hidden     bool           `gorm:"not null;default:false"`
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 	DeletedAt  gorm.DeletedAt `gorm:"index"`

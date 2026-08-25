@@ -90,6 +90,9 @@ type SkillQuery struct {
 
 func (r *SkillRepo) baseQuery(ctx context.Context, q SkillQuery) *gorm.DB {
 	d := r.db.WithContext(ctx).Model(&model.Skill{}).Where("status = ?", model.ResourceStatusPublished)
+	if q.AuthorID == nil {
+		d = d.Where("hidden = ?", false)
+	}
 	if q.AuthorID != nil {
 		d = d.Where("author_id = ?", *q.AuthorID)
 	}
@@ -125,6 +128,12 @@ func (r *SkillRepo) List(ctx context.Context, q SkillQuery) ([]model.Skill, int6
 	}
 	total, err := r.Count(ctx, q)
 	return list, total, err
+}
+
+func (r *SkillRepo) CountByStatus(ctx context.Context, status model.ResourceStatus) (int64, error) {
+	var total int64
+	err := r.db.WithContext(ctx).Model(&model.Skill{}).Where("status = ?", status).Count(&total).Error
+	return total, err
 }
 
 func (r *SkillRepo) TagsForSkills(ctx context.Context, skillIDs []uint) (map[uint][]model.Tag, error) {

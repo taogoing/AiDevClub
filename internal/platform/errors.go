@@ -15,6 +15,9 @@ const (
 	CodeSkillNotFound      = 40406
 	CodeMcpServerNotFound  = 40407
 	CodeResCommentNotFound = 40408
+	CodeReportNotFound       = 40409
+	CodeNotifNotFound        = 40410
+	CodeAnnouncementNotFound = 40411
 
 	CodeEmailExists = 40901
 

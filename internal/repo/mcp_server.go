@@ -90,6 +90,9 @@ type McpServerQuery struct {
 
 func (r *McpServerRepo) baseQuery(ctx context.Context, q McpServerQuery) *gorm.DB {
 	d := r.db.WithContext(ctx).Model(&model.McpServer{}).Where("status = ?", model.ResourceStatusPublished)
+	if q.AuthorID == nil {
+		d = d.Where("hidden = ?", false)
+	}
 	if q.AuthorID != nil {
 		d = d.Where("author_id = ?", *q.AuthorID)
 	}
@@ -125,6 +128,12 @@ func (r *McpServerRepo) List(ctx context.Context, q McpServerQuery) ([]model.Mcp
 	}
 	total, err := r.Count(ctx, q)
 	return list, total, err
+}
+
+func (r *McpServerRepo) CountByStatus(ctx context.Context, status model.ResourceStatus) (int64, error) {
+	var total int64
+	err := r.db.WithContext(ctx).Model(&model.McpServer{}).Where("status = ?", status).Count(&total).Error
+	return total, err
 }
 
 func (r *McpServerRepo) TagsForMcpServers(ctx context.Context, serverIDs []uint) (map[uint][]model.Tag, error) {

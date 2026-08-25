@@ -24,10 +24,11 @@ type ResourceCommentService struct {
 	mcpServers *repo.McpServerRepo
 	inter     *repo.InteractionRepo
 	users     *repo.UserRepo
+	notifSvc  *NotificationService
 }
 
-func NewResourceCommentService(comments *repo.ResourceCommentRepo, skills *repo.SkillRepo, mcpServers *repo.McpServerRepo, inter *repo.InteractionRepo, users *repo.UserRepo) *ResourceCommentService {
-	return &ResourceCommentService{comments: comments, skills: skills, mcpServers: mcpServers, inter: inter, users: users}
+func NewResourceCommentService(comments *repo.ResourceCommentRepo, skills *repo.SkillRepo, mcpServers *repo.McpServerRepo, inter *repo.InteractionRepo, users *repo.UserRepo, notifSvc *NotificationService) *ResourceCommentService {
+	return &ResourceCommentService{comments: comments, skills: skills, mcpServers: mcpServers, inter: inter, users: users, notifSvc: notifSvc}
 }
 
 func (s *ResourceCommentService) getDB() *gorm.DB {
@@ -72,6 +73,7 @@ func (s *ResourceCommentService) Create(ctx context.Context, userID uint, resour
 	if err != nil {
 		return nil, err
 	}
+	replyToID := parentID
 	if parentID != nil {
 		p, err := s.comments.FindByID(nil, *parentID)
 		if err != nil || p.ResourceType != resourceType || p.ResourceID != resourceID {
@@ -86,6 +88,7 @@ func (s *ResourceCommentService) Create(ctx context.Context, userID uint, resour
 		ResourceID:   resourceID,
 		AuthorID:     userID,
 		ParentID:     parentID,
+		ReplyToID:    replyToID,
 		Content:      content,
 	}
 	err = s.getDB().Transaction(func(tx *gorm.DB) error {
@@ -94,7 +97,27 @@ func (s *ResourceCommentService) Create(ctx context.Context, userID uint, resour
 		}
 		return s.incrCommentsCount(resourceType, resourceID, 1)
 	})
+	if err == nil {
+		go s.sendResCommentNotification(context.Background(), userID, resourceType, resourceID, replyToID, content)
+	}
 	return c, err
+}
+
+func (s *ResourceCommentService) sendResCommentNotification(ctx context.Context, userID uint, resourceType string, resourceID uint, replyToID *uint, content string) {
+	if replyToID != nil {
+		rc, err := s.comments.FindByID(nil, *replyToID)
+		if err == nil && rc.AuthorID != userID {
+			_ = s.notifSvc.Create(ctx, rc.AuthorID, model.NotifTypeReplyComment, "新回复", content, resourceType, resourceID, userID)
+		}
+		return
+	}
+	authorID, err := s.checkResourcePublished(resourceType, resourceID)
+	if err != nil {
+		return
+	}
+	if authorID != userID {
+		_ = s.notifSvc.Create(ctx, authorID, model.NotifTypeCommentArticle, "新评论", content, resourceType, resourceID, userID)
+	}
 }
 
 func (s *ResourceCommentService) List(ctx context.Context, resourceType string, resourceID uint) ([]ResourceCommentItem, error) {
@@ -222,5 +245,10 @@ func (s *ResourceCommentService) ToggleLike(ctx context.Context, userID, comment
 		newCount = c.LikesCount + delta
 		return nil
 	})
+	if err == nil && liked {
+		go func() {
+			_ = s.notifSvc.Create(context.Background(), c.AuthorID, model.NotifTypeLikeResourceComment, "点赞", "有人赞了你的评论", c.ResourceType, commentID, userID)
+		}()
+	}
 	return liked, newCount, err
 }

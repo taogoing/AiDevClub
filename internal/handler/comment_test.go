@@ -25,14 +25,15 @@ func commentRouter(t *testing.T) (*gin.Engine, *repo.UserRepo) {
 	users := repo.NewUserRepo(db)
 	rdb := testutil.NewTestRedis(t)
 	cfg := &platform.Config{DefaultPageSize: 20, MaxPageSize: 50, HotCacheTTL: 60e9}
+	notifSvc := service.NewNotificationService(repo.NewNotificationRepo(db), users)
 	artSvc := service.NewArticleService(
 		repo.NewArticleRepo(db), repo.NewTagRepo(db), repo.NewCategoryRepo(db),
-		repo.NewInteractionRepo(db), rdb, cfg,
+		repo.NewInteractionRepo(db), rdb, cfg, notifSvc,
 	)
 	_ = repo.NewCategoryRepo(db).Seed(t.Context())
 	comSvc := service.NewCommentService(
 		repo.NewCommentRepo(db), repo.NewArticleRepo(db),
-		repo.NewInteractionRepo(db), users,
+		repo.NewInteractionRepo(db), users, notifSvc,
 	)
 	auth := platform.AuthMiddleware("s")
 	ah := NewArticleHandler(artSvc)

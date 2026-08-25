@@ -38,7 +38,7 @@ AIDevClub 是一个面向开发者和 AI Agent 的技术内容与 AI 资源分�
 
 ## 现状与路线
 
-P0+P1+P2+P3+P4（基础设施 + 用户认证 + 技术社区 + AI 资源 + 标签/搜索/排行优化）已完成并合并到 master。前端 Vue 3 用户端已完成（文章 / Skills Hub / MCP Hub 浏览与发布、搜索、管理后台标签管理）。下一步是 P5（消息通知 + 举报审核）。总体路线见 [docs/roadmap.md](docs/roadmap.md)，阶段总结见 [docs/phase1-summary.md](docs/phase1-summary.md)、[docs/phase2-summary.md](docs/phase2-summary.md)、[docs/phase3-summary.md](docs/phase3-summary.md) 和 [docs/phase4-summary.md](docs/phase4-summary.md)。
+P0+P1+P2+P3+P4+P5（基础设施 + 用户认证 + 技术社区 + AI 资源 + 标签/搜索/排行优化 + 消息通知/举报审核）已完成并合并到 master。前端 Vue 3 用户端已完成（文章 / Skills Hub / MCP Hub 浏览与发布、搜索、管理后台标签管理）。下一步是 P6（平台 MCP Server + 管理后台）。总体路线见 [docs/roadmap.md](docs/roadmap.md)，阶段总结见 [docs/phase1-summary.md](docs/phase1-summary.md)、[docs/phase2-summary.md](docs/phase2-summary.md)、[docs/phase3-summary.md](docs/phase3-summary.md)、[docs/phase4-summary.md](docs/phase4-summary.md) 和 [docs/phase5-summary.md](docs/phase5-summary.md)。
 
 标准命令：`go build ./...`、`go test ./...` 及 `go test ./<package>`（单测）。测试依赖真实 MySQL/Redis（先 `docker compose up -d`，Redis 宿主机端口为 16379）。前端标准命令：`cd frontend && npm run typecheck && npm run build`。
 

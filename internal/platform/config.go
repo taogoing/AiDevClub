@@ -29,6 +29,7 @@ type Config struct {
 	SkillZipDir         string
 	McpServerZipDir     string
 	MaxResourceZipBytes int64
+	AdminEmails         []string
 }
 
 func LoadConfig() (*Config, error) {
@@ -53,6 +54,7 @@ func LoadConfig() (*Config, error) {
 	v.SetDefault("skill_zip.dir", "storage/skills")
 	v.SetDefault("mcp_server_zip.dir", "storage/mcp_servers")
 	v.SetDefault("resource_zip.max_bytes", int64(50<<20))
+	v.SetDefault("admin.emails", "")
 
 	v.AutomaticEnv()
 	v.SetEnvPrefix("AIDEVCLUB")
@@ -69,6 +71,15 @@ func LoadConfig() (*Config, error) {
 	hotCacheTTL, err := time.ParseDuration(v.GetString("article.hot_cache_ttl"))
 	if err != nil {
 		return nil, err
+	}
+
+	var adminEmails []string
+	if emails := v.GetString("admin.emails"); emails != "" {
+		for _, e := range strings.Split(emails, ",") {
+			if trimmed := strings.TrimSpace(e); trimmed != "" {
+				adminEmails = append(adminEmails, trimmed)
+			}
+		}
 	}
 
 	cfg := &Config{
@@ -92,6 +103,7 @@ func LoadConfig() (*Config, error) {
 		SkillZipDir:         v.GetString("skill_zip.dir"),
 		McpServerZipDir:     v.GetString("mcp_server_zip.dir"),
 		MaxResourceZipBytes: v.GetInt64("resource_zip.max_bytes"),
+		AdminEmails:         adminEmails,
 	}
 
 	// 生产环境若忘记设置 AIDEVCLUB_JWT_SECRET，会使用众所周知的默认值，

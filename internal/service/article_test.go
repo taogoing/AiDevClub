@@ -26,6 +26,7 @@ func newArticleTestEnv(t *testing.T) (*ArticleService, *model.User, *model.Categ
 		MaxPageSize:     50,
 		HotCacheTTL:     60e9,
 	}
+	notifSvc := NewNotificationService(repo.NewNotificationRepo(db), users)
 	svc := NewArticleService(
 		repo.NewArticleRepo(db),
 		repo.NewTagRepo(db),
@@ -33,6 +34,7 @@ func newArticleTestEnv(t *testing.T) (*ArticleService, *model.User, *model.Categ
 		repo.NewInteractionRepo(db),
 		testutil.NewTestRedis(t),
 		cfg,
+		notifSvc,
 	)
 	return svc, u, &catList[0]
 }

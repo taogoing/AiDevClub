@@ -21,15 +21,16 @@ var (
 )
 
 type SkillService struct {
-	skills *repo.SkillRepo
-	tags   *repo.TagRepo
-	inter  *repo.InteractionRepo
-	rdb    *redis.Client
-	cfg    *platform.Config
+	skills   *repo.SkillRepo
+	tags     *repo.TagRepo
+	inter    *repo.InteractionRepo
+	rdb      *redis.Client
+	cfg      *platform.Config
+	notifSvc *NotificationService
 }
 
-func NewSkillService(skills *repo.SkillRepo, tags *repo.TagRepo, inter *repo.InteractionRepo, rdb *redis.Client, cfg *platform.Config) *SkillService {
-	return &SkillService{skills: skills, tags: tags, inter: inter, rdb: rdb, cfg: cfg}
+func NewSkillService(skills *repo.SkillRepo, tags *repo.TagRepo, inter *repo.InteractionRepo, rdb *redis.Client, cfg *platform.Config, notifSvc *NotificationService) *SkillService {
+	return &SkillService{skills: skills, tags: tags, inter: inter, rdb: rdb, cfg: cfg, notifSvc: notifSvc}
 }
 
 func (s *SkillService) ZipDir() string     { return s.cfg.SkillZipDir }
@@ -380,6 +381,11 @@ func (s *SkillService) ToggleLike(ctx context.Context, userID, skillID uint) (bo
 	})
 	if err == nil {
 		go s.updateHotScoreAsync(skillID)
+		if liked {
+			go func() {
+				_ = s.notifSvc.Create(context.Background(), sk.AuthorID, model.NotifTypeLikeSkill, "点赞", "有人赞了你的 Skill", "skill", skillID, userID)
+			}()
+		}
 	}
 	return liked, newCount, err
 }

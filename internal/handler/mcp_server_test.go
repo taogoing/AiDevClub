@@ -32,9 +32,10 @@ func mcpServerRouter(t *testing.T) (*gin.Engine, *repo.UserRepo, *repo.McpServer
 		MaxResourceZipBytes: 10 << 20,
 	}
 	mcpRepo := repo.NewMcpServerRepo(db)
+	notifSvc := service.NewNotificationService(repo.NewNotificationRepo(db), users)
 	svc := service.NewMcpServerService(
 		mcpRepo, repo.NewTagRepo(db),
-		repo.NewInteractionRepo(db), rdb, cfg,
+		repo.NewInteractionRepo(db), rdb, cfg, notifSvc,
 	)
 	h := NewMcpServerHandler(svc)
 	auth := platform.AuthMiddleware("s")

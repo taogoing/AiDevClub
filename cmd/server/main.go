@@ -36,6 +36,7 @@ func main() {
 		&model.SkillLike{}, &model.SkillFavorite{},
 		&model.McpServerLike{}, &model.McpServerFavorite{},
 		&model.ResourceComment{}, &model.ResourceCommentLike{},
+		&model.Notification{}, &model.Report{}, &model.AdminLog{}, &model.Announcement{},
 	); err != nil {
 		logger.Error("migrate", "err", err)
 		return
@@ -51,6 +52,12 @@ func main() {
 	rdb := platform.OpenRedis(cfg.RedisAddr, cfg.RedisPassword, cfg.RedisDB)
 
 	users := repo.NewUserRepo(db)
+	for _, email := range cfg.AdminEmails {
+		u, err := users.FindByEmail(email)
+		if err == nil && u.Role != model.UserRoleAdmin {
+			_ = users.UpdateRole(u.ID, model.UserRoleAdmin)
+		}
+	}
 	tokens := repo.NewTokenRepo(rdb, cfg.RefreshTokenTTL)
 	authSvc := service.NewAuthService(users, tokens, cfg)
 	userSvc := service.NewUserService(users, tokens, cfg)
@@ -83,10 +90,13 @@ func main() {
 	comments := repo.NewCommentRepo(db)
 	inter := repo.NewInteractionRepo(db)
 
+	notifRepo := repo.NewNotificationRepo(db)
+	notifSvc := service.NewNotificationService(notifRepo, users)
+
 	catSvc := service.NewCategoryService(cats)
 	tagSvc := service.NewTagService(tags, rdb)
-	artSvc := service.NewArticleService(articles, tags, cats, inter, rdb, cfg)
-	comSvc := service.NewCommentService(comments, articles, inter, users)
+	artSvc := service.NewArticleService(articles, tags, cats, inter, rdb, cfg, notifSvc)
+	comSvc := service.NewCommentService(comments, articles, inter, users, notifSvc)
 
 	catH := handler.NewCategoryHandler(catSvc)
 	tagH := handler.NewTagHandler(tagSvc)
@@ -133,9 +143,9 @@ func main() {
 	mcpServers := repo.NewMcpServerRepo(db)
 	resComments := repo.NewResourceCommentRepo(db)
 
-	skillSvc := service.NewSkillService(skills, tags, inter, rdb, cfg)
-	mcpSvc := service.NewMcpServerService(mcpServers, tags, inter, rdb, cfg)
-	resCommentSvc := service.NewResourceCommentService(resComments, skills, mcpServers, inter, users)
+	skillSvc := service.NewSkillService(skills, tags, inter, rdb, cfg, notifSvc)
+	mcpSvc := service.NewMcpServerService(mcpServers, tags, inter, rdb, cfg, notifSvc)
+	resCommentSvc := service.NewResourceCommentService(resComments, skills, mcpServers, inter, users, notifSvc)
 
 	skillH := handler.NewSkillHandler(skillSvc)
 	mcpH := handler.NewMcpServerHandler(mcpSvc)
@@ -185,6 +195,29 @@ func main() {
 
 	r.Static("/static/skills", cfg.SkillZipDir)
 	r.Static("/static/mcp-servers", cfg.McpServerZipDir)
+
+	adminLogRepo := repo.NewAdminLogRepo(db)
+	announcementRepo := repo.NewAnnouncementRepo(db)
+	reportRepo := repo.NewReportRepo(db)
+	adminLogSvc := service.NewAdminLogService(adminLogRepo)
+	adminSvc := service.NewAdminService(users, articles, skills, mcpServers, comments, resComments, reportRepo, announcementRepo, adminLogSvc, notifSvc)
+	reportSvc := service.NewReportService(reportRepo, articles, skills, mcpServers, comments, resComments, adminSvc, adminLogSvc, notifSvc)
+
+	nh := handler.NewNotificationHandler(notifSvc)
+	notifs := r.Group("/api/v1/notifications", p2Auth)
+	notifs.GET("", nh.List)
+	notifs.GET("/unread-count", nh.UnreadCount)
+	notifs.PUT("/:id/read", nh.MarkRead)
+	notifs.PUT("/read", nh.MarkAllRead)
+
+	rh := handler.NewReportHandler(reportSvc)
+	reports := r.Group("/api/v1/reports", p2Auth)
+	reports.POST("", rh.Create)
+	reports.GET("", rh.List)
+
+	adminAuth := r.Group("/api/v1/admin", p2Auth, platform.AdminMiddleware(users))
+	adminH := handler.NewAdminHandler(adminSvc, reportSvc, adminLogSvc)
+	adminH.RegisterRoutes(adminAuth)
 
 	rankingSvc := service.NewRankingService(rdb, articles, repo.NewSkillRepo(db), repo.NewMcpServerRepo(db), 1.5)
 	rankingH := handler.NewRankingHandler(rankingSvc, artSvc, skillSvc, mcpSvc)

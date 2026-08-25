@@ -23,12 +23,14 @@ func newSkillTestEnv(t *testing.T) (*SkillService, *model.User) {
 		MaxPageSize:     50,
 		HotCacheTTL:     60e9,
 	}
+	notifSvc := NewNotificationService(repo.NewNotificationRepo(db), users)
 	svc := NewSkillService(
 		repo.NewSkillRepo(db),
 		repo.NewTagRepo(db),
 		repo.NewInteractionRepo(db),
 		testutil.NewTestRedis(t),
 		cfg,
+		notifSvc,
 	)
 	return svc, u
 }

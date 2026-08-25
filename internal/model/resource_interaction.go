@@ -40,8 +40,10 @@ type ResourceComment struct {
 	ResourceID   uint           `gorm:"not null;index:idx_resource"`
 	AuthorID     uint           `gorm:"not null;index"`
 	ParentID     *uint          `gorm:"index"`
+	ReplyToID    *uint          `gorm:"index"`
 	Content      string         `gorm:"type:text;not null"`
 	LikesCount   int            `gorm:"not null;default:0"`
+	Hidden       bool           `gorm:"not null;default:false"`
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 	DeletedAt    gorm.DeletedAt `gorm:"index"`

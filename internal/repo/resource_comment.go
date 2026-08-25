@@ -36,7 +36,7 @@ func (r *ResourceCommentRepo) FindByID(db *gorm.DB, id uint) (*model.ResourceCom
 func (r *ResourceCommentRepo) ListByResource(ctx context.Context, resourceType string, resourceID uint) ([]model.ResourceComment, error) {
 	var list []model.ResourceComment
 	err := r.db.WithContext(ctx).
-		Where("resource_type = ? AND resource_id = ?", resourceType, resourceID).
+		Where("resource_type = ? AND resource_id = ? AND hidden = ?", resourceType, resourceID, false).
 		Order("created_at asc, id asc").
 		Find(&list).Error
 	return list, err
@@ -49,4 +49,10 @@ func (r *ResourceCommentRepo) Delete(db *gorm.DB, id uint) error {
 func (r *ResourceCommentRepo) IncrLikes(db *gorm.DB, id uint, delta int) error {
 	return r.exec(db).Model(&model.ResourceComment{}).Where("id = ?", id).
 		UpdateColumn("likes_count", gorm.Expr("likes_count + ?", delta)).Error
+}
+
+func (r *ResourceCommentRepo) HideChildren(db *gorm.DB, parentID uint) error {
+	return r.exec(db).Model(&model.ResourceComment{}).
+		Where("parent_id = ?", parentID).
+		Update("hidden", true).Error
 }

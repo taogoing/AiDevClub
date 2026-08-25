@@ -32,9 +32,10 @@ func skillRouter(t *testing.T) (*gin.Engine, *repo.UserRepo, *repo.SkillRepo) {
 		MaxResourceZipBytes: 10 << 20,
 	}
 	skillRepo := repo.NewSkillRepo(db)
+	notifSvc := service.NewNotificationService(repo.NewNotificationRepo(db), users)
 	svc := service.NewSkillService(
 		skillRepo, repo.NewTagRepo(db),
-		repo.NewInteractionRepo(db), rdb, cfg,
+		repo.NewInteractionRepo(db), rdb, cfg, notifSvc,
 	)
 	h := NewSkillHandler(svc)
 	auth := platform.AuthMiddleware("s")

@@ -28,12 +28,14 @@ func newResCommentTestEnv(t *testing.T) (*ResourceCommentService, *model.User, *
 	if err := skillRepo.Create(db, sk); err != nil {
 		t.Fatal(err)
 	}
+	notifSvc := NewNotificationService(repo.NewNotificationRepo(db), users)
 	svc := NewResourceCommentService(
 		repo.NewResourceCommentRepo(db),
 		skillRepo,
 		mcpRepo,
 		repo.NewInteractionRepo(db),
 		users,
+		notifSvc,
 	)
 	return svc, u, sk
 }

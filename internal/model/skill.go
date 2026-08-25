@@ -32,6 +32,7 @@ type Skill struct {
 	FavoritesCount int            `gorm:"not null;default:0"`
 	CommentsCount  int            `gorm:"not null;default:0"`
 	Pinned         bool           `gorm:"not null;default:false"`
+	Hidden         bool           `gorm:"not null;default:false"`
 	PublishedAt    *time.Time
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
