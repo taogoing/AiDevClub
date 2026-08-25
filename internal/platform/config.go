@@ -1,7 +1,9 @@
 package platform
 
 import (
+	"fmt"
 	"log/slog"
+	"net/url"
 	"strings"
 	"time"
 
@@ -19,6 +21,8 @@ type Config struct {
 	RefreshTokenTTL      time.Duration
 	RateLimitPerMin      int
 	MCPAddr              string
+	PublicBaseURL        string
+	MCPAllowedOrigins    []string
 	MCPRateLimitPerMin   int
 	MCPMaxBodyBytes      int64
 	MCPRequestTimeout    time.Duration
@@ -47,7 +51,9 @@ func LoadConfig() (*Config, error) {
 	v.SetDefault("token.access_ttl", "15m")
 	v.SetDefault("token.refresh_ttl", "720h")
 	v.SetDefault("ratelimit.per_minute", 10)
-	v.SetDefault("mcp.addr", ":9090")
+	v.SetDefault("mcp.addr", ":8081")
+	v.SetDefault("public.base_url", "http://localhost:5173")
+	v.SetDefault("mcp.allowed_origins", "")
 	v.SetDefault("mcp.ratelimit_per_minute", 60)
 	v.SetDefault("mcp.max_body_bytes", int64(1<<20))
 	v.SetDefault("mcp.request_timeout", "30s")
@@ -84,6 +90,14 @@ func LoadConfig() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	publicBaseURL, err := validatePublicBaseURL(v.GetString("public.base_url"))
+	if err != nil {
+		return nil, err
+	}
+	mcpAllowedOrigins, err := parseMCPAllowedOrigins(v.GetString("mcp.allowed_origins"))
+	if err != nil {
+		return nil, err
+	}
 
 	var adminEmails []string
 	if emails := v.GetString("admin.emails"); emails != "" {
@@ -105,6 +119,8 @@ func LoadConfig() (*Config, error) {
 		RefreshTokenTTL:      refreshTTL,
 		RateLimitPerMin:      v.GetInt("ratelimit.per_minute"),
 		MCPAddr:              v.GetString("mcp.addr"),
+		PublicBaseURL:        publicBaseURL,
+		MCPAllowedOrigins:    mcpAllowedOrigins,
 		MCPRateLimitPerMin:   v.GetInt("mcp.ratelimit_per_minute"),
 		MCPMaxBodyBytes:      v.GetInt64("mcp.max_body_bytes"),
 		MCPRequestTimeout:    mcpRequestTimeout,
@@ -130,4 +146,34 @@ func LoadConfig() (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+func validatePublicBaseURL(raw string) (string, error) {
+	value := strings.TrimSpace(raw)
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Host == "" || parsed.User != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return "", fmt.Errorf("invalid public base URL %q", value)
+	}
+	return value, nil
+}
+
+func parseMCPAllowedOrigins(raw string) ([]string, error) {
+	if strings.TrimSpace(raw) == "" {
+		return []string{}, nil
+	}
+
+	origins := make([]string, 0)
+	for _, value := range strings.Split(raw, ",") {
+		origin := strings.TrimSpace(value)
+		parsed, err := url.Parse(origin)
+		if origin == "" || strings.Contains(origin, "*") || err != nil ||
+			parsed.Host == "" || parsed.User != nil ||
+			(parsed.Scheme != "http" && parsed.Scheme != "https") ||
+			parsed.Path != "" || parsed.ForceQuery || parsed.RawQuery != "" ||
+			strings.Contains(origin, "#") || parsed.Fragment != "" {
+			return nil, fmt.Errorf("invalid MCP allowed origin %q", origin)
+		}
+		origins = append(origins, origin)
+	}
+	return origins, nil
 }

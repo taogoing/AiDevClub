@@ -16,19 +16,22 @@ type RateLimiter struct {
 	window time.Duration
 }
 
+var incrementWithTTL = redis.NewScript(`
+local current = redis.call("INCR", KEYS[1])
+if current == 1 or redis.call("PTTL", KEYS[1]) < 0 then
+    redis.call("PEXPIRE", KEYS[1], ARGV[1])
+end
+return current
+`)
+
 func NewRateLimiter(rdb *redis.Client, limit int, window time.Duration) *RateLimiter {
 	return &RateLimiter{rdb: rdb, limit: limit, window: window}
 }
 
 func (l *RateLimiter) Allow(ctx context.Context, key string) (bool, error) {
-	n, err := l.rdb.Incr(ctx, key).Result()
+	n, err := incrementWithTTL.Run(ctx, l.rdb, []string{key}, l.window.Milliseconds()).Int64()
 	if err != nil {
 		return false, err
-	}
-	if n == 1 {
-		if err := l.rdb.Expire(ctx, key, l.window).Err(); err != nil {
-			return false, err
-		}
 	}
 	return n <= int64(l.limit), nil
 }

@@ -183,12 +183,12 @@ func main() {
 	r.GET("/api/v1/skills/ranking", rankingH.GetSkillRanking)
 	r.GET("/api/v1/mcp-servers/ranking", rankingH.GetMcpServerRanking)
 
-	rankingScheduler := scheduler.NewRankingScheduler(services.Ranking, 2*time.Minute)
-	rankingScheduler.Start()
-	defer rankingScheduler.Stop()
-
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	rankingScheduler := scheduler.NewRankingScheduler(services.Ranking, 2*time.Minute)
+	rankingScheduler.Start(ctx)
+	defer rankingScheduler.Stop()
+
 	logger.Info("server starting", "addr", cfg.HTTPAddr)
 	if err := app.ServeHTTP(ctx, app.NewHTTPServer(cfg.HTTPAddr, r)); err != nil {
 		logger.Error("server exited", "err", err)
