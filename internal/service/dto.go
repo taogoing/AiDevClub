@@ -209,3 +209,20 @@ type NotificationListResult struct {
 	Page     int                `json:"page"`
 	PageSize int                `json:"page_size"`
 }
+
+type AdminLogItem struct {
+	ID         uint      `json:"id"`
+	AdminID    uint      `json:"admin_id"`
+	Action     string    `json:"action"`
+	TargetType string    `json:"target_type"`
+	TargetID   uint      `json:"target_id"`
+	Detail     string    `json:"detail"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+type AdminLogListResult struct {
+	List     []AdminLogItem `json:"list"`
+	Total    int64          `json:"total"`
+	Page     int            `json:"page"`
+	PageSize int            `json:"page_size"`
+}
