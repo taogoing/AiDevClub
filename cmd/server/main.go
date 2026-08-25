@@ -102,8 +102,7 @@ func main() {
 	adminTags := r.Group("/api/v1/admin/tags")
 	adminTags.POST("", adminTagH.Create)
 	adminTags.PUT("/:id", adminTagH.Update)
-	adminTags.PATCH("/:id/enable", adminTagH.Enable)
-	adminTags.PATCH("/:id/disable", adminTagH.Disable)
+	adminTags.PATCH("/:id", adminTagH.Patch)
 	adminTags.GET("", adminTagH.List)
 
 	searchRepo := repo.NewSearchRepo(db)

@@ -68,12 +68,8 @@ func (s *TagService) AdminUpdate(ctx context.Context, id uint, name, description
 	return s.tags.AdminUpdate(ctx, id, name, description)
 }
 
-func (s *TagService) Enable(ctx context.Context, id uint) error {
-	return s.tags.Enable(ctx, id)
-}
-
-func (s *TagService) Disable(ctx context.Context, id uint) error {
-	return s.tags.Disable(ctx, id)
+func (s *TagService) AdminPatch(ctx context.Context, id uint, updates map[string]interface{}) error {
+	return s.tags.AdminPatch(ctx, id, updates)
 }
 
 func (s *TagService) AdminList(ctx context.Context, keyword, status string, page, pageSize int) ([]model.Tag, int64, error) {

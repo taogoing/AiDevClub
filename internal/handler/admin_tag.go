@@ -65,29 +65,46 @@ func (h *AdminTagHandler) Update(c *gin.Context) {
 	platform.OK(c, nil)
 }
 
-func (h *AdminTagHandler) Enable(c *gin.Context) {
-	id, err := parseUintParam(c, "id")
-	if err != nil {
-		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "无效的标签 ID")
-		return
-	}
-
-	if err := h.svc.Enable(c.Request.Context(), id); err != nil {
-		platform.Fail(c, errStatus(err), errCode(err), err.Error())
-		return
-	}
-
-	platform.OK(c, nil)
+type patchTagRequest struct {
+	Name        *string `json:"name"`
+	Description *string `json:"description"`
+	Enabled     *bool   `json:"enabled"`
 }
 
-func (h *AdminTagHandler) Disable(c *gin.Context) {
+func (h *AdminTagHandler) Patch(c *gin.Context) {
 	id, err := parseUintParam(c, "id")
 	if err != nil {
 		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "无效的标签 ID")
 		return
 	}
 
-	if err := h.svc.Disable(c.Request.Context(), id); err != nil {
+	var req patchTagRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "参数错误")
+		return
+	}
+
+	updates := make(map[string]interface{})
+	if req.Name != nil {
+		if *req.Name == "" {
+			platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "标签名称不能为空")
+			return
+		}
+		updates["name"] = *req.Name
+	}
+	if req.Description != nil {
+		updates["description"] = *req.Description
+	}
+	if req.Enabled != nil {
+		updates["enabled"] = *req.Enabled
+	}
+
+	if len(updates) == 0 {
+		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "没有要更新的字段")
+		return
+	}
+
+	if err := h.svc.AdminPatch(c.Request.Context(), id, updates); err != nil {
 		platform.Fail(c, errStatus(err), errCode(err), err.Error())
 		return
 	}

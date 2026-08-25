@@ -75,18 +75,11 @@ func (r *TagRepo) AdminUpdate(ctx context.Context, id uint, name, description st
 		}).Error
 }
 
-func (r *TagRepo) Enable(ctx context.Context, id uint) error {
+func (r *TagRepo) AdminPatch(ctx context.Context, id uint, updates map[string]interface{}) error {
 	return r.db.WithContext(ctx).
 		Model(&model.Tag{}).
 		Where("id = ?", id).
-		Update("enabled", true).Error
-}
-
-func (r *TagRepo) Disable(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).
-		Model(&model.Tag{}).
-		Where("id = ?", id).
-		Update("enabled", false).Error
+		Updates(updates).Error
 }
 
 func (r *TagRepo) AdminList(ctx context.Context, keyword, status string, page, pageSize int) ([]model.Tag, int64, error) {

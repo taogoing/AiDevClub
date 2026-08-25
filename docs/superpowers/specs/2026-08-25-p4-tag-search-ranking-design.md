@@ -38,9 +38,8 @@ type Tag struct {
 
 ```
 POST   /api/v1/admin/tags              # 创建标签
-PUT    /api/v1/admin/tags/:id          # 更新标签
-PATCH  /api/v1/admin/tags/:id/disable  # 禁用标签
-PATCH  /api/v1/admin/tags/:id/enable   # 启用标签
+PUT    /api/v1/admin/tags/:id          # 更新标签（全量）
+PATCH  /api/v1/admin/tags/:id          # 部分更新标签（名称/描述/启用状态）
 GET    /api/v1/admin/tags              # 管理员标签列表
 ```
 
@@ -54,10 +53,14 @@ GET    /api/v1/admin/tags              # 管理员标签列表
 }
 ```
 
-**管理员列表查询参数**：
-- `keyword` — 名称前缀搜索
-- `status` — enabled/disabled/all（默认 all）
-- `page`, `page_size` — 分页
+**部分更新请求**（PATCH）：
+```json
+{
+  "name": "Golang",           // 可选
+  "description": "新描述",     // 可选
+  "enabled": false            // 可选
+}
+```
 
 ### 1.3 用户端标签接口优化
 
