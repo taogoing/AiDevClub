@@ -65,16 +65,6 @@ func (r *TagRepo) AdminCreate(ctx context.Context, name, description string) (*m
 	return t, err
 }
 
-func (r *TagRepo) AdminUpdate(ctx context.Context, id uint, name, description string) error {
-	return r.db.WithContext(ctx).
-		Model(&model.Tag{}).
-		Where("id = ?", id).
-		Updates(map[string]interface{}{
-			"name":        name,
-			"description": description,
-		}).Error
-}
-
 func (r *TagRepo) AdminPatch(ctx context.Context, id uint, updates map[string]interface{}) error {
 	return r.db.WithContext(ctx).
 		Model(&model.Tag{}).

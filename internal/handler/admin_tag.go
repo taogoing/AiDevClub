@@ -40,8 +40,9 @@ func (h *AdminTagHandler) Create(c *gin.Context) {
 }
 
 type updateTagRequest struct {
-	Name        string `json:"name" binding:"required"`
-	Description string `json:"description"`
+	Name        *string `json:"name"`
+	Description *string `json:"description"`
+	Enabled     *bool   `json:"enabled"`
 }
 
 func (h *AdminTagHandler) Update(c *gin.Context) {
@@ -52,33 +53,6 @@ func (h *AdminTagHandler) Update(c *gin.Context) {
 	}
 
 	var req updateTagRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "参数错误")
-		return
-	}
-
-	if err := h.svc.AdminUpdate(c.Request.Context(), id, req.Name, req.Description); err != nil {
-		platform.Fail(c, errStatus(err), errCode(err), err.Error())
-		return
-	}
-
-	platform.OK(c, nil)
-}
-
-type patchTagRequest struct {
-	Name        *string `json:"name"`
-	Description *string `json:"description"`
-	Enabled     *bool   `json:"enabled"`
-}
-
-func (h *AdminTagHandler) Patch(c *gin.Context) {
-	id, err := parseUintParam(c, "id")
-	if err != nil {
-		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "无效的标签 ID")
-		return
-	}
-
-	var req patchTagRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "参数错误")
 		return
@@ -104,7 +78,7 @@ func (h *AdminTagHandler) Patch(c *gin.Context) {
 		return
 	}
 
-	if err := h.svc.AdminPatch(c.Request.Context(), id, updates); err != nil {
+	if err := h.svc.AdminUpdate(c.Request.Context(), id, updates); err != nil {
 		platform.Fail(c, errStatus(err), errCode(err), err.Error())
 		return
 	}

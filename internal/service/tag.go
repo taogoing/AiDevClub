@@ -61,14 +61,12 @@ func (s *TagService) AdminCreate(ctx context.Context, name, description string) 
 	return s.tags.AdminCreate(ctx, name, description)
 }
 
-func (s *TagService) AdminUpdate(ctx context.Context, id uint, name, description string) error {
-	if name == "" {
-		return errors.New("标签名称不能为空")
+func (s *TagService) AdminUpdate(ctx context.Context, id uint, updates map[string]interface{}) error {
+	if name, ok := updates["name"]; ok {
+		if name == "" {
+			return errors.New("标签名称不能为空")
+		}
 	}
-	return s.tags.AdminUpdate(ctx, id, name, description)
-}
-
-func (s *TagService) AdminPatch(ctx context.Context, id uint, updates map[string]interface{}) error {
 	return s.tags.AdminPatch(ctx, id, updates)
 }
 

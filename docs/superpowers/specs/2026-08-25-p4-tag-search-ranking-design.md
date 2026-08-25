@@ -38,8 +38,7 @@ type Tag struct {
 
 ```
 POST   /api/v1/admin/tags              # 创建标签
-PUT    /api/v1/admin/tags/:id          # 更新标签（全量）
-PATCH  /api/v1/admin/tags/:id          # 部分更新标签（名称/描述/启用状态）
+PUT    /api/v1/admin/tags/:id          # 更新标签（部分更新，传什么字段就更新什么字段）
 GET    /api/v1/admin/tags              # 管理员标签列表
 ```
 
@@ -53,7 +52,7 @@ GET    /api/v1/admin/tags              # 管理员标签列表
 }
 ```
 
-**部分更新请求**（PATCH）：
+**更新标签请求**（PUT）：
 ```json
 {
   "name": "Golang",           // 可选
