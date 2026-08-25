@@ -9,15 +9,19 @@ import (
 )
 
 type Config struct {
-	HTTPAddr         string
-	MySQLDSN         string
-	RedisAddr        string
-	RedisPassword    string
-	RedisDB          int
-	JWTSecret        string
-	AccessTokenTTL   time.Duration
-	RefreshTokenTTL  time.Duration
-	RateLimitPerMin  int
+	HTTPAddr             string
+	MySQLDSN             string
+	RedisAddr            string
+	RedisPassword        string
+	RedisDB              int
+	JWTSecret            string
+	AccessTokenTTL       time.Duration
+	RefreshTokenTTL      time.Duration
+	RateLimitPerMin      int
+	MCPAddr              string
+	MCPRateLimitPerMin   int
+	MCPMaxBodyBytes      int64
+	MCPRequestTimeout    time.Duration
 	AvatarDir            string
 	DefaultAvatarURL     string
 	MaxAvatarBytes       int64
@@ -26,10 +30,10 @@ type Config struct {
 	HotCacheTTL          time.Duration
 	ArticleImageDir      string
 	MaxArticleImageBytes int64
-	SkillZipDir         string
-	McpServerZipDir     string
-	MaxResourceZipBytes int64
-	AdminEmails         []string
+	SkillZipDir          string
+	McpServerZipDir      string
+	MaxResourceZipBytes  int64
+	AdminEmails          []string
 }
 
 func LoadConfig() (*Config, error) {
@@ -43,6 +47,10 @@ func LoadConfig() (*Config, error) {
 	v.SetDefault("token.access_ttl", "15m")
 	v.SetDefault("token.refresh_ttl", "720h")
 	v.SetDefault("ratelimit.per_minute", 10)
+	v.SetDefault("mcp.addr", ":9090")
+	v.SetDefault("mcp.ratelimit_per_minute", 60)
+	v.SetDefault("mcp.max_body_bytes", int64(1<<20))
+	v.SetDefault("mcp.request_timeout", "30s")
 	v.SetDefault("avatar.dir", "storage/avatars")
 	v.SetDefault("avatar.default_url", "/static/avatars/default.png")
 	v.SetDefault("avatar.max_bytes", int64(2<<20))
@@ -72,6 +80,10 @@ func LoadConfig() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	mcpRequestTimeout, err := time.ParseDuration(v.GetString("mcp.request_timeout"))
+	if err != nil {
+		return nil, err
+	}
 
 	var adminEmails []string
 	if emails := v.GetString("admin.emails"); emails != "" {
@@ -83,15 +95,19 @@ func LoadConfig() (*Config, error) {
 	}
 
 	cfg := &Config{
-		HTTPAddr:         v.GetString("http.addr"),
-		MySQLDSN:         v.GetString("mysql.dsn"),
-		RedisAddr:        v.GetString("redis.addr"),
-		RedisPassword:    v.GetString("redis.password"),
-		RedisDB:          v.GetInt("redis.db"),
-		JWTSecret:        v.GetString("jwt.secret"),
-		AccessTokenTTL:   accessTTL,
-		RefreshTokenTTL:  refreshTTL,
-		RateLimitPerMin:  v.GetInt("ratelimit.per_minute"),
+		HTTPAddr:             v.GetString("http.addr"),
+		MySQLDSN:             v.GetString("mysql.dsn"),
+		RedisAddr:            v.GetString("redis.addr"),
+		RedisPassword:        v.GetString("redis.password"),
+		RedisDB:              v.GetInt("redis.db"),
+		JWTSecret:            v.GetString("jwt.secret"),
+		AccessTokenTTL:       accessTTL,
+		RefreshTokenTTL:      refreshTTL,
+		RateLimitPerMin:      v.GetInt("ratelimit.per_minute"),
+		MCPAddr:              v.GetString("mcp.addr"),
+		MCPRateLimitPerMin:   v.GetInt("mcp.ratelimit_per_minute"),
+		MCPMaxBodyBytes:      v.GetInt64("mcp.max_body_bytes"),
+		MCPRequestTimeout:    mcpRequestTimeout,
 		AvatarDir:            v.GetString("avatar.dir"),
 		DefaultAvatarURL:     v.GetString("avatar.default_url"),
 		MaxAvatarBytes:       v.GetInt64("avatar.max_bytes"),
@@ -100,10 +116,10 @@ func LoadConfig() (*Config, error) {
 		HotCacheTTL:          hotCacheTTL,
 		ArticleImageDir:      v.GetString("article_image.dir"),
 		MaxArticleImageBytes: v.GetInt64("article_image.max_bytes"),
-		SkillZipDir:         v.GetString("skill_zip.dir"),
-		McpServerZipDir:     v.GetString("mcp_server_zip.dir"),
-		MaxResourceZipBytes: v.GetInt64("resource_zip.max_bytes"),
-		AdminEmails:         adminEmails,
+		SkillZipDir:          v.GetString("skill_zip.dir"),
+		McpServerZipDir:      v.GetString("mcp_server_zip.dir"),
+		MaxResourceZipBytes:  v.GetInt64("resource_zip.max_bytes"),
+		AdminEmails:          adminEmails,
 	}
 
 	// 生产环境若忘记设置 AIDEVCLUB_JWT_SECRET，会使用众所周知的默认值，

@@ -3,16 +3,18 @@ package main
 import (
 	"context"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
 
+	"aidevclub/internal/app"
 	"aidevclub/internal/handler"
 	"aidevclub/internal/model"
 	"aidevclub/internal/platform"
-	"aidevclub/internal/repo"
 	"aidevclub/internal/scheduler"
-	"aidevclub/internal/service"
 )
 
 func main() {
@@ -22,45 +24,32 @@ func main() {
 	}
 	logger := platform.NewLogger()
 
-	db, err := platform.OpenMySQL(cfg.MySQLDSN)
+	infra, err := app.OpenInfrastructure(cfg)
 	if err != nil {
-		logger.Error("open mysql", "err", err)
+		logger.Error("open infrastructure", "err", err)
 		return
 	}
-	if err := db.AutoMigrate(
-		&model.User{}, &model.Category{}, &model.Tag{}, &model.Article{},
-		&model.ArticleTag{}, &model.ArticleLike{}, &model.ArticleFavorite{},
-		&model.Comment{}, &model.CommentLike{},
-		&model.Skill{}, &model.SkillTag{},
-		&model.McpServer{}, &model.McpServerTag{},
-		&model.SkillLike{}, &model.SkillFavorite{},
-		&model.McpServerLike{}, &model.McpServerFavorite{},
-		&model.ResourceComment{}, &model.ResourceCommentLike{},
-		&model.Notification{}, &model.Report{}, &model.AdminLog{}, &model.Announcement{},
-	); err != nil {
+	defer func() {
+		if err := infra.Close(); err != nil {
+			logger.Error("close infrastructure", "err", err)
+		}
+	}()
+	if err := app.Migrate(infra.DB); err != nil {
 		logger.Error("migrate", "err", err)
 		return
 	}
-	if err := platform.CreateFulltextIndexes(db); err != nil {
-		logger.Warn("fulltext indexes", "err", err)
-	}
-	cats := repo.NewCategoryRepo(db)
-	if err := cats.Seed(context.Background()); err != nil {
+	services := app.NewServices(infra, cfg)
+	if err := services.SeedCategories(context.Background()); err != nil {
 		logger.Error("seed categories", "err", err)
 		return
 	}
-	rdb := platform.OpenRedis(cfg.RedisAddr, cfg.RedisPassword, cfg.RedisDB)
 
-	users := repo.NewUserRepo(db)
 	for _, email := range cfg.AdminEmails {
-		u, err := users.FindByEmail(email)
+		u, err := services.UserRepo.FindByEmail(email)
 		if err == nil && u.Role != model.UserRoleAdmin {
-			_ = users.UpdateRole(u.ID, model.UserRoleAdmin)
+			_ = services.UserRepo.UpdateRole(u.ID, model.UserRoleAdmin)
 		}
 	}
-	tokens := repo.NewTokenRepo(rdb, cfg.RefreshTokenTTL)
-	authSvc := service.NewAuthService(users, tokens, cfg)
-	userSvc := service.NewUserService(users, tokens, cfg)
 
 	r := gin.New()
 	r.Use(gin.Recovery())
@@ -68,15 +57,15 @@ func main() {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
 
-	ah := handler.NewAuthHandler(authSvc)
-	rl := platform.RateLimitMiddleware(rdb, cfg.RateLimitPerMin, time.Minute)
+	ah := handler.NewAuthHandler(services.Auth)
+	rl := platform.RateLimitMiddleware(infra.Redis, cfg.RateLimitPerMin, time.Minute)
 	auth := r.Group("/api/v1/auth")
 	auth.POST("/register", rl, ah.Register)
 	auth.POST("/login", rl, ah.Login)
 	auth.POST("/refresh", ah.Refresh)
 	auth.POST("/logout", ah.Logout)
 
-	uh := handler.NewUserHandler(userSvc)
+	uh := handler.NewUserHandler(services.Users)
 	me := r.Group("/api/v1/users", platform.AuthMiddleware(cfg.JWTSecret))
 	me.GET("/me", uh.Me)
 	me.PUT("/me", uh.Update)
@@ -85,38 +74,23 @@ func main() {
 	me.POST("/me/avatar", uh.UploadAvatar)
 	r.Static("/static/avatars", cfg.AvatarDir)
 
-	tags := repo.NewTagRepo(db)
-	articles := repo.NewArticleRepo(db)
-	comments := repo.NewCommentRepo(db)
-	inter := repo.NewInteractionRepo(db)
-
-	notifRepo := repo.NewNotificationRepo(db)
-	notifSvc := service.NewNotificationService(notifRepo, users)
-
-	catSvc := service.NewCategoryService(cats)
-	tagSvc := service.NewTagService(tags, rdb)
-	artSvc := service.NewArticleService(articles, tags, cats, inter, rdb, cfg, notifSvc)
-	comSvc := service.NewCommentService(comments, articles, inter, users, notifSvc)
-
-	catH := handler.NewCategoryHandler(catSvc)
-	tagH := handler.NewTagHandler(tagSvc)
-	artH := handler.NewArticleHandler(artSvc)
-	comH := handler.NewCommentHandler(comSvc)
+	catH := handler.NewCategoryHandler(services.Categories)
+	tagH := handler.NewTagHandler(services.Tags)
+	artH := handler.NewArticleHandler(services.Articles)
+	comH := handler.NewCommentHandler(services.Comments)
 	p2Auth := platform.AuthMiddleware(cfg.JWTSecret)
 	opt := platform.OptionalAuthMiddleware(cfg.JWTSecret)
 
 	r.GET("/api/v1/categories", catH.List)
 	r.GET("/api/v1/tags", tagH.List)
 
-	adminTagH := handler.NewAdminTagHandler(tagSvc)
+	adminTagH := handler.NewAdminTagHandler(services.Tags)
 	adminTags := r.Group("/api/v1/admin/tags")
 	adminTags.POST("", adminTagH.Create)
 	adminTags.PUT("/:id", adminTagH.Update)
 	adminTags.GET("", adminTagH.List)
 
-	searchRepo := repo.NewSearchRepo(db)
-	searchSvc := service.NewSearchService(searchRepo)
-	searchH := handler.NewSearchHandler(searchSvc)
+	searchH := handler.NewSearchHandler(services.Search)
 	r.GET("/api/v1/search", searchH.Search)
 
 	arts := r.Group("/api/v1/articles")
@@ -139,17 +113,9 @@ func main() {
 
 	r.Static("/static/articles", cfg.ArticleImageDir)
 
-	skills := repo.NewSkillRepo(db)
-	mcpServers := repo.NewMcpServerRepo(db)
-	resComments := repo.NewResourceCommentRepo(db)
-
-	skillSvc := service.NewSkillService(skills, tags, inter, rdb, cfg, notifSvc)
-	mcpSvc := service.NewMcpServerService(mcpServers, tags, inter, rdb, cfg, notifSvc)
-	resCommentSvc := service.NewResourceCommentService(resComments, skills, mcpServers, inter, users, notifSvc)
-
-	skillH := handler.NewSkillHandler(skillSvc)
-	mcpH := handler.NewMcpServerHandler(mcpSvc)
-	resCommentH := handler.NewResourceCommentHandler(resCommentSvc)
+	skillH := handler.NewSkillHandler(services.Skills)
+	mcpH := handler.NewMcpServerHandler(services.MCPServers)
+	resCommentH := handler.NewResourceCommentHandler(services.ResourceComments)
 
 	skillsGroup := r.Group("/api/v1/skills")
 	skillsGroup.GET("", skillH.List)
@@ -196,40 +162,35 @@ func main() {
 	r.Static("/static/skills", cfg.SkillZipDir)
 	r.Static("/static/mcp-servers", cfg.McpServerZipDir)
 
-	adminLogRepo := repo.NewAdminLogRepo(db)
-	announcementRepo := repo.NewAnnouncementRepo(db)
-	reportRepo := repo.NewReportRepo(db)
-	adminLogSvc := service.NewAdminLogService(adminLogRepo)
-	adminSvc := service.NewAdminService(users, articles, skills, mcpServers, comments, resComments, reportRepo, announcementRepo, adminLogSvc, notifSvc)
-	reportSvc := service.NewReportService(reportRepo, articles, skills, mcpServers, comments, resComments, adminSvc, adminLogSvc, notifSvc)
-
-	nh := handler.NewNotificationHandler(notifSvc)
+	nh := handler.NewNotificationHandler(services.Notifications)
 	notifs := r.Group("/api/v1/notifications", p2Auth)
 	notifs.GET("", nh.List)
 	notifs.GET("/unread-count", nh.UnreadCount)
 	notifs.PUT("/:id/read", nh.MarkRead)
 	notifs.PUT("/read", nh.MarkAllRead)
 
-	rh := handler.NewReportHandler(reportSvc)
+	rh := handler.NewReportHandler(services.Reports)
 	reports := r.Group("/api/v1/reports", p2Auth)
 	reports.POST("", rh.Create)
 	reports.GET("", rh.List)
 
-	adminAuth := r.Group("/api/v1/admin", p2Auth, platform.AdminMiddleware(users))
-	adminH := handler.NewAdminHandler(adminSvc, reportSvc, adminLogSvc)
+	adminAuth := r.Group("/api/v1/admin", p2Auth, platform.AdminMiddleware(services.UserRepo))
+	adminH := handler.NewAdminHandler(services.Admin, services.Reports, services.AdminLogs)
 	adminH.RegisterRoutes(adminAuth)
 
-	rankingSvc := service.NewRankingService(rdb, articles, repo.NewSkillRepo(db), repo.NewMcpServerRepo(db), 1.5)
-	rankingH := handler.NewRankingHandler(rankingSvc, artSvc, skillSvc, mcpSvc)
+	rankingH := handler.NewRankingHandler(services.Ranking, services.Articles, services.Skills, services.MCPServers)
 	r.GET("/api/v1/articles/ranking", rankingH.GetArticleRanking)
 	r.GET("/api/v1/skills/ranking", rankingH.GetSkillRanking)
 	r.GET("/api/v1/mcp-servers/ranking", rankingH.GetMcpServerRanking)
 
-	rankingScheduler := scheduler.NewRankingScheduler(rankingSvc, 2*time.Minute)
+	rankingScheduler := scheduler.NewRankingScheduler(services.Ranking, 2*time.Minute)
 	rankingScheduler.Start()
+	defer rankingScheduler.Stop()
 
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 	logger.Info("server starting", "addr", cfg.HTTPAddr)
-	if err := r.Run(cfg.HTTPAddr); err != nil {
+	if err := app.ServeHTTP(ctx, app.NewHTTPServer(cfg.HTTPAddr, r)); err != nil {
 		logger.Error("server exited", "err", err)
 	}
 }

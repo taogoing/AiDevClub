@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"log"
+	"sync"
 	"time"
 
 	"aidevclub/internal/service"
@@ -12,6 +13,8 @@ type RankingScheduler struct {
 	rankingSvc *service.RankingService
 	interval   time.Duration
 	stopCh     chan struct{}
+	stopOnce   sync.Once
+	wg         sync.WaitGroup
 }
 
 func NewRankingScheduler(rankingSvc *service.RankingService, interval time.Duration) *RankingScheduler {
@@ -23,7 +26,9 @@ func NewRankingScheduler(rankingSvc *service.RankingService, interval time.Durat
 }
 
 func (s *RankingScheduler) Start() {
+	s.wg.Add(1)
 	go func() {
+		defer s.wg.Done()
 		ticker := time.NewTicker(s.interval)
 		defer ticker.Stop()
 
@@ -39,7 +44,10 @@ func (s *RankingScheduler) Start() {
 }
 
 func (s *RankingScheduler) Stop() {
-	close(s.stopCh)
+	s.stopOnce.Do(func() {
+		close(s.stopCh)
+	})
+	s.wg.Wait()
 }
 
 func (s *RankingScheduler) recalculate() {
