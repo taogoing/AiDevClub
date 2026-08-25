@@ -91,7 +91,7 @@ var allModels = []interface{}{
 	&model.SkillLike{}, &model.SkillFavorite{},
 	&model.McpServerLike{}, &model.McpServerFavorite{},
 	&model.ResourceComment{}, &model.ResourceCommentLike{},
-	&model.Notification{},
+	&model.Notification{}, &model.Report{}, &model.AdminLog{}, &model.Announcement{},
 }
 
 // NewTestDB 连接测试 MySQL（按进程隔离的库）并重置全部业务表，测试结束后清理。

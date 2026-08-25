@@ -17,6 +17,7 @@ func newCommentTestEnv(t *testing.T) (*CommentService, *ArticleService, *model.U
 		asvc.articles,
 		asvc.inter,
 		repo.NewUserRepo(db),
+		asvc.notifSvc,
 	)
 	return svc, asvc, u, cat
 }
