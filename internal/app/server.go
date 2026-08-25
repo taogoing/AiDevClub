@@ -13,9 +13,11 @@ func NewHTTPServer(addr string, handler http.Handler) *http.Server {
 		Addr:              addr,
 		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout:       10 * time.Second,
-		WriteTimeout:      15 * time.Second,
-		IdleTimeout:       60 * time.Second,
+		// Resource ZIP uploads and downloads are valid up to 50 MiB. Leave
+		// whole-request deadlines disabled so slow, valid transfers are not cut off.
+		ReadTimeout:  0,
+		WriteTimeout: 0,
+		IdleTimeout:  60 * time.Second,
 	}
 }
 
