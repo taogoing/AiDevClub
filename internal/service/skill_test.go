@@ -2,6 +2,9 @@ package service
 
 import (
 	"context"
+	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"aidevclub/internal/model"
@@ -22,6 +25,7 @@ func newSkillTestEnv(t *testing.T) (*SkillService, *model.User) {
 		DefaultPageSize: 20,
 		MaxPageSize:     50,
 		HotCacheTTL:     60e9,
+		SkillZipDir:     t.TempDir(),
 	}
 	notifSvc := NewNotificationService(repo.NewNotificationRepo(db), users)
 	svc := NewSkillService(
@@ -220,7 +224,12 @@ func TestSkillUploadZip(t *testing.T) {
 	sk.PublishedAt = &now
 	_ = svc.skills.Update(nil, sk)
 
-	if err := svc.UploadZip(ctx, u.ID, sk.ID, "/static/skills/abc.zip", "abc.zip", 1024); err != nil {
+	zipData := makeSkillZip(t, zipFixture{name: "SKILL.md", content: "# ABC"})
+	zipPath := filepath.Join(svc.ZipDir(), "abc.zip")
+	if err := os.WriteFile(zipPath, zipData, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.UploadZip(ctx, u.ID, sk.ID, "/static/skills/abc.zip", "abc.zip", int64(len(zipData))); err != nil {
 		t.Fatal(err)
 	}
 	updated, _ := svc.skills.FindByID(nil, sk.ID)
@@ -229,6 +238,9 @@ func TestSkillUploadZip(t *testing.T) {
 	}
 	if updated.ZipURL != "/static/skills/abc.zip" {
 		t.Fatalf("zip_url = %q", updated.ZipURL)
+	}
+	if updated.SkillMD != "# ABC" {
+		t.Fatalf("skill_md = %q", updated.SkillMD)
 	}
 
 	if err := svc.UploadZip(ctx, u.ID+999, sk.ID, "/x.zip", "x.zip", 1); err == nil {
@@ -240,6 +252,42 @@ func TestSkillUploadZip(t *testing.T) {
 	_ = svc.skills.Update(nil, sk2)
 	if err := svc.UploadZip(ctx, u.ID, sk2.ID, "/x.zip", "x.zip", 1); err == nil {
 		t.Fatal("pending_review upload should fail")
+	}
+}
+
+func TestSkillUploadZipRejectsInvalidReplacementWithoutChangingStoredMetadata(t *testing.T) {
+	svc, u := newSkillTestEnv(t)
+	ctx := context.Background()
+	sk, err := svc.Create(ctx, u.ID, CreateSkillInput{Name: "zip-replacement"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sk.ZipURL = "/static/skills/old.zip"
+	sk.ZipFilename = "old.zip"
+	sk.FileSize = 10
+	sk.SkillMD = "# Old"
+	if err := svc.skills.Update(nil, sk); err != nil {
+		t.Fatal(err)
+	}
+
+	newPath := filepath.Join(svc.ZipDir(), "invalid.zip")
+	if err := os.WriteFile(newPath, makeSkillZip(t, zipFixture{name: "README.md", content: "missing"}), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	err = svc.UploadZip(ctx, u.ID, sk.ID, "/static/skills/invalid.zip", "invalid.zip", 1)
+	if !errors.Is(err, platform.ErrInvalidInput) {
+		t.Fatalf("error = %v, want platform.ErrInvalidInput", err)
+	}
+	if _, err := os.Stat(newPath); !os.IsNotExist(err) {
+		t.Fatalf("invalid replacement still exists: %v", err)
+	}
+	updated, err := svc.skills.FindByID(nil, sk.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.ZipURL != "/static/skills/old.zip" || updated.ZipFilename != "old.zip" || updated.FileSize != 10 || updated.SkillMD != "# Old" {
+		t.Fatalf("metadata changed after invalid replacement: %+v", updated)
 	}
 }
 

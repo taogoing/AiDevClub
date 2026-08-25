@@ -25,6 +25,7 @@ type Skill struct {
 	ZipURL         string         `gorm:"size:255"`
 	ZipFilename    string         `gorm:"size:255"`
 	FileSize       int64          `gorm:"not null;default:0"`
+	SkillMD        string         `gorm:"type:text"`
 	Status         ResourceStatus `gorm:"size:16;not null;default:draft;index"`
 	Views          int            `gorm:"not null;default:0"`
 	Downloads      int            `gorm:"not null;default:0"`

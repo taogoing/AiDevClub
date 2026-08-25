@@ -1,5 +1,7 @@
 package platform
 
+import "net/http"
+
 const (
 	CodeParamError   = 40001
 	CodeBizError     = 40002
@@ -7,14 +9,14 @@ const (
 	CodeUnauthorized = 40101
 	CodeForbidden    = 40301
 
-	CodeUserNotFound       = 40401
-	CodeArticleNotFound    = 40402
-	CodeCommentNotFound    = 40403
-	CodeCategoryNotFound   = 40404
-	CodeTagNotFound        = 40405
-	CodeSkillNotFound      = 40406
-	CodeMcpServerNotFound  = 40407
-	CodeResCommentNotFound = 40408
+	CodeUserNotFound         = 40401
+	CodeArticleNotFound      = 40402
+	CodeCommentNotFound      = 40403
+	CodeCategoryNotFound     = 40404
+	CodeTagNotFound          = 40405
+	CodeSkillNotFound        = 40406
+	CodeMcpServerNotFound    = 40407
+	CodeResCommentNotFound   = 40408
 	CodeReportNotFound       = 40409
 	CodeNotifNotFound        = 40410
 	CodeAnnouncementNotFound = 40411
@@ -29,6 +31,8 @@ type BizError struct {
 	Code    int
 	Message string
 }
+
+var ErrInvalidInput = NewBizError(http.StatusBadRequest, CodeParamError, "请求参数无效")
 
 func (e *BizError) Error() string { return e.Message }
 

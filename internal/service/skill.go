@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
@@ -327,19 +329,47 @@ func (s *SkillService) UploadZip(ctx context.Context, userID, skillID uint, zipU
 	if err != nil {
 		return ErrSkillNotFound
 	}
+	zipPath := filepath.Join(s.ZipDir(), filepath.Base(zipURL))
+	published := false
+	defer func() {
+		if published || zipURL == sk.ZipURL {
+			return
+		}
+		if info, statErr := os.Lstat(zipPath); statErr == nil && info.Mode().IsRegular() {
+			_ = os.Remove(zipPath)
+		}
+	}()
 	if sk.AuthorID != userID {
 		return ErrForbidden
 	}
 	if sk.Status == model.ResourceStatusPendingReview {
 		return ErrSkillState
 	}
+	file, err := os.Open(zipPath)
+	if err != nil {
+		return platform.ErrInvalidInput
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil || !info.Mode().IsRegular() {
+		return platform.ErrInvalidInput
+	}
+	skillMD, err := extractSkillMD(file, info.Size())
+	if err != nil {
+		return err
+	}
 	sk.ZipURL = zipURL
 	sk.ZipFilename = zipFilename
 	sk.FileSize = fileSize
+	sk.SkillMD = skillMD
 	if sk.Status == model.ResourceStatusPublished {
 		sk.Status = model.ResourceStatusPendingReview
 	}
-	return s.skills.Update(nil, sk)
+	if err := s.skills.Update(nil, sk); err != nil {
+		return err
+	}
+	published = true
+	return nil
 }
 
 func (s *SkillService) Download(ctx context.Context, skillID uint) (string, error) {
@@ -475,7 +505,7 @@ func (s *SkillService) List(ctx context.Context, q SkillListQuery) (*SkillListRe
 		return nil, err
 	}
 	out := &SkillListResult{
-		List: make([]SkillSummary, 0, len(list)),
+		List:  make([]SkillSummary, 0, len(list)),
 		Total: total, Page: q.Page, PageSize: q.PageSize,
 	}
 	for _, sk := range list {
