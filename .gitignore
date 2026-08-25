@@ -25,3 +25,6 @@ Thumbs.db
 
 # SDD 工作区（临时产物，不入库）
 .superpowers/
+
+# 隔离开发工作树
+.worktrees/
