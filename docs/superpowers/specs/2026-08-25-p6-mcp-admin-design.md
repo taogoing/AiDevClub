@@ -86,7 +86,7 @@ internal/app/
 
 迁移逻辑提取为 `app.Migrate`，只由 `cmd/server` 调用。分类 Seed、配置管理员提升和 Ranking Scheduler 也只属于 API 进程。
 
-MCP 包不持有完整 `Services` 或数据库连接，而是在消费侧定义 SearchReader、RankingReader、ArticleReader、SkillReader、McpServerReader、TaxonomyReader、ProfileReader、OwnedContentReader 和 NotificationReader 等窄接口。
+MCP 包不持有完整 `Services` 或数据库连接，而是在消费侧的单个 `dependencies.go` 中按实际调用定义窄接口。接口只覆盖 Tool 已使用的方法，不为每个领域或方法预建独立接口文件，也不引入 DI 框架。
 
 ## 5. MCP 进程与传输
 
@@ -100,15 +100,14 @@ internal/mcpserver/
 ├── auth.go
 ├── errors.go
 ├── output.go
-├── tool_search.go
-├── tool_article.go
-├── tool_skill.go
-├── tool_mcp_server.go
+├── dependencies.go
+├── tool_content.go
+├── tool_resource.go
 ├── tool_taxonomy.go
-├── tool_profile.go
-├── tool_owned_content.go
-└── tool_notification.go
+└── tool_account.go
 ```
+
+Tool 按内容、资源、分类和账户四个内聚领域组织，不采用“一个 Tool 一个文件”。`output.go` 只保留至少被两个 Tool 使用的分页、作者摘要和正文窗口类型；每个 Tool 的输入输出继续使用显式结构体，不建立通用 Tool/响应生成器。
 
 依赖锁定到官方 `github.com/modelcontextprotocol/go-sdk/mcp` v1.7.x。使用 `mcp.NewServer`、泛型 `mcp.AddTool` 和 `mcp.NewStreamableHTTPHandler`。Transport 配置为：
 
@@ -195,7 +194,7 @@ MCP 限流默认每个登录用户或匿名 Remote IP 每分钟 60 次。Redis �
 
 默认 30,000、最大 50,000 个 Unicode 字符，并返回 has_more 和 next_offset。下载信息只提供文件元数据和平台详情页，不返回静态存储路径，不代理二进制，也不增加下载数。
 
-MCP 详情读取不增加浏览量。Service 保留现有 Web `Get` 行为，并增加无统计副作用的 `Read`，二者共享私有详情实现。
+MCP 详情读取不增加浏览量，也不查询不会返回的点赞/收藏状态。Service 保留现有 Web `Get` 行为，并增加无统计副作用的 `Read`；二者共享私有详情实现，由私有参数明确控制浏览统计和互动状态查询，不对外暴露通用 options 对象。
 
 ### 7.4 `list_taxonomy`
 
@@ -319,7 +318,7 @@ GET /api/v1/admin/mcp-servers/:id
 
 管理端继续位于现有 `/admin`，新增 Dashboard、Users、Articles、Comments、Resources、Reports、Announcements、Logs 页面并保留 Tags 页面。AdminLayout 增加完整菜单和面包屑。
 
-前端增加集中式管理员 API/类型定义，只提取页面头、分页、状态标签和资源审核抽屉等真实重复组件，不实现万能表格。
+前端增加集中式管理员 API/类型定义。资源审核抽屉属于明确的跨 Skill/MCP Server 重复，可直接复用；页面头、分页和状态展示先在页面内实现，出现至少两处稳定且同构的重复后再提取。不得实现万能表格、万能表单或配置驱动 CRUD 页面。
 
 列表页统一处理：初始加载、筛选后回第一页、关键词 300ms 防抖、loading、空状态、分页、操作确认、重复提交保护和错误提示。
 
@@ -327,7 +326,7 @@ GET /api/v1/admin/mcp-servers/:id
 
 两个进程都使用显式 `http.Server`，设置 ReadHeader、Read、Write、Idle Timeout，监听 SIGINT/SIGTERM，停止接收请求并最多等待 10 秒后关闭 Redis/MySQL。API RankingScheduler 增加幂等 Stop。
 
-MCP `/healthz` 只表示进程存活；`/readyz` Ping MySQL 和 Redis，并验证 users、articles、skills、mcp_servers、notifications 等 MCP 必需表可查询。任一检查失败时返回 503，但不泄露连接或 Schema 详情。
+MCP 启动时一次性验证 users、articles、skills、mcp_servers、notifications 等必需表存在，失败则直接退出。运行期 `/healthz` 只表示进程存活；`/readyz` 只 Ping MySQL 和 Redis，避免每次探针重复执行 Schema 查询。任一检查失败时返回 503，但不泄露连接或 Schema 详情。
 
 新增配置：
 
@@ -342,7 +341,15 @@ AIDEVCLUB_MCP_MAX_BODY_BYTES=1048576
 
 两个进程使用各自环境中的现有 `AIDEVCLUB_MYSQL_DSN`，因此部署时可给 MCP 进程配置只读 MySQL 账号，无需专用代码字段。
 
-## 14. 测试
+## 14. 实现精简约束
+
+- 沿用现有 Handler → Service → Repo 分层，不新增通用 CRUD 层、BaseService、BaseRepository 或事件总线。
+- 领域输入、输出和管理员 DTO 显式定义；仅复用已确定同义且至少出现两次的小类型，不直接返回 GORM Model。
+- MCP 注册使用官方 SDK 的泛型能力，不再包装一层自定义 Tool 框架；只集中处理认证、错误映射、正文窗口和公共输出字段。
+- 前后端均不创建占位文件、空实现、未使用扩展点或仅转发一次调用的包装函数。
+- 重构只服务于 API 与 MCP 的实际共享路径；与 P6 无关的历史代码不顺手改写。
+
+## 15. 测试
 
 领域/Repo 测试覆盖无副作用 Read、Hidden 可见性、ListOwned、管理员查询、Dashboard、角色安全、标签日志、评论分页、举报详情和 ZIP 安全校验。
 
@@ -363,7 +370,7 @@ npm run build
 
 另外启动两个进程并使用 MCP Inspector 验证匿名和 Bearer Token 场景下的 9 个 Tool。
 
-## 15. 交付顺序
+## 16. 交付顺序
 
 实现按依赖顺序推进：
 
