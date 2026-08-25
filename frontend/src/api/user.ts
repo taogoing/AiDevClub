@@ -6,7 +6,7 @@ export function getMe() {
 }
 
 export function updateMe(data: { nickname?: string; avatar_url?: string; bio?: string }) {
-  return http.patch<ApiResponse<UserProfile>>('/api/v1/users/me', data)
+  return http.put<ApiResponse<UserProfile>>('/api/v1/users/me', data)
 }
 
 export function updatePassword(password: string) {

@@ -72,7 +72,7 @@ func main() {
 	uh := handler.NewUserHandler(userSvc)
 	me := r.Group("/api/v1/users", platform.AuthMiddleware(cfg.JWTSecret))
 	me.GET("/me", uh.Me)
-	me.PATCH("/me", uh.Update)
+	me.PUT("/me", uh.Update)
 	me.PUT("/me/password", uh.ChangePassword)
 	me.DELETE("/me", uh.Delete)
 	me.POST("/me/avatar", uh.UploadAvatar)
