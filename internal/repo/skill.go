@@ -127,6 +127,12 @@ func (r *SkillRepo) List(ctx context.Context, q SkillQuery) ([]model.Skill, int6
 	return list, total, err
 }
 
+func (r *SkillRepo) CountByStatus(ctx context.Context, status model.ResourceStatus) (int64, error) {
+	var total int64
+	err := r.db.WithContext(ctx).Model(&model.Skill{}).Where("status = ?", status).Count(&total).Error
+	return total, err
+}
+
 func (r *SkillRepo) TagsForSkills(ctx context.Context, skillIDs []uint) (map[uint][]model.Tag, error) {
 	res := map[uint][]model.Tag{}
 	if len(skillIDs) == 0 {

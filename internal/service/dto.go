@@ -226,3 +226,49 @@ type AdminLogListResult struct {
 	Page     int            `json:"page"`
 	PageSize int            `json:"page_size"`
 }
+
+type DashboardData struct {
+	TotalUsers          int64 `json:"total_users"`
+	TotalArticles       int64 `json:"total_articles"`
+	TotalSkills         int64 `json:"total_skills"`
+	TotalMcpServers     int64 `json:"total_mcp_servers"`
+	PendingSkills       int64 `json:"pending_skills"`
+	PendingMcpServers   int64 `json:"pending_mcp_servers"`
+	PendingReports      int64 `json:"pending_reports"`
+}
+
+type AnnouncementItem struct {
+	ID        uint      `json:"id"`
+	Title     string    `json:"title"`
+	Content   string    `json:"content"`
+	AdminID   uint      `json:"admin_id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type AnnouncementListResult struct {
+	List     []AnnouncementItem `json:"list"`
+	Total    int64              `json:"total"`
+	Page     int                `json:"page"`
+	PageSize int                `json:"page_size"`
+}
+
+type ReportItem struct {
+	ID           uint      `json:"id"`
+	ReporterID   uint      `json:"reporter_id"`
+	TargetType   string    `json:"target_type"`
+	TargetID     uint      `json:"target_id"`
+	Reason       string    `json:"reason"`
+	Description  string    `json:"description"`
+	Status       string    `json:"status"`
+	HandlerID    uint      `json:"handler_id"`
+	HandleResult string    `json:"handle_result"`
+	CreatedAt    time.Time `json:"created_at"`
+	ResolvedAt   *time.Time `json:"resolved_at"`
+}
+
+type ReportListResult struct {
+	List     []ReportItem `json:"list"`
+	Total    int64        `json:"total"`
+	Page     int          `json:"page"`
+	PageSize int          `json:"page_size"`
+}

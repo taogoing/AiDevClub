@@ -10,6 +10,8 @@ type CommentRepo struct{ db *gorm.DB }
 
 func NewCommentRepo(db *gorm.DB) *CommentRepo { return &CommentRepo{db: db} }
 
+func (r *CommentRepo) DB() *gorm.DB { return r.db }
+
 func (r *CommentRepo) exec(db *gorm.DB) *gorm.DB {
 	if db != nil {
 		return db

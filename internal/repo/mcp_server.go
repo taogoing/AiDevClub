@@ -127,6 +127,12 @@ func (r *McpServerRepo) List(ctx context.Context, q McpServerQuery) ([]model.Mcp
 	return list, total, err
 }
 
+func (r *McpServerRepo) CountByStatus(ctx context.Context, status model.ResourceStatus) (int64, error) {
+	var total int64
+	err := r.db.WithContext(ctx).Model(&model.McpServer{}).Where("status = ?", status).Count(&total).Error
+	return total, err
+}
+
 func (r *McpServerRepo) TagsForMcpServers(ctx context.Context, serverIDs []uint) (map[uint][]model.Tag, error) {
 	res := map[uint][]model.Tag{}
 	if len(serverIDs) == 0 {
