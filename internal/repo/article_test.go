@@ -104,6 +104,36 @@ func TestArticleRepoList(t *testing.T) {
 	}
 }
 
+func TestArticleRepoPublicListWithAuthorIDHidesHidden(t *testing.T) {
+	db := testutil.NewTestDB(t)
+	r := NewArticleRepo(db)
+	ctx := context.Background()
+	owner := &model.User{Email: "hidden-article-list@t.com", PasswordHash: "x", Nickname: "Owner"}
+	if err := NewUserRepo(db).Create(owner); err != nil {
+		t.Fatal(err)
+	}
+	category := &model.Category{Name: "Go", Slug: "go", SortOrder: 1}
+	if err := db.Create(category).Error; err != nil {
+		t.Fatal(err)
+	}
+	hidden := &model.Article{
+		AuthorID: owner.ID, CategoryID: category.ID, Title: "hidden", Content: "content",
+		Status: model.ArticleStatusPublished, Hidden: true,
+	}
+	if err := r.Create(nil, hidden); err != nil {
+		t.Fatal(err)
+	}
+
+	authorID := owner.ID
+	list, total, err := r.List(ctx, ArticleQuery{AuthorID: &authorID, Page: 1, PageSize: 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total != 0 || len(list) != 0 {
+		t.Fatalf("public list exposed hidden article: total %d, list %+v", total, list)
+	}
+}
+
 func TestArticleRepoListOwnedScopesAuthorIncludesHiddenAndRejectsUnknownStatus(t *testing.T) {
 	db := testutil.NewTestDB(t)
 	r := NewArticleRepo(db)

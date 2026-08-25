@@ -35,11 +35,7 @@ func (r *SkillRepo) FindByID(db *gorm.DB, id uint) (*model.Skill, error) {
 }
 
 func (r *SkillRepo) FindByIDWithContext(ctx context.Context, id uint) (*model.Skill, error) {
-	var s model.Skill
-	if err := r.db.WithContext(ctx).Preload("Author").First(&s, id).Error; err != nil {
-		return nil, err
-	}
-	return &s, nil
+	return r.FindByID(r.db.WithContext(ctx), id)
 }
 
 func (r *SkillRepo) Update(db *gorm.DB, s *model.Skill) error {
@@ -98,10 +94,9 @@ type SkillQuery struct {
 }
 
 func (r *SkillRepo) baseQuery(ctx context.Context, q SkillQuery) *gorm.DB {
-	d := r.db.WithContext(ctx).Model(&model.Skill{}).Where("status = ?", model.ResourceStatusPublished)
-	if q.AuthorID == nil {
-		d = d.Where("hidden = ?", false)
-	}
+	d := r.db.WithContext(ctx).Model(&model.Skill{}).
+		Where("status = ?", model.ResourceStatusPublished).
+		Where("hidden = ?", false)
 	if q.AuthorID != nil {
 		d = d.Where("author_id = ?", *q.AuthorID)
 	}

@@ -19,7 +19,7 @@ import (
 	"aidevclub/internal/testutil"
 )
 
-func articleRouter(t *testing.T) (*gin.Engine, *repo.UserRepo) {
+func articleRouter(t *testing.T) (*gin.Engine, *repo.UserRepo, *repo.ArticleRepo) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	db := testutil.NewTestDB(t)
@@ -33,8 +33,9 @@ func articleRouter(t *testing.T) (*gin.Engine, *repo.UserRepo) {
 		MaxArticleImageBytes: 5 << 20,
 	}
 	notifSvc := service.NewNotificationService(repo.NewNotificationRepo(db), users)
+	articleRepo := repo.NewArticleRepo(db)
 	svc := service.NewArticleService(
-		repo.NewArticleRepo(db), repo.NewTagRepo(db), repo.NewCategoryRepo(db),
+		articleRepo, repo.NewTagRepo(db), repo.NewCategoryRepo(db),
 		repo.NewInteractionRepo(db), rdb, cfg, notifSvc,
 	)
 	_ = repo.NewCategoryRepo(db).Seed(t.Context())
@@ -51,11 +52,11 @@ func articleRouter(t *testing.T) (*gin.Engine, *repo.UserRepo) {
 	art.POST("/images", auth, h.UploadImage)
 	art.POST("/:id/like", auth, h.Like)
 	art.POST("/:id/favorite", auth, h.Favorite)
-	return r, users
+	return r, users, articleRepo
 }
 
 func TestArticleCreateEndpoint(t *testing.T) {
-	r, users := articleRouter(t)
+	r, users, _ := articleRouter(t)
 	u := &model.User{Email: "a@a.com", PasswordHash: "x", Nickname: "A", AvatarURL: "/x.png"}
 	_ = users.Create(u)
 	tok, _ := platform.GenerateAccessToken("s", time.Minute, u.ID)
@@ -75,7 +76,7 @@ func TestArticleCreateEndpoint(t *testing.T) {
 }
 
 func TestArticleUpdateDeleteEndpoint(t *testing.T) {
-	r, users := articleRouter(t)
+	r, users, _ := articleRouter(t)
 	u := &model.User{Email: "a@a.com", PasswordHash: "x", Nickname: "A", AvatarURL: "/x.png"}
 	_ = users.Create(u)
 	tok, _ := platform.GenerateAccessToken("s", time.Minute, u.ID)
@@ -135,7 +136,7 @@ func TestArticleUpdateDeleteEndpoint(t *testing.T) {
 }
 
 func TestArticleListGetEndpoint(t *testing.T) {
-	r, users := articleRouter(t)
+	r, users, _ := articleRouter(t)
 	u := &model.User{Email: "a@a.com", PasswordHash: "x", Nickname: "A", AvatarURL: "/x.png"}
 	_ = users.Create(u)
 	tok, _ := platform.GenerateAccessToken("s", time.Minute, u.ID)
@@ -152,7 +153,9 @@ func TestArticleListGetEndpoint(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("create status = %d", w.Code)
 	}
-	var created struct{ Data struct{ ID uint } `json:"data"` }
+	var created struct {
+		Data struct{ ID uint } `json:"data"`
+	}
 	_ = json.Unmarshal(w.Body.Bytes(), &created)
 
 	body, _ = json.Marshal(map[string]interface{}{
@@ -189,8 +192,42 @@ func TestArticleListGetEndpoint(t *testing.T) {
 	}
 }
 
+func TestArticleListEndpointAuthorIDHidesHidden(t *testing.T) {
+	r, users, articles := articleRouter(t)
+	owner := &model.User{Email: "hidden-article-handler@t.com", PasswordHash: "x", Nickname: "Owner"}
+	if err := users.Create(owner); err != nil {
+		t.Fatal(err)
+	}
+	hidden := &model.Article{
+		AuthorID: owner.ID, CategoryID: 1, Title: "hidden", Content: "content",
+		Status: model.ArticleStatusPublished, Hidden: true,
+	}
+	if err := articles.Create(nil, hidden); err != nil {
+		t.Fatal(err)
+	}
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/articles?author_id=%d", owner.ID), nil)
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("list status = %d, body %s", w.Code, w.Body.String())
+	}
+	var response struct {
+		Data struct {
+			Total int64 `json:"total"`
+			List  []any `json:"list"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if response.Data.Total != 0 || len(response.Data.List) != 0 {
+		t.Fatalf("public endpoint exposed hidden article: %+v", response.Data)
+	}
+}
+
 func TestArticleLikeEndpoint(t *testing.T) {
-	r, users := articleRouter(t)
+	r, users, _ := articleRouter(t)
 	u := &model.User{Email: "a@a.com", PasswordHash: "x", Nickname: "A", AvatarURL: "/x.png"}
 	_ = users.Create(u)
 	tok, _ := platform.GenerateAccessToken("s", time.Minute, u.ID)
@@ -203,7 +240,9 @@ func TestArticleLikeEndpoint(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+tok)
 	r.ServeHTTP(w, req)
-	var created struct{ Data struct{ ID uint } `json:"data"` }
+	var created struct {
+		Data struct{ ID uint } `json:"data"`
+	}
 	_ = json.Unmarshal(w.Body.Bytes(), &created)
 
 	w = httptest.NewRecorder()
@@ -235,7 +274,7 @@ func TestArticleLikeEndpoint(t *testing.T) {
 }
 
 func TestArticleUploadImage(t *testing.T) {
-	r, users := articleRouter(t)
+	r, users, _ := articleRouter(t)
 	u := &model.User{Email: "a@a.com", PasswordHash: "x", Nickname: "A", AvatarURL: "/x.png"}
 	_ = users.Create(u)
 	tok, _ := platform.GenerateAccessToken("s", time.Minute, u.ID)

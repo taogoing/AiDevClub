@@ -436,10 +436,10 @@ func (s *ArticleService) detail(ctx context.Context, userID, articleID uint, tra
 	sm := s.summaryOf(*a, tagMap[a.ID])
 	d := &ArticleDetail{ArticleSummary: sm, Content: a.Content}
 	if loadInteractions && userID > 0 {
-		if d.Liked, err = s.inter.ArticleLiked(nil, userID, articleID); err != nil {
+		if d.Liked, err = s.inter.ArticleLiked(ctx, userID, articleID); err != nil {
 			return nil, err
 		}
-		if d.Favorited, err = s.inter.ArticleFavorited(nil, userID, articleID); err != nil {
+		if d.Favorited, err = s.inter.ArticleFavorited(ctx, userID, articleID); err != nil {
 			return nil, err
 		}
 	}

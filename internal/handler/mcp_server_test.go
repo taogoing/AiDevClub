@@ -76,7 +76,9 @@ func TestMcpServerCreateEndpoint(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, body %s", w.Code, w.Body.String())
 	}
-	var resp struct{ Data struct{ ID uint } `json:"data"` }
+	var resp struct {
+		Data struct{ ID uint } `json:"data"`
+	}
 	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 	if resp.Data.ID == 0 {
 		t.Fatalf("id = 0")
@@ -115,6 +117,40 @@ func TestMcpServerListEndpoint(t *testing.T) {
 	}
 }
 
+func TestMcpServerListEndpointAuthorIDHidesHidden(t *testing.T) {
+	r, users, servers := mcpServerRouter(t)
+	owner := &model.User{Email: "hidden-mcp-handler@t.com", PasswordHash: "x", Nickname: "Owner"}
+	if err := users.Create(owner); err != nil {
+		t.Fatal(err)
+	}
+	hidden := &model.McpServer{
+		AuthorID: owner.ID, Name: "hidden", Description: "content", ToolsJSON: "[]",
+		Status: model.ResourceStatusPublished, Hidden: true,
+	}
+	if err := servers.Create(nil, hidden); err != nil {
+		t.Fatal(err)
+	}
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/mcp-servers?author_id=%d", owner.ID), nil)
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("list status = %d, body %s", w.Code, w.Body.String())
+	}
+	var response struct {
+		Data struct {
+			Total int64 `json:"total"`
+			List  []any `json:"list"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if response.Data.Total != 0 || len(response.Data.List) != 0 {
+		t.Fatalf("public endpoint exposed hidden MCP server: %+v", response.Data)
+	}
+}
+
 func TestMcpServerGetEndpoint(t *testing.T) {
 	r, users, _ := mcpServerRouter(t)
 	u := &model.User{Email: "mc@c.com", PasswordHash: "x", Nickname: "MC", AvatarURL: "/x.png"}
@@ -127,7 +163,9 @@ func TestMcpServerGetEndpoint(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+tok)
 	r.ServeHTTP(w, req)
-	var created struct{ Data struct{ ID uint } `json:"data"` }
+	var created struct {
+		Data struct{ ID uint } `json:"data"`
+	}
 	_ = json.Unmarshal(w.Body.Bytes(), &created)
 
 	w = httptest.NewRecorder()
@@ -160,7 +198,9 @@ func TestMcpServerSubmitWithdrawEndpoint(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+tok)
 	r.ServeHTTP(w, req)
-	var created struct{ Data struct{ ID uint } `json:"data"` }
+	var created struct {
+		Data struct{ ID uint } `json:"data"`
+	}
 	_ = json.Unmarshal(w.Body.Bytes(), &created)
 
 	w = httptest.NewRecorder()
@@ -226,7 +266,9 @@ func TestMcpServerLikeEndpoint(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+tok)
 	r.ServeHTTP(w, req)
-	var created struct{ Data struct{ ID uint } `json:"data"` }
+	var created struct {
+		Data struct{ ID uint } `json:"data"`
+	}
 	_ = json.Unmarshal(w.Body.Bytes(), &created)
 
 	sv, _ := mcpRepo.FindByID(nil, created.Data.ID)
@@ -275,7 +317,9 @@ func TestMcpServerFavoriteEndpoint(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+tok)
 	r.ServeHTTP(w, req)
-	var created struct{ Data struct{ ID uint } `json:"data"` }
+	var created struct {
+		Data struct{ ID uint } `json:"data"`
+	}
 	_ = json.Unmarshal(w.Body.Bytes(), &created)
 
 	sv, _ := mcpRepo.FindByID(nil, created.Data.ID)

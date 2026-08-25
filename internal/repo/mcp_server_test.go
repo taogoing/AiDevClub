@@ -114,6 +114,32 @@ func TestMcpServerRepoList(t *testing.T) {
 	}
 }
 
+func TestMcpServerRepoPublicListWithAuthorIDHidesHidden(t *testing.T) {
+	db := testutil.NewTestDB(t)
+	r := NewMcpServerRepo(db)
+	ctx := context.Background()
+	owner := &model.User{Email: "hidden-mcp-list@t.com", PasswordHash: "x", Nickname: "Owner"}
+	if err := NewUserRepo(db).Create(owner); err != nil {
+		t.Fatal(err)
+	}
+	hidden := &model.McpServer{
+		AuthorID: owner.ID, Name: "hidden", Description: "content", ToolsJSON: "[]",
+		Status: model.ResourceStatusPublished, Hidden: true,
+	}
+	if err := r.Create(nil, hidden); err != nil {
+		t.Fatal(err)
+	}
+
+	authorID := owner.ID
+	list, total, err := r.List(ctx, McpServerQuery{AuthorID: &authorID, Page: 1, PageSize: 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total != 0 || len(list) != 0 {
+		t.Fatalf("public list exposed hidden MCP server: total %d, list %+v", total, list)
+	}
+}
+
 func TestMcpServerRepoListOwnedScopesAuthorIncludesHiddenAndRejectsUnknownStatus(t *testing.T) {
 	db := testutil.NewTestDB(t)
 	r := NewMcpServerRepo(db)

@@ -75,7 +75,9 @@ func TestSkillCreateEndpoint(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, body %s", w.Code, w.Body.String())
 	}
-	var resp struct{ Data struct{ ID uint } `json:"data"` }
+	var resp struct {
+		Data struct{ ID uint } `json:"data"`
+	}
 	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 	if resp.Data.ID == 0 {
 		t.Fatalf("id = 0")
@@ -114,6 +116,40 @@ func TestSkillListEndpoint(t *testing.T) {
 	}
 }
 
+func TestSkillListEndpointAuthorIDHidesHidden(t *testing.T) {
+	r, users, skills := skillRouter(t)
+	owner := &model.User{Email: "hidden-skill-handler@t.com", PasswordHash: "x", Nickname: "Owner"}
+	if err := users.Create(owner); err != nil {
+		t.Fatal(err)
+	}
+	hidden := &model.Skill{
+		AuthorID: owner.ID, Name: "hidden", Description: "content",
+		Status: model.ResourceStatusPublished, Hidden: true,
+	}
+	if err := skills.Create(nil, hidden); err != nil {
+		t.Fatal(err)
+	}
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/skills?author_id=%d", owner.ID), nil)
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("list status = %d, body %s", w.Code, w.Body.String())
+	}
+	var response struct {
+		Data struct {
+			Total int64 `json:"total"`
+			List  []any `json:"list"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if response.Data.Total != 0 || len(response.Data.List) != 0 {
+		t.Fatalf("public endpoint exposed hidden skill: %+v", response.Data)
+	}
+}
+
 func TestSkillGetEndpoint(t *testing.T) {
 	r, users, _ := skillRouter(t)
 	u := &model.User{Email: "sk@c.com", PasswordHash: "x", Nickname: "SK", AvatarURL: "/x.png"}
@@ -126,7 +162,9 @@ func TestSkillGetEndpoint(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+tok)
 	r.ServeHTTP(w, req)
-	var created struct{ Data struct{ ID uint } `json:"data"` }
+	var created struct {
+		Data struct{ ID uint } `json:"data"`
+	}
 	_ = json.Unmarshal(w.Body.Bytes(), &created)
 
 	w = httptest.NewRecorder()
@@ -159,7 +197,9 @@ func TestSkillSubmitWithdrawEndpoint(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+tok)
 	r.ServeHTTP(w, req)
-	var created struct{ Data struct{ ID uint } `json:"data"` }
+	var created struct {
+		Data struct{ ID uint } `json:"data"`
+	}
 	_ = json.Unmarshal(w.Body.Bytes(), &created)
 
 	w = httptest.NewRecorder()
@@ -225,7 +265,9 @@ func TestSkillLikeEndpoint(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+tok)
 	r.ServeHTTP(w, req)
-	var created struct{ Data struct{ ID uint } `json:"data"` }
+	var created struct {
+		Data struct{ ID uint } `json:"data"`
+	}
 	_ = json.Unmarshal(w.Body.Bytes(), &created)
 
 	sk, _ := skillRepo.FindByID(nil, created.Data.ID)
@@ -274,7 +316,9 @@ func TestSkillFavoriteEndpoint(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+tok)
 	r.ServeHTTP(w, req)
-	var created struct{ Data struct{ ID uint } `json:"data"` }
+	var created struct {
+		Data struct{ ID uint } `json:"data"`
+	}
 	_ = json.Unmarshal(w.Body.Bytes(), &created)
 
 	sk, _ := skillRepo.FindByID(nil, created.Data.ID)

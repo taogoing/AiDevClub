@@ -326,10 +326,10 @@ func (s *SkillService) detail(ctx context.Context, userID, skillID uint, trackVi
 		FileSize:     sk.FileSize,
 	}
 	if loadInteractions && userID > 0 {
-		if d.Liked, err = s.inter.SkillLiked(nil, userID, skillID); err != nil {
+		if d.Liked, err = s.inter.SkillLiked(ctx, userID, skillID); err != nil {
 			return nil, err
 		}
-		if d.Favorited, err = s.inter.SkillFavorited(nil, userID, skillID); err != nil {
+		if d.Favorited, err = s.inter.SkillFavorited(ctx, userID, skillID); err != nil {
 			return nil, err
 		}
 	}

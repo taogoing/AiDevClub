@@ -114,6 +114,32 @@ func TestSkillRepoList(t *testing.T) {
 	}
 }
 
+func TestSkillRepoPublicListWithAuthorIDHidesHidden(t *testing.T) {
+	db := testutil.NewTestDB(t)
+	r := NewSkillRepo(db)
+	ctx := context.Background()
+	owner := &model.User{Email: "hidden-skill-list@t.com", PasswordHash: "x", Nickname: "Owner"}
+	if err := NewUserRepo(db).Create(owner); err != nil {
+		t.Fatal(err)
+	}
+	hidden := &model.Skill{
+		AuthorID: owner.ID, Name: "hidden", Description: "content",
+		Status: model.ResourceStatusPublished, Hidden: true,
+	}
+	if err := r.Create(nil, hidden); err != nil {
+		t.Fatal(err)
+	}
+
+	authorID := owner.ID
+	list, total, err := r.List(ctx, SkillQuery{AuthorID: &authorID, Page: 1, PageSize: 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total != 0 || len(list) != 0 {
+		t.Fatalf("public list exposed hidden skill: total %d, list %+v", total, list)
+	}
+}
+
 func TestSkillRepoListOwnedScopesAuthorIncludesHiddenAndRejectsUnknownStatus(t *testing.T) {
 	db := testutil.NewTestDB(t)
 	r := NewSkillRepo(db)

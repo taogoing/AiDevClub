@@ -146,6 +146,56 @@ func TestArticleListAndGet(t *testing.T) {
 	}
 }
 
+func TestArticleGetLoadsInteractionState(t *testing.T) {
+	svc, user, category := newArticleTestEnv(t)
+	ctx := context.Background()
+	article, err := svc.Create(ctx, user.ID, CreateArticleInput{
+		Title: "interactions", Content: "content", CategoryID: category.ID, Status: model.ArticleStatusPublished,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	db := svc.articles.DB()
+	if err := db.Create(&model.ArticleLike{ArticleID: article.ID, UserID: user.ID}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&model.ArticleFavorite{ArticleID: article.ID, UserID: user.ID}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	detail, err := svc.Get(ctx, user.ID, article.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !detail.Liked || !detail.Favorited {
+		t.Fatalf("Get interaction state = liked %v favorited %v", detail.Liked, detail.Favorited)
+	}
+}
+
+func TestArticlePublicListWithAuthorIDHidesHidden(t *testing.T) {
+	svc, owner, category := newArticleTestEnv(t)
+	ctx := context.Background()
+	hidden, err := svc.Create(ctx, owner.ID, CreateArticleInput{
+		Title: "hidden", Content: "content", CategoryID: category.ID, Status: model.ArticleStatusPublished,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	hidden.Hidden = true
+	if err := svc.articles.Update(nil, hidden); err != nil {
+		t.Fatal(err)
+	}
+
+	authorID := owner.ID
+	result, err := svc.List(ctx, ListQuery{AuthorID: &authorID, Page: 1, PageSize: 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Total != 0 || len(result.List) != 0 {
+		t.Fatalf("public list exposed hidden article: %+v", result)
+	}
+}
+
 func TestArticleHotSortAndCache(t *testing.T) {
 	svc, u, cat := newArticleTestEnv(t)
 	ctx := context.Background()

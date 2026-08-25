@@ -334,10 +334,10 @@ func (s *McpServerService) detail(ctx context.Context, userID, serverID uint, tr
 		FileSize:         sv.FileSize,
 	}
 	if loadInteractions && userID > 0 {
-		if d.Liked, err = s.inter.McpServerLiked(nil, userID, serverID); err != nil {
+		if d.Liked, err = s.inter.McpServerLiked(ctx, userID, serverID); err != nil {
 			return nil, err
 		}
-		if d.Favorited, err = s.inter.McpServerFavorited(nil, userID, serverID); err != nil {
+		if d.Favorited, err = s.inter.McpServerFavorited(ctx, userID, serverID); err != nil {
 			return nil, err
 		}
 	}

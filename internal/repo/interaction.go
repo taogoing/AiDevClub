@@ -1,6 +1,8 @@
 package repo
 
 import (
+	"context"
+
 	"gorm.io/gorm"
 
 	"aidevclub/internal/model"
@@ -18,15 +20,15 @@ func (r *InteractionRepo) exec(db *gorm.DB) *gorm.DB {
 	return r.db
 }
 
-func (r *InteractionRepo) ArticleLiked(db *gorm.DB, userID, articleID uint) (bool, error) {
+func (r *InteractionRepo) ArticleLiked(ctx context.Context, userID, articleID uint) (bool, error) {
 	var count int64
-	err := r.exec(db).Model(&model.ArticleLike{}).Where("article_id = ? AND user_id = ?", articleID, userID).Count(&count).Error
+	err := r.db.WithContext(ctx).Model(&model.ArticleLike{}).Where("article_id = ? AND user_id = ?", articleID, userID).Count(&count).Error
 	return count > 0, err
 }
 
-func (r *InteractionRepo) ArticleFavorited(db *gorm.DB, userID, articleID uint) (bool, error) {
+func (r *InteractionRepo) ArticleFavorited(ctx context.Context, userID, articleID uint) (bool, error) {
 	var count int64
-	err := r.exec(db).Model(&model.ArticleFavorite{}).Where("article_id = ? AND user_id = ?", articleID, userID).Count(&count).Error
+	err := r.db.WithContext(ctx).Model(&model.ArticleFavorite{}).Where("article_id = ? AND user_id = ?", articleID, userID).Count(&count).Error
 	return count > 0, err
 }
 
@@ -60,15 +62,15 @@ func (r *InteractionRepo) CommentLiked(db *gorm.DB, userID, commentID uint) (boo
 	return count > 0, err
 }
 
-func (r *InteractionRepo) SkillLiked(db *gorm.DB, userID, skillID uint) (bool, error) {
+func (r *InteractionRepo) SkillLiked(ctx context.Context, userID, skillID uint) (bool, error) {
 	var count int64
-	err := r.exec(db).Model(&model.SkillLike{}).Where("skill_id = ? AND user_id = ?", skillID, userID).Count(&count).Error
+	err := r.db.WithContext(ctx).Model(&model.SkillLike{}).Where("skill_id = ? AND user_id = ?", skillID, userID).Count(&count).Error
 	return count > 0, err
 }
 
-func (r *InteractionRepo) SkillFavorited(db *gorm.DB, userID, skillID uint) (bool, error) {
+func (r *InteractionRepo) SkillFavorited(ctx context.Context, userID, skillID uint) (bool, error) {
 	var count int64
-	err := r.exec(db).Model(&model.SkillFavorite{}).Where("skill_id = ? AND user_id = ?", skillID, userID).Count(&count).Error
+	err := r.db.WithContext(ctx).Model(&model.SkillFavorite{}).Where("skill_id = ? AND user_id = ?", skillID, userID).Count(&count).Error
 	return count > 0, err
 }
 
@@ -80,15 +82,15 @@ func (r *InteractionRepo) ToggleSkillFavorite(db *gorm.DB, userID, skillID uint)
 	return toggleLike(r.exec(db), &model.SkillFavorite{UserID: userID, SkillID: skillID}, "skill_id = ? AND user_id = ?", skillID, userID)
 }
 
-func (r *InteractionRepo) McpServerLiked(db *gorm.DB, userID, serverID uint) (bool, error) {
+func (r *InteractionRepo) McpServerLiked(ctx context.Context, userID, serverID uint) (bool, error) {
 	var count int64
-	err := r.exec(db).Model(&model.McpServerLike{}).Where("mcp_server_id = ? AND user_id = ?", serverID, userID).Count(&count).Error
+	err := r.db.WithContext(ctx).Model(&model.McpServerLike{}).Where("mcp_server_id = ? AND user_id = ?", serverID, userID).Count(&count).Error
 	return count > 0, err
 }
 
-func (r *InteractionRepo) McpServerFavorited(db *gorm.DB, userID, serverID uint) (bool, error) {
+func (r *InteractionRepo) McpServerFavorited(ctx context.Context, userID, serverID uint) (bool, error) {
 	var count int64
-	err := r.exec(db).Model(&model.McpServerFavorite{}).Where("mcp_server_id = ? AND user_id = ?", serverID, userID).Count(&count).Error
+	err := r.db.WithContext(ctx).Model(&model.McpServerFavorite{}).Where("mcp_server_id = ? AND user_id = ?", serverID, userID).Count(&count).Error
 	return count > 0, err
 }
 

@@ -35,11 +35,7 @@ func (r *ArticleRepo) FindByID(db *gorm.DB, id uint) (*model.Article, error) {
 }
 
 func (r *ArticleRepo) FindByIDWithContext(ctx context.Context, id uint) (*model.Article, error) {
-	var a model.Article
-	if err := r.db.WithContext(ctx).Preload("Category").Preload("Author").First(&a, id).Error; err != nil {
-		return nil, err
-	}
-	return &a, nil
+	return r.FindByID(r.db.WithContext(ctx), id)
 }
 
 func (r *ArticleRepo) Update(db *gorm.DB, a *model.Article) error {
@@ -99,10 +95,9 @@ type ArticleQuery struct {
 }
 
 func (r *ArticleRepo) baseQuery(ctx context.Context, q ArticleQuery) *gorm.DB {
-	d := r.db.WithContext(ctx).Model(&model.Article{}).Where("status = ?", model.ArticleStatusPublished)
-	if q.AuthorID == nil {
-		d = d.Where("hidden = ?", false)
-	}
+	d := r.db.WithContext(ctx).Model(&model.Article{}).
+		Where("status = ?", model.ArticleStatusPublished).
+		Where("hidden = ?", false)
 	if q.CategoryID != nil {
 		d = d.Where("category_id = ?", *q.CategoryID)
 	}

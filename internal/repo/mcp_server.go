@@ -35,11 +35,7 @@ func (r *McpServerRepo) FindByID(db *gorm.DB, id uint) (*model.McpServer, error)
 }
 
 func (r *McpServerRepo) FindByIDWithContext(ctx context.Context, id uint) (*model.McpServer, error) {
-	var s model.McpServer
-	if err := r.db.WithContext(ctx).Preload("Author").First(&s, id).Error; err != nil {
-		return nil, err
-	}
-	return &s, nil
+	return r.FindByID(r.db.WithContext(ctx), id)
 }
 
 func (r *McpServerRepo) Update(db *gorm.DB, s *model.McpServer) error {
@@ -98,10 +94,9 @@ type McpServerQuery struct {
 }
 
 func (r *McpServerRepo) baseQuery(ctx context.Context, q McpServerQuery) *gorm.DB {
-	d := r.db.WithContext(ctx).Model(&model.McpServer{}).Where("status = ?", model.ResourceStatusPublished)
-	if q.AuthorID == nil {
-		d = d.Where("hidden = ?", false)
-	}
+	d := r.db.WithContext(ctx).Model(&model.McpServer{}).
+		Where("status = ?", model.ResourceStatusPublished).
+		Where("hidden = ?", false)
 	if q.AuthorID != nil {
 		d = d.Where("author_id = ?", *q.AuthorID)
 	}

@@ -216,6 +216,34 @@ func TestSkillVisibility(t *testing.T) {
 	}
 }
 
+func TestSkillGetLoadsInteractionState(t *testing.T) {
+	svc, user := newSkillTestEnv(t)
+	ctx := context.Background()
+	skill, err := svc.Create(ctx, user.ID, CreateSkillInput{Name: "interactions"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	skill.Status = model.ResourceStatusPublished
+	if err := svc.skills.Update(nil, skill); err != nil {
+		t.Fatal(err)
+	}
+	db := svc.skills.DB()
+	if err := db.Create(&model.SkillLike{SkillID: skill.ID, UserID: user.ID}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&model.SkillFavorite{SkillID: skill.ID, UserID: user.ID}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	detail, err := svc.Get(ctx, user.ID, skill.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !detail.Liked || !detail.Favorited {
+		t.Fatalf("Get interaction state = liked %v favorited %v", detail.Liked, detail.Favorited)
+	}
+}
+
 func TestSkillUploadZip(t *testing.T) {
 	svc, u := newSkillTestEnv(t)
 	ctx := context.Background()
@@ -477,6 +505,29 @@ func TestSkillList(t *testing.T) {
 	}
 	if res4.Total != 1 {
 		t.Fatalf("keyword total = %d", res4.Total)
+	}
+}
+
+func TestSkillPublicListWithAuthorIDHidesHidden(t *testing.T) {
+	svc, owner := newSkillTestEnv(t)
+	ctx := context.Background()
+	hidden, err := svc.Create(ctx, owner.ID, CreateSkillInput{Name: "hidden"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	hidden.Status = model.ResourceStatusPublished
+	hidden.Hidden = true
+	if err := svc.skills.Update(nil, hidden); err != nil {
+		t.Fatal(err)
+	}
+
+	authorID := owner.ID
+	result, err := svc.List(ctx, SkillListQuery{AuthorID: &authorID, Page: 1, PageSize: 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Total != 0 || len(result.List) != 0 {
+		t.Fatalf("public list exposed hidden skill: %+v", result)
 	}
 }
 

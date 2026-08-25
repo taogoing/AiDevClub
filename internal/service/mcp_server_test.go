@@ -145,6 +145,34 @@ func TestMcpServerVisibility(t *testing.T) {
 	}
 }
 
+func TestMcpServerGetLoadsInteractionState(t *testing.T) {
+	svc, user := newMcpServerTestEnv(t)
+	ctx := context.Background()
+	server, err := svc.Create(ctx, user.ID, CreateMcpServerInput{Name: "interactions"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.Status = model.ResourceStatusPublished
+	if err := svc.servers.Update(nil, server); err != nil {
+		t.Fatal(err)
+	}
+	db := svc.servers.DB()
+	if err := db.Create(&model.McpServerLike{McpServerID: server.ID, UserID: user.ID}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&model.McpServerFavorite{McpServerID: server.ID, UserID: user.ID}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	detail, err := svc.Get(ctx, user.ID, server.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !detail.Liked || !detail.Favorited {
+		t.Fatalf("Get interaction state = liked %v favorited %v", detail.Liked, detail.Favorited)
+	}
+}
+
 func TestMcpServerList(t *testing.T) {
 	svc, u := newMcpServerTestEnv(t)
 	ctx := context.Background()
@@ -194,6 +222,29 @@ func TestMcpServerList(t *testing.T) {
 	}
 	if res4.Total != 1 {
 		t.Fatalf("keyword total = %d", res4.Total)
+	}
+}
+
+func TestMcpServerPublicListWithAuthorIDHidesHidden(t *testing.T) {
+	svc, owner := newMcpServerTestEnv(t)
+	ctx := context.Background()
+	hidden, err := svc.Create(ctx, owner.ID, CreateMcpServerInput{Name: "hidden"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	hidden.Status = model.ResourceStatusPublished
+	hidden.Hidden = true
+	if err := svc.servers.Update(nil, hidden); err != nil {
+		t.Fatal(err)
+	}
+
+	authorID := owner.ID
+	result, err := svc.List(ctx, McpServerListQuery{AuthorID: &authorID, Page: 1, PageSize: 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Total != 0 || len(result.List) != 0 {
+		t.Fatalf("public list exposed hidden MCP server: %+v", result)
 	}
 }
 
