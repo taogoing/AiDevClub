@@ -74,12 +74,15 @@ func TestSearchWithoutHighlightReturnsPlainText(t *testing.T) {
 	}
 	search := NewSearchService(repo.NewSearchRepo(db))
 
-	got, err := search.Search(ctx, SearchQuery{Keyword: "Go", Type: "article", Page: 1, PageSize: 10, Highlight: false})
+	got, err := search.Search(ctx, SearchQuery{Keyword: "Go", ContentType: "article", Page: 1, PageSize: 10, Highlight: false})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(got.Articles) != 1 {
 		t.Fatalf("article search results = %+v, want one article", got)
+	}
+	if len(got.Counts) != 0 {
+		t.Fatalf("single-type search counts = %+v, want absent or empty legacy counts", got.Counts)
 	}
 	if strings.Contains(got.Articles[0].Title, "<mark>") || strings.Contains(got.Articles[0].Summary, "<mark>") {
 		t.Fatalf("plain search result contains HTML highlight markup: %+v", got.Articles[0])
@@ -112,8 +115,8 @@ func TestSearchAllKeepsResultsInSeparateTypeSections(t *testing.T) {
 	if len(got.Articles) != 1 || len(got.Skills) != 1 || len(got.McpServers) != 1 {
 		t.Fatalf("all search sections = articles:%+v skills:%+v servers:%+v, want one row in each", got.Articles, got.Skills, got.McpServers)
 	}
-	if len(got.Items) != 3 || got.Items[0].Type != "article" || got.Items[1].Type != "skill" || got.Items[2].Type != "mcp_server" {
-		t.Fatalf("legacy all search items = %+v, want deterministic type-order compatibility projection", got.Items)
+	if len(got.Items) != 1 || got.Items[0].Type != "article" {
+		t.Fatalf("legacy all search items = %+v, want standard-page article results only", got.Items)
 	}
 }
 

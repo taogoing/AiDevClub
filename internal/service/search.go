@@ -44,15 +44,11 @@ type SearchResult struct {
 type SearchQuery struct {
 	Keyword     string
 	ContentType string
-	// Type is retained as a compatibility alias for callers that adopted the
-	// original reader sketch before ContentType was finalized.
-	Type       string
-	Sort       string
-	TagID      *uint
-	CategoryID *uint
-	Page       int
-	PageSize   int
-	Highlight  bool
+	TagID       *uint
+	CategoryID  *uint
+	Page        int
+	PageSize    int
+	Highlight   bool
 }
 
 type SearchResponse struct {
@@ -73,11 +69,6 @@ func (s *SearchService) Search(ctx context.Context, q SearchQuery) (*SearchRespo
 	if q.PageSize <= 0 {
 		q.PageSize = 20
 	}
-	contentType := q.ContentType
-	if contentType == "" {
-		contentType = q.Type
-	}
-
 	response := &SearchResponse{
 		Items:      []SearchResult{},
 		Articles:   []SearchResult{},
@@ -85,17 +76,15 @@ func (s *SearchService) Search(ctx context.Context, q SearchQuery) (*SearchRespo
 		McpServers: []SearchResult{},
 		Page:       q.Page,
 		PageSize:   q.PageSize,
-		Counts:     make(map[string]int64),
 	}
 
-	switch contentType {
+	switch q.ContentType {
 	case "article":
 		articles, count, err := s.searchRepo.SearchArticles(ctx, q.Keyword, q.TagID, q.CategoryID, q.Page, q.PageSize)
 		if err != nil {
 			return nil, err
 		}
 		response.Total = count
-		response.Counts["article"] = count
 		for _, a := range articles {
 			item := SearchResult{
 				ID:      a.ID,
@@ -114,7 +103,6 @@ func (s *SearchService) Search(ctx context.Context, q SearchQuery) (*SearchRespo
 			return nil, err
 		}
 		response.Total = count
-		response.Counts["skill"] = count
 		for _, sk := range skills {
 			item := SearchResult{
 				ID:      sk.ID,
@@ -133,7 +121,6 @@ func (s *SearchService) Search(ctx context.Context, q SearchQuery) (*SearchRespo
 			return nil, err
 		}
 		response.Total = count
-		response.Counts["mcp_server"] = count
 		for _, sv := range servers {
 			item := SearchResult{
 				ID:      sv.ID,
@@ -160,9 +147,11 @@ func (s *SearchService) Search(ctx context.Context, q SearchQuery) (*SearchRespo
 			return nil, err
 		}
 
-		response.Counts["article"] = articleCount
-		response.Counts["skill"] = skillCount
-		response.Counts["mcp_server"] = mcpCount
+		response.Counts = map[string]int64{
+			"article":    articleCount,
+			"skill":      skillCount,
+			"mcp_server": mcpCount,
+		}
 		response.Total = articleCount + skillCount + mcpCount
 		for _, a := range articles {
 			response.Articles = append(response.Articles, SearchResult{
@@ -185,12 +174,9 @@ func (s *SearchService) Search(ctx context.Context, q SearchQuery) (*SearchRespo
 				Summary: searchText(sv.Description, q.Keyword, q.Highlight), Views: sv.Views,
 			})
 		}
-		// The typed sections are the MCP-facing all-type contract. Items remains
-		// a deterministic, type-grouped projection for the existing web search
-		// page; it does not claim a cross-type relevance order.
+		// Typed sections expose grouped MCP search results. Items preserves the
+		// legacy REST contract: the requested standard page of articles only.
 		response.Items = append(response.Items, response.Articles...)
-		response.Items = append(response.Items, response.Skills...)
-		response.Items = append(response.Items, response.McpServers...)
 	}
 
 	return response, nil
