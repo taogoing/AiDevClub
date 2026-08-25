@@ -46,3 +46,23 @@ func (r *UserRepo) FindByIDs(ids []uint) ([]model.User, error) {
 	}
 	return users, nil
 }
+
+func (r *UserRepo) UpdateRole(id uint, role model.UserRole) error {
+	return r.db.Model(&model.User{}).Where("id = ?", id).Update("role", role).Error
+}
+
+func (r *UserRepo) AllUserIDs() ([]uint, error) {
+	var ids []uint
+	if err := r.db.Model(&model.User{}).Pluck("id", &ids).Error; err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
+func (r *UserRepo) Count() (int64, error) {
+	var total int64
+	if err := r.db.Model(&model.User{}).Count(&total).Error; err != nil {
+		return 0, err
+	}
+	return total, nil
+}
