@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -320,6 +321,7 @@ func (s *SkillService) detail(ctx context.Context, userID, skillID uint, trackVi
 		ZipURL:       sk.ZipURL,
 		ZipFilename:  sk.ZipFilename,
 		FileSize:     sk.FileSize,
+		SkillMD:      sk.SkillMD,
 	}
 	if loadInteractions && userID > 0 {
 		if d.Liked, err = s.inter.SkillLiked(ctx, userID, skillID); err != nil {
@@ -332,28 +334,67 @@ func (s *SkillService) detail(ctx context.Context, userID, skillID uint, trackVi
 	return d, nil
 }
 
+func containedSkillZipPath(root, zipURL string) (string, bool) {
+	name := filepath.Base(zipURL)
+	if name == "" || name == "." || name == ".." {
+		return "", false
+	}
+	rootPath, err := filepath.Abs(root)
+	if err != nil {
+		return "", false
+	}
+	candidate, err := filepath.Abs(filepath.Join(rootPath, name))
+	if err != nil {
+		return "", false
+	}
+	relative, err := filepath.Rel(rootPath, candidate)
+	if err != nil || relative == "." || relative == ".." || filepath.IsAbs(relative) || filepath.Dir(relative) != "." {
+		return "", false
+	}
+	return candidate, true
+}
+
+func removeRegularSkillZip(zipPath string) error {
+	info, err := os.Lstat(zipPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("refusing to remove non-regular Skill ZIP")
+	}
+	return os.Remove(zipPath)
+}
+
 func (s *SkillService) UploadZip(ctx context.Context, userID, skillID uint, zipURL, zipFilename string, fileSize int64) error {
-	zipPath := filepath.Join(s.ZipDir(), filepath.Base(zipURL))
+	zipPath, ok := containedSkillZipPath(s.ZipDir(), zipURL)
+	if !ok {
+		return platform.ErrInvalidInput
+	}
 	originalZipPath := ""
-	published := false
+	metadataUpdated := false
 	defer func() {
-		if published || zipPath == originalZipPath {
+		if metadataUpdated || zipPath == originalZipPath {
 			return
 		}
-		if info, statErr := os.Lstat(zipPath); statErr == nil && info.Mode().IsRegular() {
-			_ = os.Remove(zipPath)
+		if err := removeRegularSkillZip(zipPath); err != nil {
+			slog.Warn("remove failed Skill ZIP upload", "skill_id", skillID, "err", err)
 		}
 	}()
 
-	sk, err := s.skills.FindByID(nil, skillID)
+	sk, err := s.skills.FindByIDWithContext(ctx, skillID)
 	if err != nil {
 		return ErrSkillNotFound
 	}
-	originalZipPath = filepath.Join(s.ZipDir(), filepath.Base(sk.ZipURL))
+	originalZipPath, _ = containedSkillZipPath(s.ZipDir(), sk.ZipURL)
 	if sk.AuthorID != userID {
 		return ErrForbidden
 	}
-	if sk.Status == model.ResourceStatusPendingReview {
+	switch sk.Status {
+	case model.ResourceStatusDraft, model.ResourceStatusRejected, model.ResourceStatusArchived, model.ResourceStatusPublished:
+	default:
 		return ErrSkillState
 	}
 	file, err := os.Open(zipPath)
@@ -369,17 +410,19 @@ func (s *SkillService) UploadZip(ctx context.Context, userID, skillID uint, zipU
 	if err != nil {
 		return err
 	}
-	sk.ZipURL = zipURL
-	sk.ZipFilename = zipFilename
-	sk.FileSize = fileSize
-	sk.SkillMD = skillMD
-	if sk.Status == model.ResourceStatusPublished {
-		sk.Status = model.ResourceStatusPendingReview
-	}
-	if err := s.skills.Update(nil, sk); err != nil {
+	updated, err := s.skills.UpdateZipMetadata(ctx, skillID, userID, sk.Status, zipURL, zipFilename, fileSize, skillMD)
+	if err != nil {
 		return err
 	}
-	published = true
+	if !updated {
+		return ErrSkillState
+	}
+	metadataUpdated = true
+	if originalZipPath != "" && originalZipPath != zipPath {
+		if err := removeRegularSkillZip(originalZipPath); err != nil {
+			slog.Warn("remove replaced Skill ZIP", "skill_id", skillID, "err", err)
+		}
+	}
 	return nil
 }
 

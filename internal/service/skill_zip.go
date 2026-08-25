@@ -6,6 +6,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"unicode/utf8"
 
 	"aidevclub/internal/platform"
 )
@@ -43,7 +44,11 @@ func extractSkillMD(r io.ReaderAt, size int64) (string, error) {
 			return "", platform.ErrInvalidInput
 		}
 
-		isSkillMD := path.Base(path.Clean(file.Name)) == "SKILL.md"
+		cleanName := path.Clean(file.Name)
+		isSkillMD := path.Base(cleanName) == "SKILL.md"
+		if isSkillMD && strings.Count(cleanName, "/") > 1 {
+			return "", platform.ErrInvalidInput
+		}
 		limit := maxExpandedBytes - expanded
 		if isSkillMD && limit > maxSkillMDBytes {
 			limit = maxSkillMDBytes
@@ -65,11 +70,12 @@ func extractSkillMD(r io.ReaderAt, size int64) (string, error) {
 		if !isSkillMD {
 			continue
 		}
-		if foundSkillMD || len(data) > maxSkillMDBytes {
+		document := string(data)
+		if foundSkillMD || len(data) > maxSkillMDBytes || !utf8.Valid(data) || strings.TrimSpace(document) == "" {
 			return "", platform.ErrInvalidInput
 		}
 		foundSkillMD = true
-		skillMD = string(data)
+		skillMD = document
 	}
 	if !foundSkillMD {
 		return "", platform.ErrInvalidInput

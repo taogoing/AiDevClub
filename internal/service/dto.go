@@ -107,6 +107,7 @@ type SkillDetail struct {
 	ZipURL      string `json:"zip_url"`
 	ZipFilename string `json:"zip_filename"`
 	FileSize    int64  `json:"file_size"`
+	SkillMD     string `json:"skill_md"`
 	Liked       bool   `json:"liked"`
 	Favorited   bool   `json:"favorited"`
 }

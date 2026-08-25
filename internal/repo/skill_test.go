@@ -2,12 +2,139 @@ package repo
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"testing"
 	"time"
 
 	"aidevclub/internal/model"
 	"aidevclub/internal/testutil"
 )
+
+func TestSkillRepoStoresValidatedMaximumSkillDocument(t *testing.T) {
+	db := testutil.NewTestDB(t)
+	r := NewSkillRepo(db)
+	user := &model.User{Email: "large-skill-doc@t.com", PasswordHash: "x", Nickname: "Owner"}
+	if err := NewUserRepo(db).Create(user); err != nil {
+		t.Fatal(err)
+	}
+	document := "#" + strings.Repeat("x", (1<<20)-1)
+	skill := &model.Skill{
+		AuthorID: user.ID,
+		Name:     "large-document",
+		SkillMD:  document,
+		Status:   model.ResourceStatusDraft,
+	}
+
+	if err := r.Create(nil, skill); err != nil {
+		t.Fatalf("store 1 MiB SKILL.md: %v", err)
+	}
+	stored, err := r.FindByID(nil, skill.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.SkillMD != document {
+		t.Fatalf("stored SKILL.md length = %d, want %d", len(stored.SkillMD), len(document))
+	}
+}
+
+func TestSkillRepoUpdateZipMetadataIsConditionalAndPreservesConcurrentFields(t *testing.T) {
+	db := testutil.NewTestDB(t)
+	r := NewSkillRepo(db)
+	user := &model.User{Email: "targeted-skill-zip@t.com", PasswordHash: "x", Nickname: "Owner"}
+	if err := NewUserRepo(db).Create(user); err != nil {
+		t.Fatal(err)
+	}
+	skill := &model.Skill{
+		AuthorID:    user.ID,
+		Name:        "targeted-update",
+		ZipURL:      "/static/skills/old.zip",
+		ZipFilename: "old.zip",
+		FileSize:    10,
+		SkillMD:     "# Old",
+		Status:      model.ResourceStatusPublished,
+		Views:       3,
+		Downloads:   4,
+	}
+	if err := r.Create(nil, skill); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&model.Skill{}).Where("id = ?", skill.ID).UpdateColumns(map[string]any{
+		"hidden":    true,
+		"views":     13,
+		"downloads": 14,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	updated, err := r.UpdateZipMetadata(
+		context.Background(), skill.ID, user.ID, model.ResourceStatusPublished,
+		"/static/skills/new.zip", "new.zip", 20, "# New",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !updated {
+		t.Fatal("matching owner and current status did not update ZIP metadata")
+	}
+	stored, err := r.FindByID(nil, skill.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.ZipURL != "/static/skills/new.zip" || stored.ZipFilename != "new.zip" || stored.FileSize != 20 || stored.SkillMD != "# New" {
+		t.Fatalf("ZIP metadata = %+v", stored)
+	}
+	if stored.Status != model.ResourceStatusPendingReview || !stored.Hidden || stored.Views != 13 || stored.Downloads != 14 {
+		t.Fatalf("concurrent fields overwritten: %+v", stored)
+	}
+
+	if err := db.Model(&model.Skill{}).Where("id = ?", skill.ID).UpdateColumns(map[string]any{
+		"status":       model.ResourceStatusArchived,
+		"zip_url":      "/static/skills/current.zip",
+		"zip_filename": "current.zip",
+		"file_size":    30,
+		"skill_md":     "# Current",
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	updated, err = r.UpdateZipMetadata(
+		context.Background(), skill.ID, user.ID, model.ResourceStatusPublished,
+		"/static/skills/raced.zip", "raced.zip", 40, "# Raced",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated {
+		t.Fatal("ZIP metadata updated after the current status changed")
+	}
+	updated, err = r.UpdateZipMetadata(
+		context.Background(), skill.ID, user.ID+999, model.ResourceStatusArchived,
+		"/static/skills/foreign.zip", "foreign.zip", 50, "# Foreign",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated {
+		t.Fatal("ZIP metadata updated for the wrong author")
+	}
+
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	updated, err = r.UpdateZipMetadata(
+		canceledCtx, skill.ID, user.ID, model.ResourceStatusArchived,
+		"/static/skills/canceled.zip", "canceled.zip", 60, "# Canceled",
+	)
+	if !errors.Is(err, context.Canceled) || updated {
+		t.Fatalf("canceled update = updated %v, error %v", updated, err)
+	}
+	stored, err = r.FindByID(nil, skill.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.Status != model.ResourceStatusArchived || stored.ZipURL != "/static/skills/current.zip" || stored.ZipFilename != "current.zip" || stored.FileSize != 30 || stored.SkillMD != "# Current" {
+		t.Fatalf("conditional failures changed stored row: %+v", stored)
+	}
+}
 
 func TestSkillRepoCRUD(t *testing.T) {
 	db := testutil.NewTestDB(t)

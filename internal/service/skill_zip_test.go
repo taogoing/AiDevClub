@@ -133,6 +133,10 @@ func TestExtractSkillMDRejectsUnsafeArchive(t *testing.T) {
 		data []byte
 	}{
 		{name: "missing skill file", data: makeSkillZip(t, zipFixture{name: "README.md", content: "missing"})},
+		{name: "deep skill file", data: makeSkillZip(t, zipFixture{name: "group/demo/SKILL.md", content: "too deep"})},
+		{name: "empty skill file", data: makeSkillZip(t, zipFixture{name: "SKILL.md", content: ""})},
+		{name: "blank skill file", data: makeSkillZip(t, zipFixture{name: "SKILL.md", content: " \n\t"})},
+		{name: "invalid UTF-8 skill file", data: makeSkillZip(t, zipFixture{name: "SKILL.md", content: string([]byte{0xff, 0xfe})})},
 		{name: "traversal", data: makeSkillZip(t, zipFixture{name: "../SKILL.md", content: "escape"})},
 		{name: "absolute path", data: makeSkillZip(t, zipFixture{name: "/SKILL.md", content: "escape"})},
 		{name: "windows drive relative path", data: makeSkillZip(t, zipFixture{name: "C:dir/SKILL.md", content: "escape"})},
