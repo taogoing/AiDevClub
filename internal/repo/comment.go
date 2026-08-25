@@ -1,6 +1,8 @@
 package repo
 
 import (
+	"context"
+
 	"gorm.io/gorm"
 
 	"aidevclub/internal/model"
@@ -50,4 +52,42 @@ func (r *CommentRepo) HideChildren(db *gorm.DB, parentID uint) error {
 	return r.exec(db).Model(&model.Comment{}).
 		Where("parent_id = ?", parentID).
 		Update("hidden", true).Error
+}
+
+type AdminCommentQuery struct {
+	Keyword    string
+	Visibility string
+	Page       int
+	PageSize   int
+}
+
+func (r *CommentRepo) AdminList(ctx context.Context, q AdminCommentQuery) ([]model.Comment, int64, error) {
+	d := r.db.WithContext(ctx).Model(&model.Comment{})
+	if q.Keyword != "" {
+		like := "%" + q.Keyword + "%"
+		d = d.Where("content LIKE ?", like)
+	}
+	if q.Visibility == "visible" {
+		d = d.Where("hidden = ?", false)
+	} else if q.Visibility == "hidden" {
+		d = d.Where("hidden = ?", true)
+	}
+	var total int64
+	if err := d.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var list []model.Comment
+	if err := d.Order("created_at desc, id desc").Preload("Author").
+		Offset((q.Page - 1) * q.PageSize).Limit(q.PageSize).Find(&list).Error; err != nil {
+		return nil, 0, err
+	}
+	return list, total, nil
+}
+
+func (r *CommentRepo) AdminFindByID(ctx context.Context, id uint) (*model.Comment, error) {
+	var c model.Comment
+	if err := r.db.WithContext(ctx).Preload("Author").First(&c, id).Error; err != nil {
+		return nil, err
+	}
+	return &c, nil
 }

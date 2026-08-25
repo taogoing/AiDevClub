@@ -213,13 +213,14 @@ type NotificationListResult struct {
 }
 
 type AdminLogItem struct {
-	ID         uint      `json:"id"`
-	AdminID    uint      `json:"admin_id"`
-	Action     string    `json:"action"`
-	TargetType string    `json:"target_type"`
-	TargetID   uint      `json:"target_id"`
-	Detail     string    `json:"detail"`
-	CreatedAt  time.Time `json:"created_at"`
+	ID         uint        `json:"id"`
+	AdminID    uint        `json:"admin_id"`
+	Admin      AuthorBrief `json:"admin"`
+	Action     string      `json:"action"`
+	TargetType string      `json:"target_type"`
+	TargetID   uint        `json:"target_id"`
+	Detail     any         `json:"detail"`
+	CreatedAt  time.Time   `json:"created_at"`
 }
 
 type AdminLogListResult struct {

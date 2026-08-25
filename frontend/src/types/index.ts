@@ -70,6 +70,7 @@ export interface UserProfile {
   nickname: string
   avatar_url: string
   bio: string
+  role?: string
 }
 
 export interface LoginResult {

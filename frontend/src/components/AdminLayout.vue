@@ -11,9 +11,41 @@
           router
           class="admin-menu"
         >
+          <el-menu-item index="/admin/dashboard">
+            <el-icon><DataAnalysis /></el-icon>
+            <span>数据看板</span>
+          </el-menu-item>
+          <el-menu-item index="/admin/users">
+            <el-icon><User /></el-icon>
+            <span>用户管理</span>
+          </el-menu-item>
+          <el-menu-item index="/admin/articles">
+            <el-icon><Document /></el-icon>
+            <span>文章管理</span>
+          </el-menu-item>
+          <el-menu-item index="/admin/comments">
+            <el-icon><ChatDotRound /></el-icon>
+            <span>评论管理</span>
+          </el-menu-item>
+          <el-menu-item index="/admin/resources">
+            <el-icon><Files /></el-icon>
+            <span>资源审核</span>
+          </el-menu-item>
           <el-menu-item index="/admin/tags">
             <el-icon><PriceTag /></el-icon>
             <span>标签管理</span>
+          </el-menu-item>
+          <el-menu-item index="/admin/reports">
+            <el-icon><Warning /></el-icon>
+            <span>举报处理</span>
+          </el-menu-item>
+          <el-menu-item index="/admin/announcements">
+            <el-icon><Bell /></el-icon>
+            <span>公告管理</span>
+          </el-menu-item>
+          <el-menu-item index="/admin/logs">
+            <el-icon><List /></el-icon>
+            <span>操作日志</span>
           </el-menu-item>
         </el-menu>
       </el-aside>
@@ -57,7 +89,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { PriceTag, HomeFilled } from '@element-plus/icons-vue'
+import { PriceTag, HomeFilled, DataAnalysis, User, Document, ChatDotRound, Files, Warning, Bell, List } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
@@ -74,7 +106,15 @@ const activeMenu = computed(() => route.path)
 
 const currentSection = computed(() => {
   const map: Record<string, string> = {
+    '/admin/dashboard': '数据看板',
+    '/admin/users': '用户管理',
+    '/admin/articles': '文章管理',
+    '/admin/comments': '评论管理',
+    '/admin/resources': '资源审核',
     '/admin/tags': '标签管理',
+    '/admin/reports': '举报处理',
+    '/admin/announcements': '公告管理',
+    '/admin/logs': '操作日志',
   }
   return map[route.path] || '管理'
 })

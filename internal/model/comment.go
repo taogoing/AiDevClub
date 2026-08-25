@@ -18,4 +18,6 @@ type Comment struct {
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 	DeletedAt  gorm.DeletedAt `gorm:"index"`
+
+	Author *User `gorm:"foreignKey:AuthorID"`
 }

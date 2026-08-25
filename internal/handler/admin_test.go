@@ -32,7 +32,7 @@ func setupAdminRouter(t *testing.T) (*gin.Engine, *service.AdminService, *servic
 	notifRepo := repo.NewNotificationRepo(db)
 
 	notifSvc := service.NewNotificationService(notifRepo, users)
-	adminLogSvc := service.NewAdminLogService(adminLogRepo)
+	adminLogSvc := service.NewAdminLogService(adminLogRepo, users)
 	adminSvc := service.NewAdminService(users, articles, skills, mcpServers, comments, resourceComments, reportRepo, announcementRepo, adminLogSvc, notifSvc)
 	reportSvc := service.NewReportService(reportRepo, articles, skills, mcpServers, comments, resourceComments, adminSvc, adminLogSvc, notifSvc)
 

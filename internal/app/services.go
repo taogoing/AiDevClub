@@ -61,7 +61,7 @@ func NewServices(infra *Infrastructure, cfg *platform.Config) *Services {
 	adminLogRepo := repo.NewAdminLogRepo(infra.DB)
 	announcementRepo := repo.NewAnnouncementRepo(infra.DB)
 	reportsRepo := repo.NewReportRepo(infra.DB)
-	adminLogs := service.NewAdminLogService(adminLogRepo)
+	adminLogs := service.NewAdminLogService(adminLogRepo, users)
 	admin := service.NewAdminService(
 		users, articles, skills, mcpServers, comments, resourceComments, reportsRepo,
 		announcementRepo, adminLogs, notifications,

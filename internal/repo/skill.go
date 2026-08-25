@@ -224,3 +224,49 @@ func (r *SkillRepo) TagsForSkills(ctx context.Context, skillIDs []uint) (map[uin
 	}
 	return res, nil
 }
+
+type AdminResourceQuery struct {
+	Keyword  string
+	Status   string
+	AuthorID *uint
+	TagID    *uint
+	Page     int
+	PageSize int
+}
+
+func (r *SkillRepo) AdminList(ctx context.Context, q AdminResourceQuery) ([]model.Skill, int64, error) {
+	d := r.db.WithContext(ctx).Model(&model.Skill{})
+	if q.Status != "" {
+		d = d.Where("status = ?", q.Status)
+	} else {
+		d = d.Where("status = ?", model.ResourceStatusPendingReview)
+	}
+	if q.Keyword != "" {
+		like := "%" + q.Keyword + "%"
+		d = d.Where("name LIKE ? OR description LIKE ?", like, like)
+	}
+	if q.AuthorID != nil {
+		d = d.Where("author_id = ?", *q.AuthorID)
+	}
+	if q.TagID != nil {
+		d = d.Where("id IN (SELECT skill_id FROM skill_tags WHERE tag_id = ?)", *q.TagID)
+	}
+	var total int64
+	if err := d.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var list []model.Skill
+	if err := d.Order("updated_at desc, id desc").Preload("Author").
+		Offset((q.Page - 1) * q.PageSize).Limit(q.PageSize).Find(&list).Error; err != nil {
+		return nil, 0, err
+	}
+	return list, total, nil
+}
+
+func (r *SkillRepo) AdminFindByID(ctx context.Context, id uint) (*model.Skill, error) {
+	var s model.Skill
+	if err := r.db.WithContext(ctx).Preload("Author").First(&s, id).Error; err != nil {
+		return nil, err
+	}
+	return &s, nil
+}

@@ -76,3 +76,41 @@ func (r *UserRepo) Count() (int64, error) {
 	}
 	return total, nil
 }
+
+type UserQuery struct {
+	Keyword  string
+	Role     model.UserRole
+	Page     int
+	PageSize int
+}
+
+func (r *UserRepo) ListUsers(ctx context.Context, q UserQuery) ([]model.User, int64, error) {
+	d := r.db.WithContext(ctx).Model(&model.User{})
+	if q.Keyword != "" {
+		like := "%" + q.Keyword + "%"
+		d = d.Where("email LIKE ? OR nickname LIKE ?", like, like)
+	}
+	if q.Role != "" {
+		d = d.Where("role = ?", q.Role)
+	}
+	var total int64
+	if err := d.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var list []model.User
+	if err := d.Order("id asc").Offset((q.Page - 1) * q.PageSize).Limit(q.PageSize).Find(&list).Error; err != nil {
+		return nil, 0, err
+	}
+	return list, total, nil
+}
+
+func (r *UserRepo) FindPublicByIDs(ctx context.Context, ids []uint) ([]model.User, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	var users []model.User
+	if err := r.db.WithContext(ctx).Select("id, nickname, avatar_url").Where("id IN ?", ids).Find(&users).Error; err != nil {
+		return nil, err
+	}
+	return users, nil
+}

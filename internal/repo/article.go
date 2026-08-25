@@ -190,3 +190,49 @@ func (r *ArticleRepo) TagsForArticles(ctx context.Context, articleIDs []uint) (m
 	}
 	return res, nil
 }
+
+type AdminArticleQuery struct {
+	Keyword    string
+	Visibility string
+	AuthorID   *uint
+	Page       int
+	PageSize   int
+}
+
+func (r *ArticleRepo) AdminList(ctx context.Context, q AdminArticleQuery) ([]model.Article, int64, error) {
+	d := r.db.WithContext(ctx).Model(&model.Article{}).
+		Where("status = ?", model.ArticleStatusPublished)
+	if q.Keyword != "" {
+		like := "%" + q.Keyword + "%"
+		d = d.Where("title LIKE ? OR summary LIKE ?", like, like)
+	}
+	if q.Visibility == "visible" {
+		d = d.Where("hidden = ?", false)
+	} else if q.Visibility == "hidden" {
+		d = d.Where("hidden = ?", true)
+	}
+	if q.AuthorID != nil {
+		d = d.Where("author_id = ?", *q.AuthorID)
+	}
+	var total int64
+	if err := d.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var list []model.Article
+	if err := d.Order("published_at desc, id desc").Preload("Author").
+		Offset((q.Page - 1) * q.PageSize).Limit(q.PageSize).Find(&list).Error; err != nil {
+		return nil, 0, err
+	}
+	return list, total, nil
+}
+
+func (r *ArticleRepo) AdminFindByID(ctx context.Context, id uint) (*model.Article, error) {
+	var a model.Article
+	if err := r.db.WithContext(ctx).Preload("Category").Preload("Author").First(&a, id).Error; err != nil {
+		return nil, err
+	}
+	if a.Status != model.ArticleStatusPublished {
+		return nil, gorm.ErrRecordNotFound
+	}
+	return &a, nil
+}

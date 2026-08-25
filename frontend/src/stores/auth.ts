@@ -8,6 +8,7 @@ export const useAuthStore = defineStore('auth', () => {
   const accessToken = ref<string | null>(null)
   const refreshToken = ref<string | null>(localStorage.getItem('refresh_token'))
   const user = ref<UserProfile | null>(null)
+  let restorePromise: Promise<void> | null = null
 
   const isLoggedIn = computed(() => !!accessToken.value)
 
@@ -33,6 +34,16 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function restoreSession(): Promise<void> {
+    if (!accessToken.value || user.value) return
+    if (restorePromise) return restorePromise
+    restorePromise = fetchUser()
+      .then(() => {})
+      .catch(() => clearAuth())
+      .finally(() => { restorePromise = null })
+    return restorePromise
+  }
+
   async function logout() {
     if (refreshToken.value) {
       try {
@@ -42,5 +53,5 @@ export const useAuthStore = defineStore('auth', () => {
     clearAuth()
   }
 
-  return { accessToken, refreshToken, user, isLoggedIn, setAuth, clearAuth, fetchUser, logout }
+  return { accessToken, refreshToken, user, isLoggedIn, setAuth, clearAuth, fetchUser, restoreSession, logout }
 })

@@ -27,6 +27,7 @@ type Skill struct {
 	FileSize       int64          `gorm:"not null;default:0"`
 	SkillMD        string         `gorm:"type:mediumtext"`
 	Status         ResourceStatus `gorm:"size:16;not null;default:draft;index"`
+	RejectReason   string         `gorm:"size:500"`
 	Views          int            `gorm:"not null;default:0"`
 	Downloads      int            `gorm:"not null;default:0"`
 	LikesCount     int            `gorm:"not null;default:0"`

@@ -46,19 +46,31 @@ const router = createRouter({
       component: () => import('@/components/AdminLayout.vue'),
       meta: { requiresAuth: true, requiresAdmin: true },
       children: [
-        { path: '', name: 'admin-home', redirect: '/admin/tags' },
+        { path: '', name: 'admin-home', redirect: '/admin/dashboard' },
+        { path: 'dashboard', name: 'admin-dashboard', component: () => import('@/views/admin/DashboardView.vue') },
+        { path: 'users', name: 'admin-users', component: () => import('@/views/admin/UsersView.vue') },
+        { path: 'articles', name: 'admin-articles', component: () => import('@/views/admin/ArticlesView.vue') },
+        { path: 'comments', name: 'admin-comments', component: () => import('@/views/admin/CommentsView.vue') },
+        { path: 'resources', name: 'admin-resources', component: () => import('@/views/admin/ResourcesView.vue') },
         { path: 'tags', name: 'admin-tags', component: () => import('@/views/admin/TagManagement.vue') },
+        { path: 'reports', name: 'admin-reports', component: () => import('@/views/admin/ReportsView.vue') },
+        { path: 'announcements', name: 'admin-announcements', component: () => import('@/views/admin/AnnouncementsView.vue') },
+        { path: 'logs', name: 'admin-logs', component: () => import('@/views/admin/LogsView.vue') },
       ],
     },
   ],
 })
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
+  const auth = useAuthStore()
   if (to.meta.requiresAuth) {
-    const auth = useAuthStore()
+    await auth.restoreSession()
     if (!auth.isLoggedIn) {
       return { name: 'login', query: { redirect: to.fullPath } }
     }
+  }
+  if (to.meta.requiresAdmin && auth.user?.role !== 'admin') {
+    return '/'
   }
 })
 

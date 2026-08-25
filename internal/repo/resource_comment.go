@@ -56,3 +56,45 @@ func (r *ResourceCommentRepo) HideChildren(db *gorm.DB, parentID uint) error {
 		Where("parent_id = ?", parentID).
 		Update("hidden", true).Error
 }
+
+type AdminResourceCommentQuery struct {
+	Keyword      string
+	Visibility   string
+	ResourceType string
+	Page         int
+	PageSize     int
+}
+
+func (r *ResourceCommentRepo) AdminList(ctx context.Context, q AdminResourceCommentQuery) ([]model.ResourceComment, int64, error) {
+	d := r.db.WithContext(ctx).Model(&model.ResourceComment{})
+	if q.Keyword != "" {
+		like := "%" + q.Keyword + "%"
+		d = d.Where("content LIKE ?", like)
+	}
+	if q.Visibility == "visible" {
+		d = d.Where("hidden = ?", false)
+	} else if q.Visibility == "hidden" {
+		d = d.Where("hidden = ?", true)
+	}
+	if q.ResourceType != "" {
+		d = d.Where("resource_type = ?", q.ResourceType)
+	}
+	var total int64
+	if err := d.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var list []model.ResourceComment
+	if err := d.Order("created_at desc, id desc").Preload("Author").
+		Offset((q.Page - 1) * q.PageSize).Limit(q.PageSize).Find(&list).Error; err != nil {
+		return nil, 0, err
+	}
+	return list, total, nil
+}
+
+func (r *ResourceCommentRepo) AdminFindByID(ctx context.Context, id uint) (*model.ResourceComment, error) {
+	var c model.ResourceComment
+	if err := r.db.WithContext(ctx).Preload("Author").First(&c, id).Error; err != nil {
+		return nil, err
+	}
+	return &c, nil
+}

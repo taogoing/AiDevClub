@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"net/http"
+	"strconv"
 	"time"
 
 	"gorm.io/gorm"
@@ -269,4 +270,114 @@ func toReportItem(r model.Report) ReportItem {
 		HandleResult: r.HandleResult, CreatedAt: r.CreatedAt,
 		ResolvedAt: r.ResolvedAt,
 	}
+}
+
+type AdminReportDetail struct {
+	ReportItem
+	Target       AdminReportTarget `json:"target"`
+	ReporterName string            `json:"reporter_name"`
+}
+
+type AdminReportTarget struct {
+	ID         uint   `json:"id"`
+	Type       string `json:"type"`
+	Title      string `json:"title,omitempty"`
+	Content    string `json:"content,omitempty"`
+	Summary    string `json:"summary,omitempty"`
+	Hidden     bool   `json:"hidden"`
+	AuthorID   uint   `json:"author_id"`
+	AuthorName string `json:"author_name"`
+	ParentURL  string `json:"parent_url,omitempty"`
+}
+
+func (s *ReportService) AdminGet(ctx context.Context, reportID uint) (*AdminReportDetail, error) {
+	r, err := s.repo.FindByID(reportID)
+	if err != nil {
+		return nil, ErrReportNotFound
+	}
+	item := toReportItem(*r)
+	detail := &AdminReportDetail{
+		ReportItem: item,
+	}
+	var reporterName string
+	if err := s.articles.DB().Model(&model.User{}).Select("nickname").Where("id = ?", r.ReporterID).Scan(&reporterName).Error; err == nil {
+		detail.ReporterName = reporterName
+	}
+	target, err := s.resolveTarget(ctx, r.TargetType, r.TargetID)
+	if err == nil {
+		detail.Target = *target
+	}
+	return detail, nil
+}
+
+func (s *ReportService) resolveTarget(ctx context.Context, targetType string, targetID uint) (*AdminReportTarget, error) {
+	target := &AdminReportTarget{
+		ID:   targetID,
+		Type: targetType,
+	}
+	switch targetType {
+	case "article":
+		a, err := s.articles.FindByIDWithContext(ctx, targetID)
+		if err != nil {
+			return nil, err
+		}
+		target.Title = a.Title
+		target.Summary = a.Summary
+		target.Content = a.Content
+		target.Hidden = a.Hidden
+		target.AuthorID = a.AuthorID
+		if a.Author != nil {
+			target.AuthorName = a.Author.Nickname
+		}
+		target.ParentURL = "/articles/" + strconv.FormatUint(uint64(a.ID), 10)
+	case "skill":
+		sk, err := s.skills.FindByIDWithContext(ctx, targetID)
+		if err != nil {
+			return nil, err
+		}
+		target.Title = sk.Name
+		target.Summary = sk.Description
+		target.Hidden = sk.Hidden
+		target.AuthorID = sk.AuthorID
+		if sk.Author != nil {
+			target.AuthorName = sk.Author.Nickname
+		}
+		target.ParentURL = "/skills/" + strconv.FormatUint(uint64(sk.ID), 10)
+	case "mcp_server":
+		m, err := s.mcpServers.FindByIDWithContext(ctx, targetID)
+		if err != nil {
+			return nil, err
+		}
+		target.Title = m.Name
+		target.Summary = m.Description
+		target.Hidden = m.Hidden
+		target.AuthorID = m.AuthorID
+		if m.Author != nil {
+			target.AuthorName = m.Author.Nickname
+		}
+		target.ParentURL = "/mcp-servers/" + strconv.FormatUint(uint64(m.ID), 10)
+	case "article_comment":
+		c, err := s.comments.FindByID(s.comments.DB().WithContext(ctx), targetID)
+		if err != nil {
+			return nil, err
+		}
+		target.Content = c.Content
+		target.Hidden = c.Hidden
+		target.AuthorID = c.AuthorID
+		target.ParentURL = "/articles/" + strconv.FormatUint(uint64(c.ArticleID), 10)
+	case "resource_comment":
+		rc, err := s.resourceComments.FindByID(s.resourceComments.DB().WithContext(ctx), targetID)
+		if err != nil {
+			return nil, err
+		}
+		target.Content = rc.Content
+		target.Hidden = rc.Hidden
+		target.AuthorID = rc.AuthorID
+		if rc.ResourceType == "skill" {
+			target.ParentURL = "/skills/" + strconv.FormatUint(uint64(rc.ResourceID), 10)
+		} else {
+			target.ParentURL = "/mcp-servers/" + strconv.FormatUint(uint64(rc.ResourceID), 10)
+		}
+	}
+	return target, nil
 }
