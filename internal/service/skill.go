@@ -291,14 +291,26 @@ func (s *SkillService) summaryOf(sk model.Skill, tags []model.Tag) SkillSummary 
 }
 
 func (s *SkillService) Get(ctx context.Context, userID, skillID uint) (*SkillDetail, error) {
-	sk, err := s.skills.FindByID(nil, skillID)
+	return s.detail(ctx, userID, skillID, true, true, false)
+}
+
+func (s *SkillService) Read(ctx context.Context, userID, skillID uint) (*SkillDetail, error) {
+	return s.detail(ctx, userID, skillID, false, false, true)
+}
+
+func (s *SkillService) detail(ctx context.Context, userID, skillID uint, trackView, loadInteractions, strictVisibility bool) (*SkillDetail, error) {
+	sk, err := s.skills.FindByIDWithContext(ctx, skillID)
 	if err != nil {
 		return nil, ErrSkillNotFound
 	}
-	if !s.canView(sk, userID) {
+	if strictVisibility {
+		if sk.AuthorID != userID && (sk.Status != model.ResourceStatusPublished || sk.Hidden) {
+			return nil, ErrSkillNotFound
+		}
+	} else if !s.canView(sk, userID) {
 		return nil, ErrSkillNotFound
 	}
-	if sk.Status == model.ResourceStatusPublished {
+	if trackView && sk.Status == model.ResourceStatusPublished {
 		_ = s.skills.IncrViews(ctx, skillID)
 		sk.Views++
 	}
@@ -313,7 +325,7 @@ func (s *SkillService) Get(ctx context.Context, userID, skillID uint) (*SkillDet
 		ZipFilename:  sk.ZipFilename,
 		FileSize:     sk.FileSize,
 	}
-	if userID > 0 {
+	if loadInteractions && userID > 0 {
 		if d.Liked, err = s.inter.SkillLiked(nil, userID, skillID); err != nil {
 			return nil, err
 		}
@@ -519,6 +531,35 @@ func (s *SkillService) List(ctx context.Context, q SkillListQuery) (*SkillListRe
 		if b, err := json.Marshal(out); err == nil {
 			_ = s.rdb.Set(ctx, key, b, s.cfg.HotCacheTTL).Err()
 		}
+	}
+	return out, nil
+}
+
+func (s *SkillService) ListOwned(ctx context.Context, userID uint, status string, page, pageSize int) (*SkillListResult, error) {
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = s.cfg.DefaultPageSize
+	}
+	if pageSize > s.cfg.MaxPageSize {
+		pageSize = s.cfg.MaxPageSize
+	}
+	list, total, err := s.skills.ListOwned(ctx, userID, status, page, pageSize)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]uint, 0, len(list))
+	for _, skill := range list {
+		ids = append(ids, skill.ID)
+	}
+	tagMap, err := s.skills.TagsForSkills(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	out := &SkillListResult{List: make([]SkillSummary, 0, len(list)), Total: total, Page: page, PageSize: pageSize}
+	for _, skill := range list {
+		out.List = append(out.List, s.summaryOf(skill, tagMap[skill.ID]))
 	}
 	return out, nil
 }

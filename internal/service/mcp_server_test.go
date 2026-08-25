@@ -319,3 +319,144 @@ func TestMcpServerToggleFavorite(t *testing.T) {
 		t.Fatalf("unfavorited=%v count=%d", favorited, count)
 	}
 }
+
+func TestMcpServerReadDoesNotIncrementViewsOrLoadInteractions(t *testing.T) {
+	svc, u := newMcpServerTestEnv(t)
+	ctx := context.Background()
+	server, err := svc.Create(ctx, u.ID, CreateMcpServerInput{Name: "read-only"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.Status = model.ResourceStatusPublished
+	if err := svc.servers.Update(nil, server); err != nil {
+		t.Fatal(err)
+	}
+	db := svc.servers.DB()
+	if err := db.Create(&model.McpServerLike{McpServerID: server.ID, UserID: u.ID}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&model.McpServerFavorite{McpServerID: server.ID, UserID: u.ID}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	beforeViews := server.Views
+	beforeDownloads := server.Downloads
+	detail, err := svc.Read(ctx, u.ID, server.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if detail.Views != beforeViews || detail.Downloads != beforeDownloads {
+		t.Fatalf("detail counts = views %d downloads %d, want views %d downloads %d", detail.Views, detail.Downloads, beforeViews, beforeDownloads)
+	}
+	if detail.Liked || detail.Favorited {
+		t.Fatalf("read returned interaction state: %+v", detail)
+	}
+	var persisted model.McpServer
+	if err := db.First(&persisted, server.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if persisted.Views != beforeViews || persisted.Downloads != beforeDownloads {
+		t.Fatalf("persisted counts = views %d downloads %d, want views %d downloads %d", persisted.Views, persisted.Downloads, beforeViews, beforeDownloads)
+	}
+}
+
+func TestMcpServerReadRestrictsHiddenAndUnpublishedToOwner(t *testing.T) {
+	svc, owner := newMcpServerTestEnv(t)
+	ctx := context.Background()
+	other := &model.User{Email: "mcp-other@t.com", PasswordHash: "x", Nickname: "Other"}
+	if err := repo.NewUserRepo(svc.servers.DB()).Create(other); err != nil {
+		t.Fatal(err)
+	}
+	hidden, err := svc.Create(ctx, owner.ID, CreateMcpServerInput{Name: "hidden"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	hidden.Status = model.ResourceStatusPublished
+	hidden.Hidden = true
+	if err := svc.servers.Update(nil, hidden); err != nil {
+		t.Fatal(err)
+	}
+	draft, err := svc.Create(ctx, owner.ID, CreateMcpServerInput{Name: "draft"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := svc.Read(ctx, owner.ID, hidden.ID); err != nil {
+		t.Fatalf("owner cannot read hidden MCP server: %v", err)
+	}
+	if _, err := svc.Read(ctx, other.ID, hidden.ID); err == nil {
+		t.Fatal("other actor read hidden MCP server")
+	}
+	if _, err := svc.Read(ctx, owner.ID, draft.ID); err != nil {
+		t.Fatalf("owner cannot read draft MCP server: %v", err)
+	}
+	if _, err := svc.Read(ctx, other.ID, draft.ID); err == nil {
+		t.Fatal("other actor read draft MCP server")
+	}
+}
+
+func TestMcpServerListOwnedIncludesHiddenExcludesDeletedAndValidatesStatus(t *testing.T) {
+	svc, owner := newMcpServerTestEnv(t)
+	ctx := context.Background()
+	other := &model.User{Email: "mcp-list-other@t.com", PasswordHash: "x", Nickname: "Other"}
+	if err := repo.NewUserRepo(svc.servers.DB()).Create(other); err != nil {
+		t.Fatal(err)
+	}
+	draft, err := svc.Create(ctx, owner.ID, CreateMcpServerInput{Name: "draft"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rejected, err := svc.Create(ctx, owner.ID, CreateMcpServerInput{Name: "rejected"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rejected.Status = model.ResourceStatusRejected
+	if err := svc.servers.Update(nil, rejected); err != nil {
+		t.Fatal(err)
+	}
+	hidden, err := svc.Create(ctx, owner.ID, CreateMcpServerInput{Name: "hidden"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	hidden.Status = model.ResourceStatusPublished
+	hidden.Hidden = true
+	if err := svc.servers.Update(nil, hidden); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Create(ctx, other.ID, CreateMcpServerInput{Name: "other"}); err != nil {
+		t.Fatal(err)
+	}
+	deleted, err := svc.Create(ctx, owner.ID, CreateMcpServerInput{Name: "deleted"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.servers.Delete(nil, deleted.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := svc.ListOwned(ctx, owner.ID, "", 1, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Total != 3 || len(got.List) != 3 {
+		t.Fatalf("owned MCP servers = %+v", got)
+	}
+	seen := map[uint]string{}
+	for _, summary := range got.List {
+		seen[summary.ID] = summary.Status
+	}
+	if seen[draft.ID] != string(model.ResourceStatusDraft) || seen[rejected.ID] != string(model.ResourceStatusRejected) || seen[hidden.ID] != string(model.ResourceStatusPublished) {
+		t.Fatalf("owned MCP server statuses = %+v", seen)
+	}
+
+	rejectedOnly, err := svc.ListOwned(ctx, owner.ID, string(model.ResourceStatusRejected), 1, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rejectedOnly.Total != 1 || len(rejectedOnly.List) != 1 || rejectedOnly.List[0].ID != rejected.ID {
+		t.Fatalf("rejected MCP servers = %+v", rejectedOnly)
+	}
+	if _, err := svc.ListOwned(ctx, owner.ID, "invalid", 1, 20); err == nil {
+		t.Fatal("unknown MCP server status accepted")
+	}
+}

@@ -39,6 +39,7 @@ type ArticleSummary struct {
 	LikesCount     int         `json:"likes_count"`
 	FavoritesCount int         `json:"favorites_count"`
 	CommentsCount  int         `json:"comments_count"`
+	Status         string      `json:"status"`
 	PublishedAt    *time.Time  `json:"published_at"`
 	Pinned         bool        `json:"pinned"`
 }

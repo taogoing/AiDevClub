@@ -297,14 +297,26 @@ func (s *McpServerService) summaryOf(sv model.McpServer, tags []model.Tag) McpSe
 }
 
 func (s *McpServerService) Get(ctx context.Context, userID, serverID uint) (*McpServerDetail, error) {
-	sv, err := s.servers.FindByID(nil, serverID)
+	return s.detail(ctx, userID, serverID, true, true, false)
+}
+
+func (s *McpServerService) Read(ctx context.Context, userID, serverID uint) (*McpServerDetail, error) {
+	return s.detail(ctx, userID, serverID, false, false, true)
+}
+
+func (s *McpServerService) detail(ctx context.Context, userID, serverID uint, trackView, loadInteractions, strictVisibility bool) (*McpServerDetail, error) {
+	sv, err := s.servers.FindByIDWithContext(ctx, serverID)
 	if err != nil {
 		return nil, ErrMcpServerNotFound
 	}
-	if !s.canView(sv, userID) {
+	if strictVisibility {
+		if sv.AuthorID != userID && (sv.Status != model.ResourceStatusPublished || sv.Hidden) {
+			return nil, ErrMcpServerNotFound
+		}
+	} else if !s.canView(sv, userID) {
 		return nil, ErrMcpServerNotFound
 	}
-	if sv.Status == model.ResourceStatusPublished {
+	if trackView && sv.Status == model.ResourceStatusPublished {
 		_ = s.servers.IncrViews(ctx, serverID)
 		sv.Views++
 	}
@@ -321,7 +333,7 @@ func (s *McpServerService) Get(ctx context.Context, userID, serverID uint) (*Mcp
 		ZipFilename:      sv.ZipFilename,
 		FileSize:         sv.FileSize,
 	}
-	if userID > 0 {
+	if loadInteractions && userID > 0 {
 		if d.Liked, err = s.inter.McpServerLiked(nil, userID, serverID); err != nil {
 			return nil, err
 		}
@@ -496,6 +508,35 @@ func (s *McpServerService) List(ctx context.Context, q McpServerListQuery) (*Mcp
 		if b, err := json.Marshal(out); err == nil {
 			_ = s.rdb.Set(ctx, key, b, s.cfg.HotCacheTTL).Err()
 		}
+	}
+	return out, nil
+}
+
+func (s *McpServerService) ListOwned(ctx context.Context, userID uint, status string, page, pageSize int) (*McpServerListResult, error) {
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = s.cfg.DefaultPageSize
+	}
+	if pageSize > s.cfg.MaxPageSize {
+		pageSize = s.cfg.MaxPageSize
+	}
+	list, total, err := s.servers.ListOwned(ctx, userID, status, page, pageSize)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]uint, 0, len(list))
+	for _, server := range list {
+		ids = append(ids, server.ID)
+	}
+	tagMap, err := s.servers.TagsForMcpServers(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	out := &McpServerListResult{List: make([]McpServerSummary, 0, len(list)), Total: total, Page: page, PageSize: pageSize}
+	for _, server := range list {
+		out.List = append(out.List, s.summaryOf(server, tagMap[server.ID]))
 	}
 	return out, nil
 }

@@ -6,6 +6,7 @@ import (
 	"gorm.io/gorm"
 
 	"aidevclub/internal/model"
+	"aidevclub/internal/platform"
 )
 
 type McpServerRepo struct{ db *gorm.DB }
@@ -28,6 +29,14 @@ func (r *McpServerRepo) Create(db *gorm.DB, s *model.McpServer) error {
 func (r *McpServerRepo) FindByID(db *gorm.DB, id uint) (*model.McpServer, error) {
 	var s model.McpServer
 	if err := r.exec(db).Preload("Author").First(&s, id).Error; err != nil {
+		return nil, err
+	}
+	return &s, nil
+}
+
+func (r *McpServerRepo) FindByIDWithContext(ctx context.Context, id uint) (*model.McpServer, error) {
+	var s model.McpServer
+	if err := r.db.WithContext(ctx).Preload("Author").First(&s, id).Error; err != nil {
 		return nil, err
 	}
 	return &s, nil
@@ -128,6 +137,26 @@ func (r *McpServerRepo) List(ctx context.Context, q McpServerQuery) ([]model.Mcp
 	}
 	total, err := r.Count(ctx, q)
 	return list, total, err
+}
+
+func (r *McpServerRepo) ListOwned(ctx context.Context, authorID uint, status string, page, pageSize int) ([]model.McpServer, int64, error) {
+	if status != "" && !validResourceStatus(status) {
+		return nil, 0, platform.ErrInvalidInput
+	}
+	d := r.db.WithContext(ctx).Model(&model.McpServer{}).Where("author_id = ?", authorID)
+	if status != "" {
+		d = d.Where("status = ?", status)
+	}
+	var total int64
+	if err := d.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var list []model.McpServer
+	if err := d.Order("updated_at desc, id desc").Preload("Author").
+		Offset((page - 1) * pageSize).Limit(pageSize).Find(&list).Error; err != nil {
+		return nil, 0, err
+	}
+	return list, total, nil
 }
 
 func (r *McpServerRepo) CountByStatus(ctx context.Context, status model.ResourceStatus) (int64, error) {

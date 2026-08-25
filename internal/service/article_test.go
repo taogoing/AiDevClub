@@ -185,3 +185,135 @@ func TestArticleToggleLike(t *testing.T) {
 		t.Fatalf("unlike = %v, %d", liked, count)
 	}
 }
+
+func TestArticleReadDoesNotIncrementViewsOrLoadInteractions(t *testing.T) {
+	svc, u, cat := newArticleTestEnv(t)
+	ctx := context.Background()
+	article, err := svc.Create(ctx, u.ID, CreateArticleInput{
+		Title: "read-only", Content: "content", CategoryID: cat.ID, Status: model.ArticleStatusPublished,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	db := svc.articles.DB()
+	if err := db.Create(&model.ArticleLike{ArticleID: article.ID, UserID: u.ID}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&model.ArticleFavorite{ArticleID: article.ID, UserID: u.ID}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	before := article.Views
+	detail, err := svc.Read(ctx, u.ID, article.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if detail.Views != before {
+		t.Fatalf("detail views = %d, want %d", detail.Views, before)
+	}
+	if detail.Liked || detail.Favorited {
+		t.Fatalf("read returned interaction state: %+v", detail)
+	}
+	var persisted model.Article
+	if err := db.First(&persisted, article.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if persisted.Views != before {
+		t.Fatalf("persisted views = %d, want %d", persisted.Views, before)
+	}
+}
+
+func TestArticleReadRestrictsHiddenAndUnpublishedToOwner(t *testing.T) {
+	svc, owner, cat := newArticleTestEnv(t)
+	ctx := context.Background()
+	other := &model.User{Email: "article-other@t.com", PasswordHash: "x", Nickname: "Other"}
+	if err := repo.NewUserRepo(svc.articles.DB()).Create(other); err != nil {
+		t.Fatal(err)
+	}
+	hidden, err := svc.Create(ctx, owner.ID, CreateArticleInput{
+		Title: "hidden", Content: "content", CategoryID: cat.ID, Status: model.ArticleStatusPublished,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	hidden.Hidden = true
+	if err := svc.articles.Update(nil, hidden); err != nil {
+		t.Fatal(err)
+	}
+	draft, err := svc.Create(ctx, owner.ID, CreateArticleInput{
+		Title: "draft", Content: "content", CategoryID: cat.ID, Status: model.ArticleStatusDraft,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := svc.Read(ctx, owner.ID, hidden.ID); err != nil {
+		t.Fatalf("owner cannot read hidden article: %v", err)
+	}
+	if _, err := svc.Read(ctx, other.ID, hidden.ID); err == nil {
+		t.Fatal("other actor read hidden article")
+	}
+	if _, err := svc.Read(ctx, owner.ID, draft.ID); err != nil {
+		t.Fatalf("owner cannot read draft article: %v", err)
+	}
+	if _, err := svc.Read(ctx, other.ID, draft.ID); err == nil {
+		t.Fatal("other actor read draft article")
+	}
+}
+
+func TestArticleListOwnedIncludesHiddenExcludesDeletedAndValidatesStatus(t *testing.T) {
+	svc, owner, cat := newArticleTestEnv(t)
+	ctx := context.Background()
+	other := &model.User{Email: "article-list-other@t.com", PasswordHash: "x", Nickname: "Other"}
+	if err := repo.NewUserRepo(svc.articles.DB()).Create(other); err != nil {
+		t.Fatal(err)
+	}
+	draft, err := svc.Create(ctx, owner.ID, CreateArticleInput{Title: "draft", Content: "content", CategoryID: cat.ID, Status: model.ArticleStatusDraft})
+	if err != nil {
+		t.Fatal(err)
+	}
+	hidden, err := svc.Create(ctx, owner.ID, CreateArticleInput{Title: "hidden", Content: "content", CategoryID: cat.ID, Status: model.ArticleStatusPublished})
+	if err != nil {
+		t.Fatal(err)
+	}
+	hidden.Hidden = true
+	if err := svc.articles.Update(nil, hidden); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Create(ctx, other.ID, CreateArticleInput{Title: "other", Content: "content", CategoryID: cat.ID, Status: model.ArticleStatusDraft}); err != nil {
+		t.Fatal(err)
+	}
+	deleted, err := svc.Create(ctx, owner.ID, CreateArticleInput{Title: "deleted", Content: "content", CategoryID: cat.ID, Status: model.ArticleStatusDraft})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.articles.Delete(nil, deleted.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := svc.ListOwned(ctx, owner.ID, "", 1, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Total != 2 || len(got.List) != 2 {
+		t.Fatalf("owned articles = %+v", got)
+	}
+	seen := map[uint]string{}
+	for _, summary := range got.List {
+		seen[summary.ID] = summary.Status
+	}
+	if seen[draft.ID] != string(model.ArticleStatusDraft) || seen[hidden.ID] != string(model.ArticleStatusPublished) {
+		t.Fatalf("owned article statuses = %+v", seen)
+	}
+
+	drafts, err := svc.ListOwned(ctx, owner.ID, string(model.ArticleStatusDraft), 1, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if drafts.Total != 1 || len(drafts.List) != 1 || drafts.List[0].ID != draft.ID {
+		t.Fatalf("draft articles = %+v", drafts)
+	}
+	if _, err := svc.ListOwned(ctx, owner.ID, "invalid", 1, 20); err == nil {
+		t.Fatal("unknown article status accepted")
+	}
+}

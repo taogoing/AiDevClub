@@ -113,3 +113,51 @@ func TestSkillRepoList(t *testing.T) {
 		t.Fatalf("downloads sort = %d total, %d len", total, len(list))
 	}
 }
+
+func TestSkillRepoListOwnedScopesAuthorIncludesHiddenAndRejectsUnknownStatus(t *testing.T) {
+	db := testutil.NewTestDB(t)
+	r := NewSkillRepo(db)
+	ctx := context.Background()
+	owner := &model.User{Email: "owned-skill@t.com", PasswordHash: "x", Nickname: "Owner"}
+	other := &model.User{Email: "other-skill@t.com", PasswordHash: "x", Nickname: "Other"}
+	if err := NewUserRepo(db).Create(owner); err != nil {
+		t.Fatal(err)
+	}
+	if err := NewUserRepo(db).Create(other); err != nil {
+		t.Fatal(err)
+	}
+	draft := &model.Skill{AuthorID: owner.ID, Name: "draft", Status: model.ResourceStatusDraft}
+	hidden := &model.Skill{AuthorID: owner.ID, Name: "hidden", Status: model.ResourceStatusPublished, Hidden: true}
+	foreign := &model.Skill{AuthorID: other.ID, Name: "foreign", Status: model.ResourceStatusRejected}
+	deleted := &model.Skill{AuthorID: owner.ID, Name: "deleted", Status: model.ResourceStatusArchived}
+	for _, skill := range []*model.Skill{draft, hidden, foreign, deleted} {
+		if err := r.Create(db, skill); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := r.Delete(db, deleted.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	list, total, err := r.ListOwned(ctx, owner.ID, "", 1, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total != 2 || len(list) != 2 {
+		t.Fatalf("owned skills = total %d, list %+v", total, list)
+	}
+	seen := map[uint]bool{}
+	for _, skill := range list {
+		seen[skill.ID] = true
+	}
+	if !seen[draft.ID] || !seen[hidden.ID] || seen[foreign.ID] || seen[deleted.ID] {
+		t.Fatalf("owned skill IDs = %+v", seen)
+	}
+	drafts, total, err := r.ListOwned(ctx, owner.ID, string(model.ResourceStatusDraft), 1, 20)
+	if err != nil || total != 1 || len(drafts) != 1 || drafts[0].ID != draft.ID {
+		t.Fatalf("draft skills = total %d, list %+v, err %v", total, drafts, err)
+	}
+	if _, _, err := r.ListOwned(ctx, owner.ID, "invalid", 1, 20); err == nil {
+		t.Fatal("unknown skill status accepted")
+	}
+}

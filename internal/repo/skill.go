@@ -6,6 +6,7 @@ import (
 	"gorm.io/gorm"
 
 	"aidevclub/internal/model"
+	"aidevclub/internal/platform"
 )
 
 type SkillRepo struct{ db *gorm.DB }
@@ -28,6 +29,14 @@ func (r *SkillRepo) Create(db *gorm.DB, s *model.Skill) error {
 func (r *SkillRepo) FindByID(db *gorm.DB, id uint) (*model.Skill, error) {
 	var s model.Skill
 	if err := r.exec(db).Preload("Author").First(&s, id).Error; err != nil {
+		return nil, err
+	}
+	return &s, nil
+}
+
+func (r *SkillRepo) FindByIDWithContext(ctx context.Context, id uint) (*model.Skill, error) {
+	var s model.Skill
+	if err := r.db.WithContext(ctx).Preload("Author").First(&s, id).Error; err != nil {
 		return nil, err
 	}
 	return &s, nil
@@ -128,6 +137,35 @@ func (r *SkillRepo) List(ctx context.Context, q SkillQuery) ([]model.Skill, int6
 	}
 	total, err := r.Count(ctx, q)
 	return list, total, err
+}
+
+func (r *SkillRepo) ListOwned(ctx context.Context, authorID uint, status string, page, pageSize int) ([]model.Skill, int64, error) {
+	if status != "" && !validResourceStatus(status) {
+		return nil, 0, platform.ErrInvalidInput
+	}
+	d := r.db.WithContext(ctx).Model(&model.Skill{}).Where("author_id = ?", authorID)
+	if status != "" {
+		d = d.Where("status = ?", status)
+	}
+	var total int64
+	if err := d.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var list []model.Skill
+	if err := d.Order("updated_at desc, id desc").Preload("Author").
+		Offset((page - 1) * pageSize).Limit(pageSize).Find(&list).Error; err != nil {
+		return nil, 0, err
+	}
+	return list, total, nil
+}
+
+func validResourceStatus(status string) bool {
+	switch model.ResourceStatus(status) {
+	case model.ResourceStatusDraft, model.ResourceStatusPendingReview, model.ResourceStatusPublished, model.ResourceStatusRejected, model.ResourceStatusArchived:
+		return true
+	default:
+		return false
+	}
 }
 
 func (r *SkillRepo) CountByStatus(ctx context.Context, status model.ResourceStatus) (int64, error) {

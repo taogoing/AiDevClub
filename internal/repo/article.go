@@ -6,6 +6,7 @@ import (
 	"gorm.io/gorm"
 
 	"aidevclub/internal/model"
+	"aidevclub/internal/platform"
 )
 
 type ArticleRepo struct{ db *gorm.DB }
@@ -28,6 +29,14 @@ func (r *ArticleRepo) Create(db *gorm.DB, a *model.Article) error {
 func (r *ArticleRepo) FindByID(db *gorm.DB, id uint) (*model.Article, error) {
 	var a model.Article
 	if err := r.exec(db).Preload("Category").Preload("Author").First(&a, id).Error; err != nil {
+		return nil, err
+	}
+	return &a, nil
+}
+
+func (r *ArticleRepo) FindByIDWithContext(ctx context.Context, id uint) (*model.Article, error) {
+	var a model.Article
+	if err := r.db.WithContext(ctx).Preload("Category").Preload("Author").First(&a, id).Error; err != nil {
 		return nil, err
 	}
 	return &a, nil
@@ -132,6 +141,26 @@ func (r *ArticleRepo) List(ctx context.Context, q ArticleQuery) ([]model.Article
 	}
 	total, err := r.Count(ctx, q)
 	return list, total, err
+}
+
+func (r *ArticleRepo) ListOwned(ctx context.Context, authorID uint, status string, page, pageSize int) ([]model.Article, int64, error) {
+	if status != "" && status != string(model.ArticleStatusDraft) && status != string(model.ArticleStatusPublished) {
+		return nil, 0, platform.ErrInvalidInput
+	}
+	d := r.db.WithContext(ctx).Model(&model.Article{}).Where("author_id = ?", authorID)
+	if status != "" {
+		d = d.Where("status = ?", status)
+	}
+	var total int64
+	if err := d.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var list []model.Article
+	if err := d.Order("updated_at desc, id desc").Preload("Category").Preload("Author").
+		Offset((page - 1) * pageSize).Limit(pageSize).Find(&list).Error; err != nil {
+		return nil, 0, err
+	}
+	return list, total, nil
 }
 
 func (r *ArticleRepo) TagsForArticles(ctx context.Context, articleIDs []uint) (map[uint][]model.Tag, error) {

@@ -311,7 +311,7 @@ func (s *ArticleService) summaryOf(a model.Article, tags []model.Tag) ArticleSum
 		CategoryID: a.CategoryID, Tags: []TagBrief{},
 		Views: a.Views, LikesCount: a.LikesCount,
 		FavoritesCount: a.FavoritesCount, CommentsCount: a.CommentsCount,
-		PublishedAt: a.PublishedAt, Pinned: a.Pinned,
+		Status: string(a.Status), PublishedAt: a.PublishedAt, Pinned: a.Pinned,
 		Author: AuthorBrief{ID: a.AuthorID},
 	}
 	if a.Category != nil {
@@ -406,14 +406,26 @@ func (s *ArticleService) updateHotScoreAsync(articleID uint) {
 }
 
 func (s *ArticleService) Get(ctx context.Context, userID, articleID uint) (*ArticleDetail, error) {
-	a, err := s.articles.FindByID(nil, articleID)
+	return s.detail(ctx, userID, articleID, true, true, false)
+}
+
+func (s *ArticleService) Read(ctx context.Context, userID, articleID uint) (*ArticleDetail, error) {
+	return s.detail(ctx, userID, articleID, false, false, true)
+}
+
+func (s *ArticleService) detail(ctx context.Context, userID, articleID uint, trackView, loadInteractions, strictVisibility bool) (*ArticleDetail, error) {
+	a, err := s.articles.FindByIDWithContext(ctx, articleID)
 	if err != nil {
 		return nil, ErrArticleNotFound
 	}
-	if a.Status != model.ArticleStatusPublished && a.AuthorID != userID {
+	if strictVisibility {
+		if a.AuthorID != userID && (a.Status != model.ArticleStatusPublished || a.Hidden) {
+			return nil, ErrArticleNotFound
+		}
+	} else if a.Status != model.ArticleStatusPublished && a.AuthorID != userID {
 		return nil, ErrArticleNotFound
 	}
-	if a.Status == model.ArticleStatusPublished {
+	if trackView && a.Status == model.ArticleStatusPublished {
 		_ = s.articles.IncrViews(ctx, articleID)
 		a.Views++
 	}
@@ -423,7 +435,7 @@ func (s *ArticleService) Get(ctx context.Context, userID, articleID uint) (*Arti
 	}
 	sm := s.summaryOf(*a, tagMap[a.ID])
 	d := &ArticleDetail{ArticleSummary: sm, Content: a.Content}
-	if userID > 0 {
+	if loadInteractions && userID > 0 {
 		if d.Liked, err = s.inter.ArticleLiked(nil, userID, articleID); err != nil {
 			return nil, err
 		}
@@ -432,4 +444,33 @@ func (s *ArticleService) Get(ctx context.Context, userID, articleID uint) (*Arti
 		}
 	}
 	return d, nil
+}
+
+func (s *ArticleService) ListOwned(ctx context.Context, userID uint, status string, page, pageSize int) (*ArticleListResult, error) {
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = s.cfg.DefaultPageSize
+	}
+	if pageSize > s.cfg.MaxPageSize {
+		pageSize = s.cfg.MaxPageSize
+	}
+	list, total, err := s.articles.ListOwned(ctx, userID, status, page, pageSize)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]uint, 0, len(list))
+	for _, article := range list {
+		ids = append(ids, article.ID)
+	}
+	tagMap, err := s.articles.TagsForArticles(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	out := &ArticleListResult{List: make([]ArticleSummary, 0, len(list)), Total: total, Page: page, PageSize: pageSize}
+	for _, article := range list {
+		out.List = append(out.List, s.summaryOf(article, tagMap[article.ID]))
+	}
+	return out, nil
 }

@@ -479,3 +479,144 @@ func TestSkillList(t *testing.T) {
 		t.Fatalf("keyword total = %d", res4.Total)
 	}
 }
+
+func TestSkillReadDoesNotIncrementViewsOrLoadInteractions(t *testing.T) {
+	svc, u := newSkillTestEnv(t)
+	ctx := context.Background()
+	skill, err := svc.Create(ctx, u.ID, CreateSkillInput{Name: "read-only"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	skill.Status = model.ResourceStatusPublished
+	if err := svc.skills.Update(nil, skill); err != nil {
+		t.Fatal(err)
+	}
+	db := svc.skills.DB()
+	if err := db.Create(&model.SkillLike{SkillID: skill.ID, UserID: u.ID}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&model.SkillFavorite{SkillID: skill.ID, UserID: u.ID}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	beforeViews := skill.Views
+	beforeDownloads := skill.Downloads
+	detail, err := svc.Read(ctx, u.ID, skill.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if detail.Views != beforeViews || detail.Downloads != beforeDownloads {
+		t.Fatalf("detail counts = views %d downloads %d, want views %d downloads %d", detail.Views, detail.Downloads, beforeViews, beforeDownloads)
+	}
+	if detail.Liked || detail.Favorited {
+		t.Fatalf("read returned interaction state: %+v", detail)
+	}
+	var persisted model.Skill
+	if err := db.First(&persisted, skill.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if persisted.Views != beforeViews || persisted.Downloads != beforeDownloads {
+		t.Fatalf("persisted counts = views %d downloads %d, want views %d downloads %d", persisted.Views, persisted.Downloads, beforeViews, beforeDownloads)
+	}
+}
+
+func TestSkillReadRestrictsHiddenAndUnpublishedToOwner(t *testing.T) {
+	svc, owner := newSkillTestEnv(t)
+	ctx := context.Background()
+	other := &model.User{Email: "skill-other@t.com", PasswordHash: "x", Nickname: "Other"}
+	if err := repo.NewUserRepo(svc.skills.DB()).Create(other); err != nil {
+		t.Fatal(err)
+	}
+	hidden, err := svc.Create(ctx, owner.ID, CreateSkillInput{Name: "hidden"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	hidden.Status = model.ResourceStatusPublished
+	hidden.Hidden = true
+	if err := svc.skills.Update(nil, hidden); err != nil {
+		t.Fatal(err)
+	}
+	draft, err := svc.Create(ctx, owner.ID, CreateSkillInput{Name: "draft"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := svc.Read(ctx, owner.ID, hidden.ID); err != nil {
+		t.Fatalf("owner cannot read hidden skill: %v", err)
+	}
+	if _, err := svc.Read(ctx, other.ID, hidden.ID); err == nil {
+		t.Fatal("other actor read hidden skill")
+	}
+	if _, err := svc.Read(ctx, owner.ID, draft.ID); err != nil {
+		t.Fatalf("owner cannot read draft skill: %v", err)
+	}
+	if _, err := svc.Read(ctx, other.ID, draft.ID); err == nil {
+		t.Fatal("other actor read draft skill")
+	}
+}
+
+func TestSkillListOwnedIncludesHiddenExcludesDeletedAndValidatesStatus(t *testing.T) {
+	svc, owner := newSkillTestEnv(t)
+	ctx := context.Background()
+	other := &model.User{Email: "skill-list-other@t.com", PasswordHash: "x", Nickname: "Other"}
+	if err := repo.NewUserRepo(svc.skills.DB()).Create(other); err != nil {
+		t.Fatal(err)
+	}
+	draft, err := svc.Create(ctx, owner.ID, CreateSkillInput{Name: "draft"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rejected, err := svc.Create(ctx, owner.ID, CreateSkillInput{Name: "rejected"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rejected.Status = model.ResourceStatusRejected
+	if err := svc.skills.Update(nil, rejected); err != nil {
+		t.Fatal(err)
+	}
+	hidden, err := svc.Create(ctx, owner.ID, CreateSkillInput{Name: "hidden"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	hidden.Status = model.ResourceStatusPublished
+	hidden.Hidden = true
+	if err := svc.skills.Update(nil, hidden); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Create(ctx, other.ID, CreateSkillInput{Name: "other"}); err != nil {
+		t.Fatal(err)
+	}
+	deleted, err := svc.Create(ctx, owner.ID, CreateSkillInput{Name: "deleted"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.skills.Delete(nil, deleted.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := svc.ListOwned(ctx, owner.ID, "", 1, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Total != 3 || len(got.List) != 3 {
+		t.Fatalf("owned skills = %+v", got)
+	}
+	seen := map[uint]string{}
+	for _, summary := range got.List {
+		seen[summary.ID] = summary.Status
+	}
+	if seen[draft.ID] != string(model.ResourceStatusDraft) || seen[rejected.ID] != string(model.ResourceStatusRejected) || seen[hidden.ID] != string(model.ResourceStatusPublished) {
+		t.Fatalf("owned skill statuses = %+v", seen)
+	}
+
+	rejectedOnly, err := svc.ListOwned(ctx, owner.ID, string(model.ResourceStatusRejected), 1, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rejectedOnly.Total != 1 || len(rejectedOnly.List) != 1 || rejectedOnly.List[0].ID != rejected.ID {
+		t.Fatalf("rejected skills = %+v", rejectedOnly)
+	}
+	if _, err := svc.ListOwned(ctx, owner.ID, "invalid", 1, 20); err == nil {
+		t.Fatal("unknown skill status accepted")
+	}
+}

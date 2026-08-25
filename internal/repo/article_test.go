@@ -103,3 +103,55 @@ func TestArticleRepoList(t *testing.T) {
 		t.Fatalf("tag filter total = %d", total)
 	}
 }
+
+func TestArticleRepoListOwnedScopesAuthorIncludesHiddenAndRejectsUnknownStatus(t *testing.T) {
+	db := testutil.NewTestDB(t)
+	r := NewArticleRepo(db)
+	ctx := context.Background()
+	owner := &model.User{Email: "owned-article@t.com", PasswordHash: "x", Nickname: "Owner"}
+	other := &model.User{Email: "other-article@t.com", PasswordHash: "x", Nickname: "Other"}
+	if err := NewUserRepo(db).Create(owner); err != nil {
+		t.Fatal(err)
+	}
+	if err := NewUserRepo(db).Create(other); err != nil {
+		t.Fatal(err)
+	}
+	cat := &model.Category{Name: "Go", Slug: "go", SortOrder: 1}
+	if err := db.Create(cat).Error; err != nil {
+		t.Fatal(err)
+	}
+	draft := &model.Article{AuthorID: owner.ID, CategoryID: cat.ID, Title: "draft", Content: "content", Status: model.ArticleStatusDraft}
+	hidden := &model.Article{AuthorID: owner.ID, CategoryID: cat.ID, Title: "hidden", Content: "content", Status: model.ArticleStatusPublished, Hidden: true}
+	foreign := &model.Article{AuthorID: other.ID, CategoryID: cat.ID, Title: "foreign", Content: "content", Status: model.ArticleStatusDraft}
+	deleted := &model.Article{AuthorID: owner.ID, CategoryID: cat.ID, Title: "deleted", Content: "content", Status: model.ArticleStatusDraft}
+	for _, article := range []*model.Article{draft, hidden, foreign, deleted} {
+		if err := r.Create(db, article); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := r.Delete(db, deleted.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	list, total, err := r.ListOwned(ctx, owner.ID, "", 1, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total != 2 || len(list) != 2 {
+		t.Fatalf("owned articles = total %d, list %+v", total, list)
+	}
+	seen := map[uint]bool{}
+	for _, article := range list {
+		seen[article.ID] = true
+	}
+	if !seen[draft.ID] || !seen[hidden.ID] || seen[foreign.ID] || seen[deleted.ID] {
+		t.Fatalf("owned article IDs = %+v", seen)
+	}
+	drafts, total, err := r.ListOwned(ctx, owner.ID, string(model.ArticleStatusDraft), 1, 20)
+	if err != nil || total != 1 || len(drafts) != 1 || drafts[0].ID != draft.ID {
+		t.Fatalf("draft articles = total %d, list %+v, err %v", total, drafts, err)
+	}
+	if _, _, err := r.ListOwned(ctx, owner.ID, "invalid", 1, 20); err == nil {
+		t.Fatal("unknown article status accepted")
+	}
+}
