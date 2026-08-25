@@ -2,7 +2,9 @@ package mcpserver
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"aidevclub/internal/model"
@@ -52,24 +54,39 @@ type PublicDependencies struct {
 	Tags       TagReader
 }
 
+func mustInputSchema[T any]() *jsonschema.Schema {
+	schema, err := jsonschema.For[T](nil)
+	if err != nil {
+		panic(fmt.Sprintf("infer MCP input schema: %v", err))
+	}
+	return schema
+}
+
 func RegisterPublicTools(server *mcp.Server, deps PublicDependencies, publicBaseURL string) {
+	server.AddReceivingMiddleware(stablePublicToolSchemaErrors)
 	annotations := &mcp.ToolAnnotations{ReadOnlyHint: true, IdempotentHint: true}
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "search_content", Description: "Search published AIDevClub content.", Annotations: annotations,
+		InputSchema: searchContentInputSchema(),
 	}, searchContent(deps, publicBaseURL))
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "browse_content", Description: "Browse latest or hot AIDevClub content.", Annotations: annotations,
+		InputSchema: browseContentInputSchema(),
 	}, browseContent(deps, publicBaseURL))
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "get_article", Description: "Read a published article without changing its view count.", Annotations: annotations,
+		InputSchema: getArticleInputSchema(),
 	}, getArticle(deps.Articles, publicBaseURL))
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "get_skill", Description: "Read a published Skill and its SKILL.md.", Annotations: annotations,
+		InputSchema: getSkillInputSchema(),
 	}, getSkill(deps.Skills, publicBaseURL))
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "get_mcp_server", Description: "Read a published MCP Server definition.", Annotations: annotations,
+		InputSchema: getMCPServerInputSchema(),
 	}, getMCPServer(deps.MCPServers, publicBaseURL))
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "list_taxonomy", Description: "List enabled tags and article categories.", Annotations: annotations,
+		InputSchema: listTaxonomyInputSchema(),
 	}, listTaxonomy(deps, publicBaseURL))
 }

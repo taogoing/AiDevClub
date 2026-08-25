@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path"
 	"strings"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"aidevclub/internal/service"
@@ -100,6 +102,33 @@ type getMCPServerOutput struct {
 	NextOffset        int          `json:"next_offset"`
 }
 
+func getArticleInputSchema() *jsonschema.Schema {
+	schema := mustInputSchema[getArticleInput]()
+	setContentWindowInputSchema(schema)
+	return schema
+}
+
+func getSkillInputSchema() *jsonschema.Schema {
+	schema := mustInputSchema[getSkillInput]()
+	setContentWindowInputSchema(schema)
+	return schema
+}
+
+func getMCPServerInputSchema() *jsonschema.Schema {
+	schema := mustInputSchema[getMCPServerInput]()
+	setContentWindowInputSchema(schema)
+	return schema
+}
+
+func setContentWindowInputSchema(schema *jsonschema.Schema) {
+	schema.Properties["id"].Minimum = jsonschema.Ptr(float64(1))
+	schema.Properties["content_offset"].Minimum = jsonschema.Ptr(float64(0))
+	schema.Properties["content_offset"].Default = json.RawMessage(`0`)
+	schema.Properties["content_limit"].Minimum = jsonschema.Ptr(float64(1))
+	schema.Properties["content_limit"].Maximum = jsonschema.Ptr(float64(maximumContentLimit))
+	schema.Properties["content_limit"].Default = json.RawMessage(`30000`)
+}
+
 func getArticle(reader ArticleReader, publicBaseURL string) mcp.ToolHandlerFor[getArticleInput, getArticleOutput] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, input getArticleInput) (*mcp.CallToolResult, getArticleOutput, error) {
 		offset, limit, err := normalizeContentWindow(input.ID, input.ContentWindowInput)
@@ -147,6 +176,7 @@ func getSkill(reader SkillReader, publicBaseURL string) mcp.ToolHandlerFor[getSk
 			return nil, getSkillOutput{}, internalError()
 		}
 		window := unicodeWindow(detail.SkillMD, offset, limit)
+		filename := archiveFilenameOutput(detail.ZipFilename)
 		output := getSkillOutput{
 			ID: detail.ID, Name: detail.Name, Description: detail.Description,
 			RepoURL: absoluteExternalURL(detail.RepoURL),
@@ -154,8 +184,8 @@ func getSkill(reader SkillReader, publicBaseURL string) mcp.ToolHandlerFor[getSk
 			Views: detail.Views, Downloads: detail.Downloads, LikesCount: detail.LikesCount,
 			FavoritesCount: detail.FavoritesCount, CommentsCount: detail.CommentsCount,
 			PublishedAt: publishedAtOutput(detail.PublishedAt), URL: contentPageURL(publicBaseURL, "skill", detail.ID),
-			DownloadAvailable: detail.ZipURL != "" && detail.ZipFilename != "" && detail.FileSize > 0,
-			Filename:          detail.ZipFilename, FileSize: detail.FileSize,
+			DownloadAvailable: detail.ZipURL != "" && filename != "" && detail.FileSize > 0,
+			Filename:          filename, FileSize: detail.FileSize,
 			SkillMD: window.Text, HasMore: window.HasMore, NextOffset: window.NextOffset,
 		}
 		return summaryResult(fmt.Sprintf("Skill %d returned %d Unicode character(s) from SKILL.md.", detail.ID, len([]rune(window.Text)))), output, nil
@@ -187,6 +217,7 @@ func getMCPServer(reader MCPServerReader, publicBaseURL string) mcp.ToolHandlerF
 			return nil, getMCPServerOutput{}, internalError()
 		}
 		window := unicodeWindow(detail.Readme, offset, limit)
+		filename := archiveFilenameOutput(detail.ZipFilename)
 		output := getMCPServerOutput{
 			ID: detail.ID, Name: detail.Name, Description: detail.Description,
 			RepoURL: absoluteExternalURL(detail.RepoURL),
@@ -194,8 +225,8 @@ func getMCPServer(reader MCPServerReader, publicBaseURL string) mcp.ToolHandlerF
 			Views: detail.Views, Downloads: detail.Downloads, LikesCount: detail.LikesCount,
 			FavoritesCount: detail.FavoritesCount, CommentsCount: detail.CommentsCount,
 			PublishedAt: publishedAtOutput(detail.PublishedAt), URL: contentPageURL(publicBaseURL, "mcp_server", detail.ID),
-			DownloadAvailable: detail.ZipURL != "" && detail.ZipFilename != "" && detail.FileSize > 0,
-			Filename:          detail.ZipFilename, FileSize: detail.FileSize,
+			DownloadAvailable: detail.ZipURL != "" && filename != "" && detail.FileSize > 0,
+			Filename:          filename, FileSize: detail.FileSize,
 			ToolsJSON: tools, Readme: window.Text, HasMore: window.HasMore, NextOffset: window.NextOffset,
 		}
 		return summaryResult(fmt.Sprintf("MCP Server %d returned %d Unicode character(s) from README.", detail.ID, len([]rune(window.Text)))), output, nil
@@ -228,4 +259,16 @@ func absoluteExternalURL(value string) string {
 		return value
 	}
 	return ""
+}
+
+func archiveFilenameOutput(value string) string {
+	normalized := strings.ReplaceAll(strings.TrimSpace(value), `\`, "/")
+	if normalized == "" || strings.HasSuffix(normalized, "/") {
+		return ""
+	}
+	filename := path.Base(normalized)
+	if filename == "." || filename == ".." || filename == "/" {
+		return ""
+	}
+	return filename
 }

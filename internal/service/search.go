@@ -34,8 +34,8 @@ type SearchResult struct {
 	Type       string      `json:"type"`
 	Title      string      `json:"title"`
 	Summary    string      `json:"summary"`
-	Author     interface{} `json:"author"`
-	Tags       []model.Tag `json:"tags"`
+	Author     AuthorBrief `json:"author"`
+	Tags       []TagBrief  `json:"tags"`
 	Views      int         `json:"views"`
 	LikesCount int         `json:"likes_count"`
 	CreatedAt  string      `json:"created_at"`
@@ -85,14 +85,11 @@ func (s *SearchService) Search(ctx context.Context, q SearchQuery) (*SearchRespo
 			return nil, err
 		}
 		response.Total = count
-		for _, a := range articles {
-			item := SearchResult{
-				ID:      a.ID,
-				Type:    "article",
-				Title:   searchText(a.Title, q.Keyword, q.Highlight),
-				Summary: searchText(a.Summary, q.Keyword, q.Highlight),
-				Views:   a.Views,
-			}
+		items, err := s.articleSearchResults(ctx, articles, q)
+		if err != nil {
+			return nil, err
+		}
+		for _, item := range items {
 			response.Articles = append(response.Articles, item)
 			response.Items = append(response.Items, item)
 		}
@@ -103,14 +100,11 @@ func (s *SearchService) Search(ctx context.Context, q SearchQuery) (*SearchRespo
 			return nil, err
 		}
 		response.Total = count
-		for _, sk := range skills {
-			item := SearchResult{
-				ID:      sk.ID,
-				Type:    "skill",
-				Title:   searchText(sk.Name, q.Keyword, q.Highlight),
-				Summary: searchText(sk.Description, q.Keyword, q.Highlight),
-				Views:   sk.Views,
-			}
+		items, err := s.skillSearchResults(ctx, skills, q)
+		if err != nil {
+			return nil, err
+		}
+		for _, item := range items {
 			response.Skills = append(response.Skills, item)
 			response.Items = append(response.Items, item)
 		}
@@ -121,14 +115,11 @@ func (s *SearchService) Search(ctx context.Context, q SearchQuery) (*SearchRespo
 			return nil, err
 		}
 		response.Total = count
-		for _, sv := range servers {
-			item := SearchResult{
-				ID:      sv.ID,
-				Type:    "mcp_server",
-				Title:   searchText(sv.Name, q.Keyword, q.Highlight),
-				Summary: searchText(sv.Description, q.Keyword, q.Highlight),
-				Views:   sv.Views,
-			}
+		items, err := s.mcpServerSearchResults(ctx, servers, q)
+		if err != nil {
+			return nil, err
+		}
+		for _, item := range items {
 			response.McpServers = append(response.McpServers, item)
 			response.Items = append(response.Items, item)
 		}
@@ -153,26 +144,17 @@ func (s *SearchService) Search(ctx context.Context, q SearchQuery) (*SearchRespo
 			"mcp_server": mcpCount,
 		}
 		response.Total = articleCount + skillCount + mcpCount
-		for _, a := range articles {
-			response.Articles = append(response.Articles, SearchResult{
-				ID:      a.ID,
-				Type:    "article",
-				Title:   searchText(a.Title, q.Keyword, q.Highlight),
-				Summary: searchText(a.Summary, q.Keyword, q.Highlight),
-				Views:   a.Views,
-			})
+		response.Articles, err = s.articleSearchResults(ctx, articles, q)
+		if err != nil {
+			return nil, err
 		}
-		for _, sk := range skills {
-			response.Skills = append(response.Skills, SearchResult{
-				ID: sk.ID, Type: "skill", Title: searchText(sk.Name, q.Keyword, q.Highlight),
-				Summary: searchText(sk.Description, q.Keyword, q.Highlight), Views: sk.Views,
-			})
+		response.Skills, err = s.skillSearchResults(ctx, skills, q)
+		if err != nil {
+			return nil, err
 		}
-		for _, sv := range servers {
-			response.McpServers = append(response.McpServers, SearchResult{
-				ID: sv.ID, Type: "mcp_server", Title: searchText(sv.Name, q.Keyword, q.Highlight),
-				Summary: searchText(sv.Description, q.Keyword, q.Highlight), Views: sv.Views,
-			})
+		response.McpServers, err = s.mcpServerSearchResults(ctx, servers, q)
+		if err != nil {
+			return nil, err
 		}
 		// Typed sections expose grouped MCP search results. Items preserves the
 		// legacy REST contract: the requested standard page of articles only.
@@ -180,6 +162,82 @@ func (s *SearchService) Search(ctx context.Context, q SearchQuery) (*SearchRespo
 	}
 
 	return response, nil
+}
+
+func (s *SearchService) articleSearchResults(ctx context.Context, articles []model.Article, q SearchQuery) ([]SearchResult, error) {
+	ids := make([]uint, 0, len(articles))
+	for _, article := range articles {
+		ids = append(ids, article.ID)
+	}
+	tagMap, err := s.searchRepo.TagsForArticles(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	results := make([]SearchResult, 0, len(articles))
+	for _, article := range articles {
+		results = append(results, SearchResult{
+			ID: article.ID, Type: "article",
+			Title: searchText(article.Title, q.Keyword, q.Highlight), Summary: searchText(article.Summary, q.Keyword, q.Highlight),
+			Author: searchAuthorBrief(article.AuthorID, article.Author), Tags: searchTagBriefs(tagMap[article.ID]), Views: article.Views,
+		})
+	}
+	return results, nil
+}
+
+func (s *SearchService) skillSearchResults(ctx context.Context, skills []model.Skill, q SearchQuery) ([]SearchResult, error) {
+	ids := make([]uint, 0, len(skills))
+	for _, skill := range skills {
+		ids = append(ids, skill.ID)
+	}
+	tagMap, err := s.searchRepo.TagsForSkills(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	results := make([]SearchResult, 0, len(skills))
+	for _, skill := range skills {
+		results = append(results, SearchResult{
+			ID: skill.ID, Type: "skill",
+			Title: searchText(skill.Name, q.Keyword, q.Highlight), Summary: searchText(skill.Description, q.Keyword, q.Highlight),
+			Author: searchAuthorBrief(skill.AuthorID, skill.Author), Tags: searchTagBriefs(tagMap[skill.ID]), Views: skill.Views,
+		})
+	}
+	return results, nil
+}
+
+func (s *SearchService) mcpServerSearchResults(ctx context.Context, servers []model.McpServer, q SearchQuery) ([]SearchResult, error) {
+	ids := make([]uint, 0, len(servers))
+	for _, server := range servers {
+		ids = append(ids, server.ID)
+	}
+	tagMap, err := s.searchRepo.TagsForMcpServers(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	results := make([]SearchResult, 0, len(servers))
+	for _, server := range servers {
+		results = append(results, SearchResult{
+			ID: server.ID, Type: "mcp_server",
+			Title: searchText(server.Name, q.Keyword, q.Highlight), Summary: searchText(server.Description, q.Keyword, q.Highlight),
+			Author: searchAuthorBrief(server.AuthorID, server.Author), Tags: searchTagBriefs(tagMap[server.ID]), Views: server.Views,
+		})
+	}
+	return results, nil
+}
+
+func searchAuthorBrief(authorID uint, author *model.User) AuthorBrief {
+	brief := AuthorBrief{ID: authorID}
+	if author != nil {
+		brief = AuthorBrief{ID: author.ID, Nickname: author.Nickname, AvatarURL: author.AvatarURL}
+	}
+	return brief
+}
+
+func searchTagBriefs(tags []model.Tag) []TagBrief {
+	briefs := make([]TagBrief, 0, len(tags))
+	for _, tag := range tags {
+		briefs = append(briefs, TagBrief{ID: tag.ID, Name: tag.Name})
+	}
+	return briefs
 }
 
 func searchText(text, keyword string, highlight bool) string {

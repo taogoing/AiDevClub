@@ -2,9 +2,11 @@ package mcpserver
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"aidevclub/internal/service"
@@ -58,6 +60,62 @@ type browseContentOutput struct {
 	MCPServers  []contentSummaryOutput `json:"mcp_servers"`
 	Total       int64                  `json:"total"`
 	PageInfo
+}
+
+func searchContentInputSchema() *jsonschema.Schema {
+	schema := mustInputSchema[searchContentInput]()
+	schema.Properties["content_type"].Enum = []any{"all", "article", "skill", "mcp_server"}
+	schema.Properties["content_type"].Default = json.RawMessage(`"all"`)
+	schema.Properties["sort"].Enum = []any{"relevance", "latest"}
+	schema.Properties["tag_id"].Minimum = jsonschema.Ptr(float64(1))
+	schema.Properties["category_id"].Minimum = jsonschema.Ptr(float64(1))
+	setPagedContentSchema(schema)
+	schema.AllOf = append(schema.AllOf, &jsonschema.Schema{
+		If: &jsonschema.Schema{
+			Required: []string{"query"},
+			Properties: map[string]*jsonschema.Schema{
+				"query": {Pattern: `\S`},
+			},
+		},
+		Then: &jsonschema.Schema{Properties: map[string]*jsonschema.Schema{
+			"sort": {Default: json.RawMessage(`"relevance"`)},
+		}},
+		Else: &jsonschema.Schema{Properties: map[string]*jsonschema.Schema{
+			"sort": {Default: json.RawMessage(`"latest"`)},
+		}},
+	})
+	return schema
+}
+
+func browseContentInputSchema() *jsonschema.Schema {
+	schema := mustInputSchema[browseContentInput]()
+	schema.Properties["content_type"].Enum = []any{"all", "article", "skill", "mcp_server"}
+	schema.Properties["content_type"].Default = json.RawMessage(`"all"`)
+	schema.Properties["sort"].Enum = []any{"latest", "hot", "downloads"}
+	schema.Properties["sort"].Default = json.RawMessage(`"latest"`)
+	setPagedContentSchema(schema)
+	return schema
+}
+
+func setPagedContentSchema(schema *jsonschema.Schema) {
+	schema.Properties["page"].Minimum = jsonschema.Ptr(float64(1))
+	schema.Properties["page"].Default = json.RawMessage(`1`)
+	schema.Properties["page_size"].Minimum = jsonschema.Ptr(float64(1))
+	schema.Properties["page_size"].Maximum = jsonschema.Ptr(float64(20))
+	schema.AllOf = append(schema.AllOf, &jsonschema.Schema{
+		If: &jsonschema.Schema{
+			Required: []string{"content_type"},
+			Properties: map[string]*jsonschema.Schema{
+				"content_type": {Enum: []any{"article", "skill", "mcp_server"}},
+			},
+		},
+		Then: &jsonschema.Schema{Properties: map[string]*jsonschema.Schema{
+			"page_size": {Maximum: jsonschema.Ptr(float64(20)), Default: json.RawMessage(`10`)},
+		}},
+		Else: &jsonschema.Schema{Properties: map[string]*jsonschema.Schema{
+			"page_size": {Maximum: jsonschema.Ptr(float64(10)), Default: json.RawMessage(`5`)},
+		}},
+	})
 }
 
 func searchContent(deps PublicDependencies, publicBaseURL string) mcp.ToolHandlerFor[searchContentInput, searchContentOutput] {
@@ -371,18 +429,10 @@ func normalizePage(page, pageSize int, contentType string) (int, int, error) {
 func searchResultsOutput(results []service.SearchResult, publicBaseURL string) []contentSummaryOutput {
 	output := make([]contentSummaryOutput, 0, len(results))
 	for _, result := range results {
-		tags := make([]TagOutput, 0, len(result.Tags))
-		for _, tag := range result.Tags {
-			tags = append(tags, TagOutput{ID: tag.ID, Name: tag.Name, Description: tag.Description, UsageCount: tag.UsageCount})
-		}
-		author := AuthorOutput{}
-		if brief, ok := result.Author.(service.AuthorBrief); ok {
-			author = authorOutput(brief, publicBaseURL)
-		}
 		output = append(output, contentSummaryOutput{
 			ID: result.ID, Type: result.Type, Title: result.Title, Summary: result.Summary,
-			URL: contentPageURL(publicBaseURL, result.Type, result.ID), Author: author,
-			Tags: tags, Views: result.Views,
+			URL: contentPageURL(publicBaseURL, result.Type, result.ID), Author: authorOutput(result.Author, publicBaseURL),
+			Tags: tagOutputs(result.Tags), Views: result.Views,
 		})
 	}
 	return output

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -117,6 +118,74 @@ func TestSearchAllKeepsResultsInSeparateTypeSections(t *testing.T) {
 	}
 	if len(got.Items) != 1 || got.Items[0].Type != "article" {
 		t.Fatalf("legacy all search items = %+v, want standard-page article results only", got.Items)
+	}
+}
+
+func TestSearchResultsExposeRealPublicAuthorAndTags(t *testing.T) {
+	db, user, category := newMCPReadTestDB(t)
+	ctx := context.Background()
+	tag := &model.Tag{Name: "public-metadata", Description: "Visible search tag", Enabled: true}
+	if err := db.WithContext(ctx).Create(tag).Error; err != nil {
+		t.Fatal(err)
+	}
+	article := &model.Article{
+		AuthorID: user.ID, CategoryID: category.ID, Title: "Metadata article", Summary: "article", Content: "Metadata article content", Status: model.ArticleStatusPublished,
+	}
+	skill := &model.Skill{
+		AuthorID: user.ID, Name: "Metadata skill", Description: "skill", Status: model.ResourceStatusPublished,
+	}
+	server := &model.McpServer{
+		AuthorID: user.ID, Name: "Metadata server", Description: "server", ToolsJSON: "[]", Status: model.ResourceStatusPublished,
+	}
+	if err := db.WithContext(ctx).Create(article).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.WithContext(ctx).Create(skill).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.WithContext(ctx).Create(server).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.NewArticleRepo(db).SetArticleTags(db.WithContext(ctx), article.ID, []uint{tag.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.NewSkillRepo(db).SetSkillTags(db.WithContext(ctx), skill.ID, []uint{tag.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.NewMcpServerRepo(db).SetMcpServerTags(db.WithContext(ctx), server.ID, []uint{tag.ID}); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := NewSearchService(repo.NewSearchRepo(db)).Search(ctx, SearchQuery{
+		Keyword: "Metadata", ContentType: "all", Page: 1, PageSize: 10, Highlight: false,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sections := map[string][]SearchResult{
+		"article": result.Articles, "skill": result.Skills, "mcp_server": result.McpServers,
+	}
+	for contentType, section := range sections {
+		if len(section) != 1 {
+			t.Fatalf("%s search results = %+v, want one", contentType, section)
+		}
+		payload, err := json.Marshal(section[0])
+		if err != nil {
+			t.Fatal(err)
+		}
+		var public struct {
+			Author AuthorBrief `json:"author"`
+			Tags   []TagBrief  `json:"tags"`
+		}
+		if err := json.Unmarshal(payload, &public); err != nil {
+			t.Fatal(err)
+		}
+		if public.Author.ID != user.ID || public.Author.Nickname != user.Nickname {
+			t.Fatalf("%s search author = %+v, want real public author %d/%q", contentType, public.Author, user.ID, user.Nickname)
+		}
+		if len(public.Tags) != 1 || public.Tags[0].ID != tag.ID || public.Tags[0].Name != tag.Name {
+			t.Fatalf("%s search tags = %+v, want real public tag %d/%q", contentType, public.Tags, tag.ID, tag.Name)
+		}
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -295,8 +296,8 @@ func assertToolErrorCode(t *testing.T, result *mcp.CallToolResult, code string) 
 	}
 }
 
-func TestSearchContentRegistersExactlySixPublicTools(t *testing.T) {
-	server := newTestServer(publicTestDependencies())
+func listPublicTools(t *testing.T, server *mcp.Server) []*mcp.Tool {
+	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -315,12 +316,79 @@ func TestSearchContentRegistersExactlySixPublicTools(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"browse_content", "get_article", "get_mcp_server", "get_skill", "list_taxonomy", "search_content"}
-	if len(listed.Tools) != len(want) {
-		t.Fatalf("tool count = %d, want %d", len(listed.Tools), len(want))
+	return listed.Tools
+}
+
+func toolInputSchema(t *testing.T, tools []*mcp.Tool, name string) map[string]any {
+	t.Helper()
+
+	for _, tool := range tools {
+		if tool.Name != name {
+			continue
+		}
+		payload, err := json.Marshal(tool.InputSchema)
+		if err != nil {
+			t.Fatalf("marshal %s input schema: %v", name, err)
+		}
+		var schema map[string]any
+		if err := json.Unmarshal(payload, &schema); err != nil {
+			t.Fatalf("decode %s input schema: %v", name, err)
+		}
+		return schema
 	}
-	got := make([]string, 0, len(listed.Tools))
-	for _, tool := range listed.Tools {
+	t.Fatalf("tool %q not listed", name)
+	return nil
+}
+
+func assertSchemaProperty(t *testing.T, schema map[string]any, property string, keywords map[string]any) {
+	t.Helper()
+
+	var visit func(any) bool
+	visit = func(value any) bool {
+		switch node := value.(type) {
+		case map[string]any:
+			if properties, ok := node["properties"].(map[string]any); ok {
+				if candidate, ok := properties[property].(map[string]any); ok {
+					matches := true
+					for keyword, want := range keywords {
+						if !reflect.DeepEqual(candidate[keyword], want) {
+							matches = false
+							break
+						}
+					}
+					if matches {
+						return true
+					}
+				}
+			}
+			for _, child := range node {
+				if visit(child) {
+					return true
+				}
+			}
+		case []any:
+			for _, child := range node {
+				if visit(child) {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	if !visit(schema) {
+		payload, _ := json.Marshal(schema)
+		t.Fatalf("schema property %q has no occurrence with keywords %#v: %s", property, keywords, payload)
+	}
+}
+
+func TestSearchContentRegistersExactlySixPublicTools(t *testing.T) {
+	tools := listPublicTools(t, newTestServer(publicTestDependencies()))
+	want := []string{"browse_content", "get_article", "get_mcp_server", "get_skill", "list_taxonomy", "search_content"}
+	if len(tools) != len(want) {
+		t.Fatalf("tool count = %d, want %d", len(tools), len(want))
+	}
+	got := make([]string, 0, len(tools))
+	for _, tool := range tools {
 		got = append(got, tool.Name)
 		if tool.InputSchema == nil || tool.OutputSchema == nil {
 			t.Fatalf("tool %q is missing an explicit SDK schema", tool.Name)
@@ -331,6 +399,53 @@ func TestSearchContentRegistersExactlySixPublicTools(t *testing.T) {
 			t.Fatalf("tool names = %v, want %v", got, want)
 		}
 	}
+}
+
+func TestPublicToolInputSchemasAdvertiseConstraintsAndDefaults(t *testing.T) {
+	tools := listPublicTools(t, newTestServer(publicTestDependencies()))
+
+	search := toolInputSchema(t, tools, "search_content")
+	assertSchemaProperty(t, search, "content_type", map[string]any{
+		"enum": []any{"all", "article", "skill", "mcp_server"}, "default": "all",
+	})
+	assertSchemaProperty(t, search, "sort", map[string]any{"enum": []any{"relevance", "latest"}})
+	assertSchemaProperty(t, search, "sort", map[string]any{"default": "relevance"})
+	assertSchemaProperty(t, search, "sort", map[string]any{"default": "latest"})
+	assertSchemaProperty(t, search, "tag_id", map[string]any{"minimum": float64(1)})
+	assertSchemaProperty(t, search, "category_id", map[string]any{"minimum": float64(1)})
+	assertSchemaProperty(t, search, "page", map[string]any{"minimum": float64(1), "default": float64(1)})
+	assertSchemaProperty(t, search, "page_size", map[string]any{"minimum": float64(1), "maximum": float64(20)})
+	assertSchemaProperty(t, search, "page_size", map[string]any{"maximum": float64(10), "default": float64(5)})
+	assertSchemaProperty(t, search, "page_size", map[string]any{"maximum": float64(20), "default": float64(10)})
+
+	browse := toolInputSchema(t, tools, "browse_content")
+	assertSchemaProperty(t, browse, "content_type", map[string]any{
+		"enum": []any{"all", "article", "skill", "mcp_server"}, "default": "all",
+	})
+	assertSchemaProperty(t, browse, "sort", map[string]any{
+		"enum": []any{"latest", "hot", "downloads"}, "default": "latest",
+	})
+	assertSchemaProperty(t, browse, "page", map[string]any{"minimum": float64(1), "default": float64(1)})
+	assertSchemaProperty(t, browse, "page_size", map[string]any{"minimum": float64(1), "maximum": float64(20)})
+	assertSchemaProperty(t, browse, "page_size", map[string]any{"maximum": float64(10), "default": float64(5)})
+	assertSchemaProperty(t, browse, "page_size", map[string]any{"maximum": float64(20), "default": float64(10)})
+
+	for _, name := range []string{"get_article", "get_skill", "get_mcp_server"} {
+		schema := toolInputSchema(t, tools, name)
+		assertSchemaProperty(t, schema, "id", map[string]any{"minimum": float64(1)})
+		assertSchemaProperty(t, schema, "content_offset", map[string]any{"minimum": float64(0), "default": float64(0)})
+		assertSchemaProperty(t, schema, "content_limit", map[string]any{
+			"minimum": float64(1), "maximum": float64(50000), "default": float64(30000),
+		})
+	}
+
+	taxonomy := toolInputSchema(t, tools, "list_taxonomy")
+	assertSchemaProperty(t, taxonomy, "kind", map[string]any{
+		"enum": []any{"all", "categories", "tags"}, "default": "all",
+	})
+	assertSchemaProperty(t, taxonomy, "limit", map[string]any{
+		"minimum": float64(1), "maximum": float64(100), "default": float64(50),
+	})
 }
 
 func TestSearchContentRejectsInvalidContentTypeAndSort(t *testing.T) {
@@ -592,6 +707,43 @@ func TestGetSkillReturnsPersistedSkillMDWindowAndDownloadMetadata(t *testing.T) 
 	}
 	if skill.readCalls != 1 || skill.readUser != 0 {
 		t.Fatalf("Read calls/user = %d/%d", skill.readCalls, skill.readUser)
+	}
+}
+
+func TestResourceToolsSanitizePersistedZipFilenameAtOutputBoundary(t *testing.T) {
+	skill := &fakeSkillReader{detail: &service.SkillDetail{
+		SkillSummary: service.SkillSummary{ID: 12, Name: "Agent Skill", Tags: []service.TagBrief{}},
+		ZipURL:       "/static/skills/agent-skill.zip",
+		ZipFilename:  "/srv/aidevclub/private/agent-skill.zip",
+		FileSize:     1234,
+	}}
+	deps := publicTestDependencies()
+	deps.Skills = skill
+	skillOutput := callTool[getSkillOutput](t, newTestServer(deps), "get_skill", map[string]any{"id": 12})
+	if skillOutput.Filename != "agent-skill.zip" || !skillOutput.DownloadAvailable {
+		t.Fatalf("skill download metadata = %#v, want sanitized available basename", skillOutput)
+	}
+
+	server := &fakeMCPServerReader{detail: &service.McpServerDetail{
+		McpServerSummary: service.McpServerSummary{ID: 15, Name: "Toolbox", Tags: []service.TagBrief{}},
+		ToolsJSON:        "[]",
+		ZipURL:           "/static/mcps/toolbox.zip",
+		ZipFilename:      `C:\aidevclub\private\toolbox.zip`,
+		FileSize:         987,
+	}}
+	deps = publicTestDependencies()
+	deps.MCPServers = server
+	serverOutput := callTool[getMCPServerOutput](t, newTestServer(deps), "get_mcp_server", map[string]any{"id": 15})
+	if serverOutput.Filename != "toolbox.zip" || !serverOutput.DownloadAvailable {
+		t.Fatalf("MCP server download metadata = %#v, want sanitized available basename", serverOutput)
+	}
+
+	skill.detail.ZipFilename = "/"
+	deps = publicTestDependencies()
+	deps.Skills = skill
+	unavailable := callTool[getSkillOutput](t, newTestServer(deps), "get_skill", map[string]any{"id": 12})
+	if unavailable.Filename != "" || unavailable.DownloadAvailable {
+		t.Fatalf("unusable filename metadata = %#v, want empty and unavailable", unavailable)
 	}
 }
 

@@ -2,9 +2,11 @@ package mcpserver
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -24,6 +26,16 @@ type listTaxonomyOutput struct {
 	Kind       string           `json:"kind"`
 	Categories []categoryOutput `json:"categories"`
 	Tags       []TagOutput      `json:"tags"`
+}
+
+func listTaxonomyInputSchema() *jsonschema.Schema {
+	schema := mustInputSchema[listTaxonomyInput]()
+	schema.Properties["kind"].Enum = []any{"all", "categories", "tags"}
+	schema.Properties["kind"].Default = json.RawMessage(`"all"`)
+	schema.Properties["limit"].Minimum = jsonschema.Ptr(float64(1))
+	schema.Properties["limit"].Maximum = jsonschema.Ptr(float64(100))
+	schema.Properties["limit"].Default = json.RawMessage(`50`)
+	return schema
 }
 
 func listTaxonomy(deps PublicDependencies, _ string) mcp.ToolHandlerFor[listTaxonomyInput, listTaxonomyOutput] {

@@ -41,6 +41,7 @@ func (r *SearchRepo) SearchArticles(ctx context.Context, keyword string, tagID, 
 	err := query.
 		Select("*, MATCH(title, summary, content) AGAINST(? IN BOOLEAN MODE) AS relevance", keyword).
 		Order("relevance DESC").
+		Preload("Author").
 		Offset((page - 1) * pageSize).
 		Limit(pageSize).
 		Find(&articles).Error
@@ -69,6 +70,7 @@ func (r *SearchRepo) SearchSkills(ctx context.Context, keyword string, tagID *ui
 	err := query.
 		Select("*, MATCH(name, description) AGAINST(? IN BOOLEAN MODE) AS relevance", keyword).
 		Order("relevance DESC").
+		Preload("Author").
 		Offset((page - 1) * pageSize).
 		Limit(pageSize).
 		Find(&skills).Error
@@ -97,9 +99,22 @@ func (r *SearchRepo) SearchMcpServers(ctx context.Context, keyword string, tagID
 	err := query.
 		Select("*, MATCH(name, description) AGAINST(? IN BOOLEAN MODE) AS relevance", keyword).
 		Order("relevance DESC").
+		Preload("Author").
 		Offset((page - 1) * pageSize).
 		Limit(pageSize).
 		Find(&servers).Error
 
 	return servers, total, err
+}
+
+func (r *SearchRepo) TagsForArticles(ctx context.Context, articleIDs []uint) (map[uint][]model.Tag, error) {
+	return NewArticleRepo(r.db).TagsForArticles(ctx, articleIDs)
+}
+
+func (r *SearchRepo) TagsForSkills(ctx context.Context, skillIDs []uint) (map[uint][]model.Tag, error) {
+	return NewSkillRepo(r.db).TagsForSkills(ctx, skillIDs)
+}
+
+func (r *SearchRepo) TagsForMcpServers(ctx context.Context, serverIDs []uint) (map[uint][]model.Tag, error) {
+	return NewMcpServerRepo(r.db).TagsForMcpServers(ctx, serverIDs)
 }
