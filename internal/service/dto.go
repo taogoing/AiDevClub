@@ -190,3 +190,22 @@ type ResourceCommentItem struct {
 	CreatedAt  time.Time             `json:"created_at"`
 	Replies    []ResourceCommentItem `json:"replies"`
 }
+
+type NotificationItem struct {
+	ID           uint        `json:"id"`
+	Type         string      `json:"type"`
+	Title        string      `json:"title"`
+	Content      string      `json:"content"`
+	ResourceType string      `json:"resource_type"`
+	ResourceID   uint        `json:"resource_id"`
+	Actor        AuthorBrief `json:"actor"`
+	IsRead       bool        `json:"is_read"`
+	CreatedAt    time.Time   `json:"created_at"`
+}
+
+type NotificationListResult struct {
+	List     []NotificationItem `json:"list"`
+	Total    int64              `json:"total"`
+	Page     int                `json:"page"`
+	PageSize int                `json:"page_size"`
+}
