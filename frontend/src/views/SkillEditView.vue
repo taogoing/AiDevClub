@@ -5,13 +5,13 @@
       <el-form-item label="名称">
         <el-input v-model="form.name" placeholder="请输入 Skill 名称" maxlength="200" show-word-limit />
       </el-form-item>
-      <el-form-item label="描述">
+      <el-form-item label="描述（可选）">
         <el-input v-model="form.description" type="textarea" :rows="3" placeholder="请输入描述" maxlength="1000" />
       </el-form-item>
-      <el-form-item label="仓库地址">
+      <el-form-item label="仓库地址（可选）">
         <el-input v-model="form.repo_url" placeholder="https://github.com/..." />
       </el-form-item>
-      <el-form-item label="标签">
+      <el-form-item label="标签（可选）">
         <el-select
           v-model="form.tag_ids"
           multiple
@@ -25,7 +25,7 @@
           <el-option v-for="tag in availableTags" :key="tag.id" :label="tag.name" :value="tag.id" />
         </el-select>
       </el-form-item>
-      <el-form-item label="ZIP 文件">
+      <el-form-item label="ZIP 文件（可选）">
         <el-upload
           ref="uploadRef"
           :auto-upload="false"

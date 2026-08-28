@@ -211,7 +211,7 @@ function formatTime(t: string | null) {
 
 .article-content {
   margin: 24px 0;
-  line-height: 1.8;
+  line-height: 1.5;
 }
 
 .article-actions {

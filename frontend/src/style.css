@@ -35,44 +35,59 @@ a:hover {
 
 .article-content pre {
   background: #f6f8fa;
+  border: 1px solid #d0d7de;
   border-radius: 6px;
-  padding: 16px;
+  padding: 12px 16px;
   overflow-x: auto;
+  margin: 0.6em 0;
+  line-height: 1.45;
+}
+
+.article-content pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  font-size: 0.85em;
+  color: #24292f;
 }
 
 .article-content code {
   font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-  font-size: 0.9em;
+  font-size: 0.85em;
+  background: rgba(175, 184, 193, 0.2);
+  padding: 0.2em 0.4em;
+  border-radius: 6px;
 }
 
 .article-content p {
-  margin-bottom: 1em;
+  margin-bottom: 0.5em;
+  line-height: 1.5;
 }
 
 .article-content h1,
 .article-content h2,
 .article-content h3,
 .article-content h4 {
-  margin: 1.2em 0 0.6em;
+  margin: 0.8em 0 0.3em;
+}
+
+.article-content ul,
+.article-content ol {
+  padding-left: 2em;
+  margin-bottom: 0.5em;
 }
 
 .article-content blockquote {
   border-left: 4px solid #ddd;
   padding: 0 16px;
   color: #666;
-  margin: 1em 0;
-}
-
-.article-content ul,
-.article-content ol {
-  padding-left: 2em;
-  margin-bottom: 1em;
+  margin: 0.5em 0;
 }
 
 .article-content table {
   border-collapse: collapse;
   width: 100%;
-  margin-bottom: 1em;
+  margin-bottom: 0.5em;
 }
 
 .article-content th,

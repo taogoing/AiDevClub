@@ -28,6 +28,7 @@
               <template #dropdown>
                 <el-dropdown-menu>
                   <el-dropdown-item command="profile">个人中心</el-dropdown-item>
+                  <el-dropdown-item command="my-articles">我的文章</el-dropdown-item>
                   <el-dropdown-item command="new-article">发布文章</el-dropdown-item>
                   <el-dropdown-item divided command="logout">登出</el-dropdown-item>
                 </el-dropdown-menu>
@@ -74,6 +75,7 @@ function handleSearch() {
 
 function handleCommand(cmd: string) {
   if (cmd === 'profile') router.push('/users/me')
+  else if (cmd === 'my-articles') router.push('/my/articles')
   else if (cmd === 'new-article') router.push('/articles/new')
   else if (cmd === 'logout') {
     auth.logout().then(() => router.push('/'))
@@ -120,7 +122,8 @@ function handleCommand(cmd: string) {
 
 .navbar-search {
   margin-left: 32px;
-  width: 200px;
+  flex: 1;
+  max-width: 300px;
 }
 
 .nav-link {
@@ -145,6 +148,7 @@ function handleCommand(cmd: string) {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-left: auto;
 }
 
 .user-avatar-wrap {

@@ -378,7 +378,7 @@ function formatFileSize(bytes: number) {
 
 .detail-description {
   margin: 20px 0;
-  line-height: 1.8;
+  line-height: 1.6;
   color: #606266;
 }
 
@@ -405,7 +405,7 @@ function formatFileSize(bytes: number) {
 }
 
 .readme-content {
-  line-height: 1.8;
+  line-height: 1.6;
   padding: 16px;
   background: #fafafa;
   border-radius: 8px;

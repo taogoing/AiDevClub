@@ -5,13 +5,13 @@
       <el-form-item label="名称">
         <el-input v-model="form.name" placeholder="请输入 MCP Server 名称" maxlength="200" show-word-limit />
       </el-form-item>
-      <el-form-item label="描述">
+      <el-form-item label="描述（可选）">
         <el-input v-model="form.description" type="textarea" :rows="3" placeholder="请输入描述" maxlength="1000" />
       </el-form-item>
-      <el-form-item label="仓库地址">
+      <el-form-item label="仓库地址（可选）">
         <el-input v-model="form.repo_url" placeholder="https://github.com/..." />
       </el-form-item>
-      <el-form-item label="Tools 清单 (JSON)">
+      <el-form-item label="Tools 清单 (JSON)（可选）">
         <el-input
           v-model="form.tools_json"
           type="textarea"
@@ -19,7 +19,7 @@
           placeholder='[{"name": "tool_name", "description": "tool description"}]'
         />
       </el-form-item>
-      <el-form-item label="README (Markdown)">
+      <el-form-item label="README (Markdown)（可选）">
         <el-input
           v-model="form.readme"
           type="textarea"
@@ -27,7 +27,7 @@
           placeholder="输入 README 内容（Markdown 格式）"
         />
       </el-form-item>
-      <el-form-item label="标签">
+      <el-form-item label="标签（可选）">
         <el-select
           v-model="form.tag_ids"
           multiple

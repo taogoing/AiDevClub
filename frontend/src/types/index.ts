@@ -30,12 +30,14 @@ export interface ArticleSummary {
   id: number
   title: string
   summary: string
+  category_id: number
   tags: TagBrief[]
   author: AuthorBrief
   views: number
   likes_count: number
   favorites_count: number
   comments_count: number
+  status: string
   published_at: string | null
   pinned: boolean
 }
@@ -92,6 +94,7 @@ export interface ArticleForm {
   title: string
   summary: string
   content: string
+  category_id: number
   status: 'draft' | 'published'
   tag_ids: number[]
   tag_names: string[]

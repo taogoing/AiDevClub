@@ -95,6 +95,7 @@ func main() {
 
 	arts := r.Group("/api/v1/articles")
 	arts.GET("", artH.List)
+	arts.GET("/mine", p2Auth, artH.ListMine)
 	arts.POST("/images", p2Auth, artH.UploadImage)
 	arts.POST("", p2Auth, artH.Create)
 	arts.GET("/:id", opt, artH.Get)

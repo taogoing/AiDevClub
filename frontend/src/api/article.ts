@@ -5,6 +5,10 @@ export function getArticles(params: Record<string, unknown>) {
   return http.get<ApiResponse<ArticleListResult>>('/api/v1/articles', { params })
 }
 
+export function getMyArticles(params: Record<string, unknown>) {
+  return http.get<ApiResponse<ArticleListResult>>('/api/v1/articles/mine', { params })
+}
+
 export function getArticle(id: number) {
   return http.get<ApiResponse<ArticleDetail>>(`/api/v1/articles/${id}`)
 }

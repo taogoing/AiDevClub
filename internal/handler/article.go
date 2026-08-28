@@ -139,6 +139,18 @@ func (h *ArticleHandler) List(c *gin.Context) {
 	platform.OK(c, res)
 }
 
+func (h *ArticleHandler) ListMine(c *gin.Context) {
+	page := queryInt(c, "page", 1)
+	pageSize := queryInt(c, "page_size", 20)
+	status := c.Query("status")
+	res, err := h.svc.ListOwned(c.Request.Context(), c.GetUint("user_id"), status, page, pageSize)
+	if err != nil {
+		platform.Fail(c, errStatus(err), errCode(err), err.Error())
+		return
+	}
+	platform.OK(c, res)
+}
+
 func (h *ArticleHandler) Get(c *gin.Context) {
 	id, err := parseUintParam(c, "id")
 	if err != nil {

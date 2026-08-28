@@ -346,7 +346,7 @@ function formatFileSize(bytes: number) {
 
 .detail-description {
   margin: 20px 0;
-  line-height: 1.8;
+  line-height: 1.6;
   color: #606266;
 }
 
