@@ -11,6 +11,9 @@ FROM nginx:alpine
 COPY --from=builder /build/dist /usr/share/nginx/html
 COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
 
+RUN mkdir -p /var/www/certbot
+
 EXPOSE 80
+EXPOSE 443
 
 CMD ["nginx", "-g", "daemon off;"]

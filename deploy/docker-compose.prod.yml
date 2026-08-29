@@ -38,7 +38,7 @@ services:
       AIDEVCLUB_MYSQL_DSN: "root:${MYSQL_ROOT_PASSWORD:-root}@tcp(mysql:3306)/aidevclub?charset=utf8mb4&parseTime=True&loc=Local"
       AIDEVCLUB_REDIS_ADDR: "redis:6379"
       AIDEVCLUB_JWT_SECRET: ${JWT_SECRET}
-      AIDEVCLUB_PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://47.76.151.183}
+      AIDEVCLUB_PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://aidevclub.xyz}
       AIDEVCLUB_MCP_ADDR: ":8081"
       AIDEVCLUB_ADMIN_EMAILS: ${ADMIN_EMAILS:-}
     volumes:
@@ -56,11 +56,25 @@ services:
       dockerfile: deploy/Dockerfile.frontend
     ports:
       - "80:80"
+      - "443:443"
+    volumes:
+      - certbot_certs:/etc/letsencrypt:ro
+      - certbot_webroot:/var/www/certbot
     depends_on:
       - backend
+    restart: unless-stopped
+
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - certbot_certs:/etc/letsencrypt
+      - certbot_webroot:/var/www/certbot
+    entrypoint: /bin/sh -c "trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;"
     restart: unless-stopped
 
 volumes:
   mysql_data:
   redis_data:
   storage_data:
+  certbot_certs:
+  certbot_webroot:

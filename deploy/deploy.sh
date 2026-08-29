@@ -45,6 +45,18 @@ docker compose up -d
 echo "Waiting for services to be healthy..."
 sleep 10
 
+echo "Requesting TLS certificate (if not already present)..."
+CERT_EMAIL="${CERTBOT_EMAIL:-admin@aidevclub.xyz}"
+if ! docker compose run --rm --entrypoint test certbot -f /etc/letsencrypt/live/aidevclub.xyz/fullchain.pem; then
+  docker compose run --rm certbot certonly --webroot \
+    --webroot-path /var/www/certbot \
+    -d aidevclub.xyz -d www.aidevclub.xyz \
+    --non-interactive --agree-tos --email "${CERT_EMAIL}"
+  docker compose restart frontend
+else
+  echo "Certificate already exists, skipping issuance."
+fi
+
 echo "Checking service status..."
 docker compose ps
 
