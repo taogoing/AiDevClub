@@ -29,6 +29,7 @@ scp /tmp/aidevclub-deploy/backend.tar.gz ${SERVER_USER}@${SERVER_IP}:${DEPLOY_DI
 scp /tmp/aidevclub-deploy/frontend.tar.gz ${SERVER_USER}@${SERVER_IP}:${DEPLOY_DIR}/
 scp deploy/docker-compose.prod.yml ${SERVER_USER}@${SERVER_IP}:${DEPLOY_DIR}/docker-compose.yml
 scp deploy/.env ${SERVER_USER}@${SERVER_IP}:${DEPLOY_DIR}/.env
+scp deploy/obtain-cert.sh ${SERVER_USER}@${SERVER_IP}:${DEPLOY_DIR}/obtain-cert.sh
 
 echo "Step 4: Deploying on server..."
 ssh ${SERVER_USER}@${SERVER_IP} << 'EOF'
@@ -39,23 +40,10 @@ docker load -i backend.tar.gz
 docker load -i frontend.tar.gz
 
 echo "Starting services..."
-docker compose down || true
 docker compose up -d
 
-echo "Waiting for services to be healthy..."
-sleep 10
-
-echo "Requesting TLS certificate (if not already present)..."
-CERT_EMAIL="${CERTBOT_EMAIL:-admin@aidevclub.xyz}"
-if ! docker compose run --rm --entrypoint test certbot -f /etc/letsencrypt/live/aidevclub.xyz/fullchain.pem; then
-  docker compose run --rm certbot certonly --webroot \
-    --webroot-path /var/www/certbot \
-    -d aidevclub.xyz -d www.aidevclub.xyz \
-    --non-interactive --agree-tos --email "${CERT_EMAIL}"
-  docker compose restart frontend
-else
-  echo "Certificate already exists, skipping issuance."
-fi
+echo "Obtaining TLS certificate (HTTPS)..."
+bash obtain-cert.sh
 
 echo "Checking service status..."
 docker compose ps
@@ -68,4 +56,4 @@ echo "Step 5: Cleaning up local files..."
 rm -rf /tmp/aidevclub-deploy
 
 echo "=== Deployment completed! ==="
-echo "Visit: http://${SERVER_IP}"
+echo "Visit: https://aidevclub.xyz"

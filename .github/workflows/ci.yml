@@ -135,11 +135,13 @@ jobs:
         $SCP_CMD /tmp/deploy/backend.tar.gz root@${SERVER_IP}:/opt/aidevclub/
         $SCP_CMD /tmp/deploy/frontend.tar.gz root@${SERVER_IP}:/opt/aidevclub/
         $SCP_CMD deploy/docker-compose.prod.yml root@${SERVER_IP}:/opt/aidevclub/docker-compose.yml
+        $SCP_CMD deploy/obtain-cert.sh root@${SERVER_IP}:/opt/aidevclub/obtain-cert.sh
         
         $SSH_CMD << 'ENDSSH'
         cd /opt/aidevclub
         docker load -i backend.tar.gz
         docker load -i frontend.tar.gz
         docker compose up -d
+        bash obtain-cert.sh
         rm -f backend.tar.gz frontend.tar.gz
         ENDSSH
