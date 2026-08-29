@@ -1,0 +1,66 @@
+services:
+  mysql:
+    image: mysql:8
+    command: --ngram-token-size=2
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: aidevclub
+    ports:
+      - "127.0.0.1:3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.backend
+    environment:
+      AIDEVCLUB_HTTP_ADDR: ":8080"
+      AIDEVCLUB_MYSQL_DSN: "root:${MYSQL_ROOT_PASSWORD:-root}@tcp(mysql:3306)/aidevclub?charset=utf8mb4&parseTime=True&loc=Local"
+      AIDEVCLUB_REDIS_ADDR: "redis:6379"
+      AIDEVCLUB_JWT_SECRET: ${JWT_SECRET}
+      AIDEVCLUB_PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://47.76.151.183}
+      AIDEVCLUB_MCP_ADDR: ":8081"
+      AIDEVCLUB_ADMIN_EMAILS: ${ADMIN_EMAILS:-}
+    volumes:
+      - storage_data:/app/storage
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+  redis_data:
+  storage_data:
