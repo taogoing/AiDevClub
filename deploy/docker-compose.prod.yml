@@ -69,7 +69,9 @@ services:
     volumes:
       - certbot_certs:/etc/letsencrypt
       - certbot_webroot:/var/www/certbot
-    entrypoint: /bin/sh -c "trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;"
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/bin/docker:/usr/bin/docker:ro
+    entrypoint: /bin/sh -c "trap exit TERM; while :; do certbot renew --deploy-hook 'docker exec $$(docker ps -q -f name=aidevclub-frontend) nginx -s reload'; sleep 12h & wait $${!}; done;"
     restart: unless-stopped
 
 volumes:

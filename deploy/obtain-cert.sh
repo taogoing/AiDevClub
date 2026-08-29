@@ -37,6 +37,11 @@ docker compose restart frontend
 sleep 3
 
 echo "=== Requesting Let's Encrypt certificate ==="
+# certbot refuses to create a live/ dir that already exists (e.g. our fallback
+# self-signed cert), so remove the fallback dir before requesting the real one.
+docker run --rm -v "${VOLUME}:/etc/letsencrypt" alpine sh -c \
+  "rm -rf /etc/letsencrypt/live/${DOMAIN} /etc/letsencrypt/archive/${DOMAIN} /etc/letsencrypt/renewal/${DOMAIN}.conf"
+
 docker compose run --rm --entrypoint certbot certbot certonly --webroot \
   --webroot-path /var/www/certbot \
   -d "${DOMAIN}" -d "www.${DOMAIN}" \
