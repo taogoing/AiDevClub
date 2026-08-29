@@ -1,0 +1,13 @@
+.git
+.github
+.worktrees
+.superpowers
+.gocache
+.vite
+storage
+frontend/node_modules
+frontend/dist
+*.exe
+*.log
+deploy/.env
+deploy/.env.server
