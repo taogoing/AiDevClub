@@ -12,12 +12,10 @@ var defaultCategories = []model.Category{
 	{Name: "Go", Slug: "go", SortOrder: 1},
 	{Name: "后端", Slug: "backend", SortOrder: 2},
 	{Name: "前端", Slug: "frontend", SortOrder: 3},
-	{Name: "AI/LLM", Slug: "ai-llm", SortOrder: 4},
-	{Name: "DevOps", Slug: "devops", SortOrder: 5},
+	{Name: "AI", Slug: "ai", SortOrder: 4},
+	{Name: "Agent", Slug: "agent", SortOrder: 5},
 	{Name: "数据库", Slug: "database", SortOrder: 6},
-	{Name: "移动端", Slug: "mobile", SortOrder: 7},
-	{Name: "安全", Slug: "security", SortOrder: 8},
-	{Name: "其他", Slug: "other", SortOrder: 9},
+	{Name: "DevOps", Slug: "devops", SortOrder: 7},
 }
 
 type CategoryRepo struct{ db *gorm.DB }
@@ -47,4 +45,16 @@ func (r *CategoryRepo) Seed(ctx context.Context) error {
 		return nil
 	}
 	return r.db.WithContext(ctx).Create(&defaultCategories).Error
+}
+
+// SeedForce 强制重新初始化分类（清空现有数据后插入默认分类）
+func (r *CategoryRepo) SeedForce(ctx context.Context) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// 清空分类表
+		if err := tx.Unscoped().Delete(&model.Category{}, "1 = 1").Error; err != nil {
+			return err
+		}
+		// 重新插入默认分类
+		return tx.Create(&defaultCategories).Error
+	})
 }

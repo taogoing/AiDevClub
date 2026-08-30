@@ -95,3 +95,7 @@ func NewServices(infra *Infrastructure, cfg *platform.Config) *Services {
 func (s *Services) SeedCategories(ctx context.Context) error {
 	return s.categoryRepo.Seed(ctx)
 }
+
+func (s *Services) SeedCategoriesForce(ctx context.Context) error {
+	return s.categoryRepo.SeedForce(ctx)
+}

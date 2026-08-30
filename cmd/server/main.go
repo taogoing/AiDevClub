@@ -39,7 +39,15 @@ func main() {
 		return
 	}
 	services := app.NewServices(infra, cfg)
-	if err := services.SeedCategories(context.Background()); err != nil {
+
+	// 支持强制重新初始化分类（通过环境变量 AIDEVCLUB_SEED_CATEGORIES_FORCE=true）
+	if os.Getenv("AIDEVCLUB_SEED_CATEGORIES_FORCE") == "true" {
+		logger.Info("force seeding categories")
+		if err := services.SeedCategoriesForce(context.Background()); err != nil {
+			logger.Error("seed categories force", "err", err)
+			return
+		}
+	} else if err := services.SeedCategories(context.Background()); err != nil {
 		logger.Error("seed categories", "err", err)
 		return
 	}
@@ -124,11 +132,9 @@ func main() {
 	skillsGroup.GET("/:id", opt, skillH.Get)
 	skillsGroup.PUT("/:id", p2Auth, skillH.Update)
 	skillsGroup.DELETE("/:id", p2Auth, skillH.Delete)
-	skillsGroup.POST("/:id/upload", p2Auth, skillH.Upload)
 	skillsGroup.POST("/:id/submit", p2Auth, skillH.Submit)
 	skillsGroup.POST("/:id/withdraw", p2Auth, skillH.Withdraw)
 	skillsGroup.POST("/:id/archive", p2Auth, skillH.Archive)
-	skillsGroup.POST("/:id/download", skillH.Download)
 	skillsGroup.POST("/:id/like", p2Auth, skillH.Like)
 	skillsGroup.POST("/:id/favorite", p2Auth, skillH.Favorite)
 
@@ -143,11 +149,9 @@ func main() {
 	mcpGroup.GET("/:id", opt, mcpH.Get)
 	mcpGroup.PUT("/:id", p2Auth, mcpH.Update)
 	mcpGroup.DELETE("/:id", p2Auth, mcpH.Delete)
-	mcpGroup.POST("/:id/upload", p2Auth, mcpH.Upload)
 	mcpGroup.POST("/:id/submit", p2Auth, mcpH.Submit)
 	mcpGroup.POST("/:id/withdraw", p2Auth, mcpH.Withdraw)
 	mcpGroup.POST("/:id/archive", p2Auth, mcpH.Archive)
-	mcpGroup.POST("/:id/download", mcpH.Download)
 	mcpGroup.POST("/:id/like", p2Auth, mcpH.Like)
 	mcpGroup.POST("/:id/favorite", p2Auth, mcpH.Favorite)
 
@@ -159,9 +163,6 @@ func main() {
 	resComs := r.Group("/api/v1/resource-comments")
 	resComs.DELETE("/:id", p2Auth, resCommentH.Delete)
 	resComs.POST("/:id/like", p2Auth, resCommentH.Like)
-
-	r.Static("/static/skills", cfg.SkillZipDir)
-	r.Static("/static/mcp-servers", cfg.McpServerZipDir)
 
 	nh := handler.NewNotificationHandler(services.Notifications)
 	notifs := r.Group("/api/v1/notifications", p2Auth)
