@@ -52,38 +52,34 @@ jobs:
             deploy/docker-compose.prod.yml \
             deploy/obtain-cert.sh \
             ${{ env.SERVER_USERNAME }}@${{ env.SERVER_HOST }}:${{ env.DEPLOY_DIR }}/
+          ssh -i ~/.ssh/deploy_key ${{ env.SERVER_USERNAME }}@${{ env.SERVER_HOST }} \
+            "mv ${{ env.DEPLOY_DIR }}/docker-compose.prod.yml ${{ env.DEPLOY_DIR }}/docker-compose.yml"
 
       - name: Create .env on server
         run: |
-          ssh -i ~/.ssh/deploy_key ${{ env.SERVER_USERNAME }}@${{ env.SERVER_HOST }} \
-            "cat > ${{ env.DEPLOY_DIR }}/.env << 'ENVEOF'
-          MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }}
-          JWT_SECRET=${{ secrets.JWT_SECRET }}
-          PUBLIC_BASE_URL=https://aidevclub.xyz
-          ADMIN_EMAILS=${{ secrets.ADMIN_EMAILS }}
-          CERTBOT_EMAIL=${{ secrets.CERTBOT_EMAIL }}
-          ENVEOF"
+          ssh -i ~/.ssh/deploy_key ${{ env.SERVER_USERNAME }}@${{ env.SERVER_HOST }} "cat > ${{ env.DEPLOY_DIR }}/.env << 'ENVEOF'
+MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }}
+JWT_SECRET=${{ secrets.JWT_SECRET }}
+PUBLIC_BASE_URL=https://aidevclub.xyz
+ADMIN_EMAILS=${{ secrets.ADMIN_EMAILS }}
+CERTBOT_EMAIL=${{ secrets.CERTBOT_EMAIL }}
+ENVEOF"
 
       - name: Deploy on server
         run: |
           ssh -i ~/.ssh/deploy_key ${{ env.SERVER_USERNAME }}@${{ env.SERVER_HOST }} << 'EOF'
-            cd ${{ env.DEPLOY_DIR }}
-
-            echo "Loading Docker images..."
-            docker load -i backend.tar.gz
-            docker load -i frontend.tar.gz
-
-            echo "Starting services..."
-            docker compose up -d
-
-            echo "Obtaining TLS certificate (HTTPS)..."
-            bash obtain-cert.sh
-
-            echo "Checking service status..."
-            docker compose ps
-
-            echo "Cleaning up..."
-            rm -f backend.tar.gz frontend.tar.gz
+          cd /opt/aidevclub
+          echo "Loading Docker images..."
+          docker load -i backend.tar.gz
+          docker load -i frontend.tar.gz
+          echo "Starting services..."
+          docker compose up -d
+          echo "Obtaining TLS certificate (HTTPS)..."
+          bash obtain-cert.sh
+          echo "Checking service status..."
+          docker compose ps
+          echo "Cleaning up..."
+          rm -f backend.tar.gz frontend.tar.gz
           EOF
 
       - name: Cleanup local files
