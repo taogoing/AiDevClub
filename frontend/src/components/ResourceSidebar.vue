@@ -1,6 +1,6 @@
 <template>
   <div class="resource-sidebar">
-    <div v-if="type === 'skill'" class="sidebar-section">
+    <div class="sidebar-section">
       <h3 class="section-title">
         <el-icon><TrendCharts /></el-icon> 热门{{ type === 'skill' ? 'Skill' : 'MCP Server' }}
       </h3>
@@ -25,7 +25,6 @@
 import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { TrendCharts } from '@element-plus/icons-vue'
-import { getSkillRanking, getMcpServerRanking } from '@/api/ranking'
 import { getSkills } from '@/api/skill'
 import { getMcpServers } from '@/api/mcpServer'
 import type { SkillSummary, McpServerSummary } from '@/types'
@@ -47,20 +46,9 @@ watch(() => props.type, () => {
 
 async function fetchData() {
   try {
-    const getRanking = props.type === 'skill' ? getSkillRanking : getMcpServerRanking
     const getList = props.type === 'skill' ? getSkills : getMcpServers
-
-    const hotRankingRes = await getRanking({ type: 'hot', page_size: 5 })
-
-    const hotIds = hotRankingRes.data.data.ids
-
-    if (hotIds.length > 0) {
-      const hotListRes = await getList({ page: 1, page_size: 5, sort: 'hot' })
-      hotResources.value = hotListRes.data.data.list.slice(0, 5)
-    } else {
-      hotResources.value = []
-    }
-
+    const hotListRes = await getList({ page: 1, page_size: 5, sort: 'hot' })
+    hotResources.value = hotListRes.data.data.list
   } catch {
     hotResources.value = []
   }

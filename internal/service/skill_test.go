@@ -67,6 +67,12 @@ func TestSkillCreate(t *testing.T) {
 	if len(tagIDs) != 2 {
 		t.Fatalf("skill tags = %d, want 2", len(tagIDs))
 	}
+
+	for _, repoURL := range []string{"http://github.com/example/skill", "javascript:alert(1)"} {
+		if _, err := svc.Create(ctx, u.ID, CreateSkillInput{Name: "invalid-repo-url", RepoURL: repoURL}); err == nil {
+			t.Fatalf("Create accepted invalid repository URL %q", repoURL)
+		}
+	}
 }
 
 func TestSkillUpdate(t *testing.T) {

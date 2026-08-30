@@ -2,26 +2,8 @@
   <div class="home-container">
     <div class="main-area">
       <div class="filter-bar">
-        <div class="search-row">
-          <el-input
-            v-model="keyword"
-            placeholder="搜索 MCP Server..."
-            clearable
-            size="default"
-            style="width: 300px"
-            @clear="onSearch"
-            @keyup.enter="onSearch"
-          >
-            <template #prefix>
-              <el-icon><Search /></el-icon>
-            </template>
-          </el-input>
-          <el-button type="primary" @click="onSearch">搜索</el-button>
-          <el-button
-            v-if="auth.isLoggedIn"
-            type="success"
-            @click="$router.push('/mcps/new')"
-          >
+        <div v-if="auth.isLoggedIn" class="filter-actions">
+          <el-button type="success" @click="$router.push('/mcps/new')">
             发布 MCP Server
           </el-button>
         </div>
@@ -73,7 +55,6 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Search } from '@element-plus/icons-vue'
 import McpServerCard from '@/components/McpServerCard.vue'
 import ResourceSidebar from '@/components/ResourceSidebar.vue'
 import { getMcpServers } from '@/api/mcpServer'
@@ -89,7 +70,6 @@ const currentPage = ref(1)
 const pageSize = 20
 const total = ref(0)
 const sortBy = ref('latest')
-const keyword = ref('')
 const selectedTag = ref(0)
 
 onMounted(async () => {
@@ -105,11 +85,6 @@ watch([sortBy, selectedTag], () => {
   fetchServers()
 })
 
-function onSearch() {
-  currentPage.value = 1
-  fetchServers()
-}
-
 async function fetchServers() {
   loading.value = true
   try {
@@ -118,7 +93,6 @@ async function fetchServers() {
       page_size: pageSize,
       sort: sortBy.value,
     }
-    if (keyword.value) params.keyword = keyword.value
     if (selectedTag.value) params.tag_id = selectedTag.value
     const res = await getMcpServers(params)
     const data = res.data.data
@@ -160,11 +134,10 @@ async function fetchServers() {
   box-shadow: 0 8px 24px rgb(31 78 121 / 5%);
 }
 
-.search-row {
+.filter-actions {
   display: flex;
-  gap: 8px;
+  justify-content: flex-end;
   margin-bottom: 12px;
-  flex-wrap: wrap;
 }
 
 .sort-bar {

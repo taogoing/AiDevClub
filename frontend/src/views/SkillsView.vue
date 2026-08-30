@@ -2,26 +2,8 @@
   <div class="home-container">
     <div class="main-area">
       <div class="filter-bar">
-        <div class="search-row">
-          <el-input
-            v-model="keyword"
-            placeholder="搜索 Skill..."
-            clearable
-            size="default"
-            style="width: 300px"
-            @clear="onSearch"
-            @keyup.enter="onSearch"
-          >
-            <template #prefix>
-              <el-icon><Search /></el-icon>
-            </template>
-          </el-input>
-          <el-button type="primary" @click="onSearch">搜索</el-button>
-          <el-button
-            v-if="auth.isLoggedIn"
-            type="success"
-            @click="$router.push('/skills/new')"
-          >
+        <div v-if="auth.isLoggedIn" class="filter-actions">
+          <el-button type="success" @click="$router.push('/skills/new')">
             发布 Skill
           </el-button>
         </div>
@@ -73,7 +55,6 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Search } from '@element-plus/icons-vue'
 import SkillCard from '@/components/SkillCard.vue'
 import ResourceSidebar from '@/components/ResourceSidebar.vue'
 import { getSkills } from '@/api/skill'
@@ -89,7 +70,6 @@ const currentPage = ref(1)
 const pageSize = 20
 const total = ref(0)
 const sortBy = ref('latest')
-const keyword = ref('')
 const selectedTag = ref(0)
 
 onMounted(async () => {
@@ -105,11 +85,6 @@ watch([sortBy, selectedTag], () => {
   fetchSkills()
 })
 
-function onSearch() {
-  currentPage.value = 1
-  fetchSkills()
-}
-
 async function fetchSkills() {
   loading.value = true
   try {
@@ -118,7 +93,6 @@ async function fetchSkills() {
       page_size: pageSize,
       sort: sortBy.value,
     }
-    if (keyword.value) params.keyword = keyword.value
     if (selectedTag.value) params.tag_id = selectedTag.value
     const res = await getSkills(params)
     const data = res.data.data
@@ -136,7 +110,7 @@ async function fetchSkills() {
 .home-container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 24px;
+  padding: 32px 24px 56px;
   display: flex;
   gap: 24px;
 }
@@ -152,14 +126,18 @@ async function fetchSkills() {
 }
 
 .filter-bar {
-  margin-bottom: 20px;
+  margin-bottom: 24px;
+  padding: 22px;
+  border: 1px solid #e4eaf3;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgb(31 78 121 / 5%);
 }
 
-.search-row {
+.filter-actions {
   display: flex;
-  gap: 8px;
+  justify-content: flex-end;
   margin-bottom: 12px;
-  flex-wrap: wrap;
 }
 
 .sort-bar {
@@ -185,7 +163,7 @@ async function fetchSkills() {
 .skills-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 16px;
+  gap: 20px;
 }
 
 @media (max-width: 768px) {

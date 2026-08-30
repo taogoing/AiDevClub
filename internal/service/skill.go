@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
@@ -75,10 +76,11 @@ func (s *SkillService) ResolveTagSet(ctx context.Context, tx *gorm.DB, tagIDs []
 }
 
 func (s *SkillService) Create(ctx context.Context, userID uint, in CreateSkillInput) (*model.Skill, error) {
+	in.RepoURL = strings.TrimSpace(in.RepoURL)
 	if in.Name == "" {
 		return nil, ErrBadParam
 	}
-	if len(in.Name) > 100 {
+	if len(in.Name) > 100 || (in.RepoURL != "" && !validRepositoryURL(in.RepoURL)) {
 		return nil, ErrBadParam
 	}
 	sk := &model.Skill{
@@ -116,10 +118,11 @@ func (s *SkillService) Create(ctx context.Context, userID uint, in CreateSkillIn
 }
 
 func (s *SkillService) Update(ctx context.Context, userID, skillID uint, in CreateSkillInput) (*model.Skill, error) {
+	in.RepoURL = strings.TrimSpace(in.RepoURL)
 	if in.Name == "" {
 		return nil, ErrBadParam
 	}
-	if len(in.Name) > 100 {
+	if len(in.Name) > 100 || (in.RepoURL != "" && !validRepositoryURL(in.RepoURL)) {
 		return nil, ErrBadParam
 	}
 	sk, err := s.skills.FindByID(nil, skillID)

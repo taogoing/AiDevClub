@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"github.com/redis/go-redis/v9"
@@ -64,11 +63,6 @@ func normalizeMcpInstallations(installations []McpInstallation) (string, error) 
 	return string(b), nil
 }
 
-func validMcpRepoURL(raw string) bool {
-	u, err := url.ParseRequestURI(strings.TrimSpace(raw))
-	return err == nil && u.Scheme == "https" && u.Host != ""
-}
-
 func (s *McpServerService) ResolveTagSet(ctx context.Context, tx *gorm.DB, tagIDs []uint, tagNames []string) ([]uint, error) {
 	set := map[uint]bool{}
 	var out []uint
@@ -117,7 +111,7 @@ func (s *McpServerService) Create(ctx context.Context, userID uint, in CreateMcp
 	if in.Name == "" {
 		return nil, ErrBadParam
 	}
-	if len([]rune(in.Name)) > 100 || len([]rune(in.Description)) > 500 || (in.RepoURL != "" && !validMcpRepoURL(in.RepoURL)) {
+	if len([]rune(in.Name)) > 100 || len([]rune(in.Description)) > 500 || (in.RepoURL != "" && !validRepositoryURL(in.RepoURL)) {
 		return nil, ErrBadParam
 	}
 	installationsJSON, err := normalizeMcpInstallations(in.Installations)
@@ -166,7 +160,7 @@ func (s *McpServerService) Update(ctx context.Context, userID, serverID uint, in
 	if in.Name == "" {
 		return nil, ErrBadParam
 	}
-	if len([]rune(in.Name)) > 100 || len([]rune(in.Description)) > 500 || (in.RepoURL != "" && !validMcpRepoURL(in.RepoURL)) {
+	if len([]rune(in.Name)) > 100 || len([]rune(in.Description)) > 500 || (in.RepoURL != "" && !validRepositoryURL(in.RepoURL)) {
 		return nil, ErrBadParam
 	}
 	installationsJSON, err := normalizeMcpInstallations(in.Installations)
@@ -266,7 +260,7 @@ func (s *McpServerService) Submit(ctx context.Context, userID, serverID uint) (*
 		return nil, ErrForbidden
 	}
 	var installations []McpInstallation
-	if !validMcpRepoURL(sv.RepoURL) || json.Unmarshal([]byte(sv.InstallationsJSON), &installations) != nil || len(installations) == 0 {
+	if !validRepositoryURL(sv.RepoURL) || json.Unmarshal([]byte(sv.InstallationsJSON), &installations) != nil || len(installations) == 0 {
 		return nil, ErrBadParam
 	}
 	switch sv.Status {

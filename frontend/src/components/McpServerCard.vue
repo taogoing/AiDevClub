@@ -2,7 +2,7 @@
   <div class="mcp-card" @click="$router.push(`/mcps/${server.id}`)">
     <div class="card-header">
       <h3 class="card-title">{{ server.name }}</h3>
-      <el-link v-if="server.repo_url" :href="server.repo_url" target="_blank" @click.stop>Git 仓库</el-link>
+      <el-link v-if="server.repo_url" :href="server.repo_url" target="_blank" rel="noopener noreferrer" @click.stop>Git 仓库</el-link>
     </div>
     <p class="card-summary">{{ server.description || '暂无描述' }}</p>
     <div class="card-tags">

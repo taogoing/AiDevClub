@@ -11,7 +11,7 @@
         <div class="navbar-search">
           <el-input
             v-model="searchKeyword"
-            placeholder="搜索..."
+            :placeholder="searchPlaceholder"
             clearable
             @keyup.enter="handleSearch"
             :prefix-icon="Search"
@@ -52,14 +52,25 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, ref, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { Search } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
 const searchKeyword = ref('')
+const searchType = computed(() => {
+  if (route.path === '/skills') return 'skill'
+  if (route.path === '/mcps') return 'mcp_server'
+  return ''
+})
+const searchPlaceholder = computed(() => {
+  if (searchType.value === 'skill') return '搜索 Skill...'
+  if (searchType.value === 'mcp_server') return '搜索 MCP Server...'
+  return '搜索文章、Skill、MCP...'
+})
 
 onMounted(async () => {
   if (auth.isLoggedIn && !auth.user) {
@@ -69,7 +80,13 @@ onMounted(async () => {
 
 function handleSearch() {
   if (searchKeyword.value.trim()) {
-    router.push({ path: '/search', query: { q: searchKeyword.value.trim() } })
+    router.push({
+      path: '/search',
+      query: {
+        q: searchKeyword.value.trim(),
+        ...(searchType.value ? { type: searchType.value } : {}),
+      },
+    })
   }
 }
 
