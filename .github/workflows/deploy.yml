@@ -41,33 +41,22 @@ jobs:
 
       - name: Create remote directory
         run: |
-          ssh -i ~/.ssh/deploy_key ${{ env.SERVER_USERNAME }}@${{ env.SERVER_HOST }} \
-            "mkdir -p ${{ env.DEPLOY_DIR }}"
+          ssh -i ~/.ssh/deploy_key ${{ env.SERVER_USERNAME }}@${{ env.SERVER_HOST }} "mkdir -p ${{ env.DEPLOY_DIR }}"
 
       - name: Copy files to server
         run: |
-          scp -i ~/.ssh/deploy_key \
-            /tmp/aidevclub-deploy/backend.tar.gz \
-            /tmp/aidevclub-deploy/frontend.tar.gz \
-            deploy/docker-compose.prod.yml \
-            deploy/obtain-cert.sh \
-            ${{ env.SERVER_USERNAME }}@${{ env.SERVER_HOST }}:${{ env.DEPLOY_DIR }}/
-          ssh -i ~/.ssh/deploy_key ${{ env.SERVER_USERNAME }}@${{ env.SERVER_HOST }} \
-            "mv ${{ env.DEPLOY_DIR }}/docker-compose.prod.yml ${{ env.DEPLOY_DIR }}/docker-compose.yml"
+          scp -i ~/.ssh/deploy_key /tmp/aidevclub-deploy/backend.tar.gz ${{ env.SERVER_USERNAME }}@${{ env.SERVER_HOST }}:${{ env.DEPLOY_DIR }}/
+          scp -i ~/.ssh/deploy_key /tmp/aidevclub-deploy/frontend.tar.gz ${{ env.SERVER_USERNAME }}@${{ env.SERVER_HOST }}:${{ env.DEPLOY_DIR }}/
+          scp -i ~/.ssh/deploy_key deploy/docker-compose.prod.yml ${{ env.SERVER_USERNAME }}@${{ env.SERVER_HOST }}:${{ env.DEPLOY_DIR }}/docker-compose.yml
+          scp -i ~/.ssh/deploy_key deploy/obtain-cert.sh ${{ env.SERVER_USERNAME }}@${{ env.SERVER_HOST }}:${{ env.DEPLOY_DIR }}/
 
       - name: Create .env on server
         run: |
-          ssh -i ~/.ssh/deploy_key ${{ env.SERVER_USERNAME }}@${{ env.SERVER_HOST }} 'cat > /opt/aidevclub/.env << ENVEOF
-MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }}
-JWT_SECRET=${{ secrets.JWT_SECRET }}
-PUBLIC_BASE_URL=https://aidevclub.xyz
-ADMIN_EMAILS=${{ secrets.ADMIN_EMAILS }}
-CERTBOT_EMAIL=${{ secrets.CERTBOT_EMAIL }}
-ENVEOF'
+          ssh -i ~/.ssh/deploy_key ${{ env.SERVER_USERNAME }}@${{ env.SERVER_HOST }} "printf 'MYSQL_ROOT_PASSWORD=%s\nJWT_SECRET=%s\nPUBLIC_BASE_URL=https://aidevclub.xyz\nADMIN_EMAILS=%s\nCERTBOT_EMAIL=%s\n' '${{ secrets.MYSQL_ROOT_PASSWORD }}' '${{ secrets.JWT_SECRET }}' '${{ secrets.ADMIN_EMAILS }}' '${{ secrets.CERTBOT_EMAIL }}' > ${{ env.DEPLOY_DIR }}/.env"
 
       - name: Deploy on server
         run: |
-          ssh -i ~/.ssh/deploy_key ${{ env.SERVER_USERNAME }}@${{ env.SERVER_HOST }} << 'EOF'
+          ssh -i ~/.ssh/deploy_key ${{ env.SERVER_USERNAME }}@${{ env.SERVER_HOST }} << 'ENDSSH'
           cd /opt/aidevclub
           echo "Loading Docker images..."
           docker load -i backend.tar.gz
@@ -80,7 +69,7 @@ ENVEOF'
           docker compose ps
           echo "Cleaning up..."
           rm -f backend.tar.gz frontend.tar.gz
-          EOF
+          ENDSSH
 
       - name: Cleanup local files
         if: always()
