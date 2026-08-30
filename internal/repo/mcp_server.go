@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"strings"
 
 	"gorm.io/gorm"
 
@@ -23,6 +24,7 @@ func (r *McpServerRepo) exec(db *gorm.DB) *gorm.DB {
 }
 
 func (r *McpServerRepo) Create(db *gorm.DB, s *model.McpServer) error {
+	normalizeMcpServerInstallations(s)
 	return r.exec(db).Create(s).Error
 }
 
@@ -39,7 +41,14 @@ func (r *McpServerRepo) FindByIDWithContext(ctx context.Context, id uint) (*mode
 }
 
 func (r *McpServerRepo) Update(db *gorm.DB, s *model.McpServer) error {
+	normalizeMcpServerInstallations(s)
 	return r.exec(db).Save(s).Error
+}
+
+func normalizeMcpServerInstallations(s *model.McpServer) {
+	if strings.TrimSpace(s.InstallationsJSON) == "" {
+		s.InstallationsJSON = "[]"
+	}
 }
 
 func (r *McpServerRepo) Delete(db *gorm.DB, id uint) error {
@@ -120,8 +129,6 @@ func (r *McpServerRepo) List(ctx context.Context, q McpServerQuery) ([]model.Mcp
 	switch q.Sort {
 	case "hot":
 		d = d.Order("(views + 3*likes_count + 5*favorites_count + 2*comments_count) desc, id desc")
-	case "downloads":
-		d = d.Order("downloads desc, id desc")
 	default:
 		d = d.Order("published_at desc, id desc")
 	}

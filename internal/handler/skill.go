@@ -2,9 +2,6 @@ package handler
 
 import (
 	"net/http"
-	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -21,6 +18,7 @@ func (h *SkillHandler) Create(c *gin.Context) {
 		Name        string   `json:"name"`
 		Description string   `json:"description"`
 		RepoURL     string   `json:"repo_url"`
+		SkillMD     string   `json:"skill_md"`
 		TagIDs      []uint   `json:"tag_ids"`
 		TagNames    []string `json:"tag_names"`
 	}
@@ -29,7 +27,7 @@ func (h *SkillHandler) Create(c *gin.Context) {
 		return
 	}
 	sk, err := h.svc.Create(c.Request.Context(), c.GetUint("user_id"), service.CreateSkillInput{
-		Name: in.Name, Description: in.Description, RepoURL: in.RepoURL,
+		Name: in.Name, Description: in.Description, RepoURL: in.RepoURL, SkillMD: in.SkillMD,
 		TagIDs: in.TagIDs, TagNames: in.TagNames,
 	})
 	if err != nil {
@@ -49,6 +47,7 @@ func (h *SkillHandler) Update(c *gin.Context) {
 		Name        string   `json:"name"`
 		Description string   `json:"description"`
 		RepoURL     string   `json:"repo_url"`
+		SkillMD     string   `json:"skill_md"`
 		TagIDs      []uint   `json:"tag_ids"`
 		TagNames    []string `json:"tag_names"`
 	}
@@ -57,7 +56,7 @@ func (h *SkillHandler) Update(c *gin.Context) {
 		return
 	}
 	sk, err := h.svc.Update(c.Request.Context(), c.GetUint("user_id"), id, service.CreateSkillInput{
-		Name: in.Name, Description: in.Description, RepoURL: in.RepoURL,
+		Name: in.Name, Description: in.Description, RepoURL: in.RepoURL, SkillMD: in.SkillMD,
 		TagIDs: in.TagIDs, TagNames: in.TagNames,
 	})
 	if err != nil {
@@ -157,57 +156,6 @@ func (h *SkillHandler) Archive(c *gin.Context) {
 		return
 	}
 	platform.OK(c, gin.H{"id": sk.ID, "status": string(sk.Status)})
-}
-
-func (h *SkillHandler) Upload(c *gin.Context) {
-	id, err := parseUintParam(c, "id")
-	if err != nil {
-		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "参数错误")
-		return
-	}
-	file, err := c.FormFile("file")
-	if err != nil {
-		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "参数错误")
-		return
-	}
-	ext := strings.ToLower(filepath.Ext(file.Filename))
-	if ext != ".zip" {
-		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "仅支持 .zip 文件")
-		return
-	}
-	if file.Size > h.svc.MaxZipBytes() {
-		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "文件过大")
-		return
-	}
-	if err := os.MkdirAll(h.svc.ZipDir(), 0o755); err != nil {
-		platform.Fail(c, http.StatusInternalServerError, platform.CodeInternalError, "服务器内部错误")
-		return
-	}
-	name := randomHex(16) + ".zip"
-	if err := c.SaveUploadedFile(file, filepath.Join(h.svc.ZipDir(), name)); err != nil {
-		platform.Fail(c, http.StatusInternalServerError, platform.CodeInternalError, "服务器内部错误")
-		return
-	}
-	url := "/static/skills/" + name
-	if err := h.svc.UploadZip(c.Request.Context(), c.GetUint("user_id"), id, url, file.Filename, file.Size); err != nil {
-		platform.Fail(c, errStatus(err), errCode(err), err.Error())
-		return
-	}
-	platform.OK(c, gin.H{"url": url})
-}
-
-func (h *SkillHandler) Download(c *gin.Context) {
-	id, err := parseUintParam(c, "id")
-	if err != nil {
-		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "参数错误")
-		return
-	}
-	zipURL, err := h.svc.Download(c.Request.Context(), id)
-	if err != nil {
-		platform.Fail(c, errStatus(err), errCode(err), err.Error())
-		return
-	}
-	platform.OK(c, gin.H{"url": zipURL})
 }
 
 func (h *SkillHandler) Like(c *gin.Context) {

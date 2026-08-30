@@ -8,8 +8,8 @@
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  color: #333;
-  background-color: #f5f7fa;
+  color: #243b53;
+  background: #f4f7fb;
   line-height: 1.6;
 }
 
@@ -23,10 +23,15 @@ a:hover {
 }
 
 .page-container {
-  max-width: 960px;
+  max-width: 1120px;
   margin: 0 auto;
-  padding: 24px 16px;
+  padding: 32px 24px 56px;
 }
+
+button, .el-button { border-radius: 9px; }
+.el-card { border-color: #e4eaf3; border-radius: 14px; }
+.el-input__wrapper, .el-select__wrapper { border-radius: 9px; box-shadow: 0 0 0 1px #dce5f0 inset; }
+.el-input__wrapper.is-focus, .el-select__wrapper.is-focused { box-shadow: 0 0 0 1px #409eff inset; }
 
 .article-content img {
   max-width: 100%;

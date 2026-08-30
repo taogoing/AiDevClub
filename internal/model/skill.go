@@ -22,14 +22,10 @@ type Skill struct {
 	Name           string         `gorm:"size:100;not null"`
 	Description    string         `gorm:"size:500"`
 	RepoURL        string         `gorm:"size:255"`
-	ZipURL         string         `gorm:"size:255"`
-	ZipFilename    string         `gorm:"size:255"`
-	FileSize       int64          `gorm:"not null;default:0"`
 	SkillMD        string         `gorm:"type:mediumtext"`
 	Status         ResourceStatus `gorm:"size:16;not null;default:draft;index"`
 	RejectReason   string         `gorm:"size:500"`
 	Views          int            `gorm:"not null;default:0"`
-	Downloads      int            `gorm:"not null;default:0"`
 	LikesCount     int            `gorm:"not null;default:0"`
 	FavoritesCount int            `gorm:"not null;default:0"`
 	CommentsCount  int            `gorm:"not null;default:0"`

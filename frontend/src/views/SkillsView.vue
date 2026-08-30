@@ -29,7 +29,6 @@
           <el-select v-model="sortBy" size="small" style="width: 120px">
             <el-option label="最新" value="latest" />
             <el-option label="热门" value="hot" />
-            <el-option label="下载量" value="downloads" />
           </el-select>
           <div class="tag-filters">
             <el-button

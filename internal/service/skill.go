@@ -5,10 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
-	"os"
-	"path/filepath"
 
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
@@ -35,9 +32,6 @@ type SkillService struct {
 func NewSkillService(skills *repo.SkillRepo, tags *repo.TagRepo, inter *repo.InteractionRepo, rdb *redis.Client, cfg *platform.Config, notifSvc *NotificationService) *SkillService {
 	return &SkillService{skills: skills, tags: tags, inter: inter, rdb: rdb, cfg: cfg, notifSvc: notifSvc}
 }
-
-func (s *SkillService) ZipDir() string     { return s.cfg.SkillZipDir }
-func (s *SkillService) MaxZipBytes() int64 { return s.cfg.MaxResourceZipBytes }
 
 func (s *SkillService) ResolveTagSet(ctx context.Context, tx *gorm.DB, tagIDs []uint, tagNames []string) ([]uint, error) {
 	set := map[uint]bool{}
@@ -92,6 +86,7 @@ func (s *SkillService) Create(ctx context.Context, userID uint, in CreateSkillIn
 		Name:        in.Name,
 		Description: in.Description,
 		RepoURL:     in.RepoURL,
+		SkillMD:     in.SkillMD,
 		Status:      model.ResourceStatusDraft,
 	}
 	err := s.skills.DB().Transaction(func(tx *gorm.DB) error {
@@ -145,6 +140,7 @@ func (s *SkillService) Update(ctx context.Context, userID, skillID uint, in Crea
 	sk.Name = in.Name
 	sk.Description = in.Description
 	sk.RepoURL = in.RepoURL
+	sk.SkillMD = in.SkillMD
 
 	err = s.skills.DB().Transaction(func(tx *gorm.DB) error {
 		if err := s.skills.Update(tx, sk); err != nil {
@@ -276,7 +272,7 @@ func (s *SkillService) summaryOf(sk model.Skill, tags []model.Tag) SkillSummary 
 	sm := SkillSummary{
 		ID: sk.ID, Name: sk.Name, Description: sk.Description,
 		RepoURL: sk.RepoURL, Tags: []TagBrief{},
-		Views: sk.Views, Downloads: sk.Downloads,
+		Views:      sk.Views,
 		LikesCount: sk.LikesCount, FavoritesCount: sk.FavoritesCount,
 		CommentsCount: sk.CommentsCount, Status: string(sk.Status),
 		PublishedAt: sk.PublishedAt,
@@ -318,9 +314,6 @@ func (s *SkillService) detail(ctx context.Context, userID, skillID uint, trackVi
 	sm := s.summaryOf(*sk, tagMap[skillID])
 	d := &SkillDetail{
 		SkillSummary: sm,
-		ZipURL:       sk.ZipURL,
-		ZipFilename:  sk.ZipFilename,
-		FileSize:     sk.FileSize,
 		SkillMD:      sk.SkillMD,
 	}
 	if loadInteractions && userID > 0 {
@@ -332,112 +325,6 @@ func (s *SkillService) detail(ctx context.Context, userID, skillID uint, trackVi
 		}
 	}
 	return d, nil
-}
-
-func containedSkillZipPath(root, zipURL string) (string, bool) {
-	name := filepath.Base(zipURL)
-	if name == "" || name == "." || name == ".." {
-		return "", false
-	}
-	rootPath, err := filepath.Abs(root)
-	if err != nil {
-		return "", false
-	}
-	candidate, err := filepath.Abs(filepath.Join(rootPath, name))
-	if err != nil {
-		return "", false
-	}
-	relative, err := filepath.Rel(rootPath, candidate)
-	if err != nil || relative == "." || relative == ".." || filepath.IsAbs(relative) || filepath.Dir(relative) != "." {
-		return "", false
-	}
-	return candidate, true
-}
-
-func removeRegularSkillZip(zipPath string) error {
-	info, err := os.Lstat(zipPath)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	if !info.Mode().IsRegular() {
-		return fmt.Errorf("refusing to remove non-regular Skill ZIP")
-	}
-	return os.Remove(zipPath)
-}
-
-func (s *SkillService) UploadZip(ctx context.Context, userID, skillID uint, zipURL, zipFilename string, fileSize int64) error {
-	zipPath, ok := containedSkillZipPath(s.ZipDir(), zipURL)
-	if !ok {
-		return platform.ErrInvalidInput
-	}
-	originalZipPath := ""
-	metadataUpdated := false
-	defer func() {
-		if metadataUpdated || zipPath == originalZipPath {
-			return
-		}
-		if err := removeRegularSkillZip(zipPath); err != nil {
-			slog.Warn("remove failed Skill ZIP upload", "skill_id", skillID, "err", err)
-		}
-	}()
-
-	sk, err := s.skills.FindByIDWithContext(ctx, skillID)
-	if err != nil {
-		return ErrSkillNotFound
-	}
-	originalZipPath, _ = containedSkillZipPath(s.ZipDir(), sk.ZipURL)
-	if sk.AuthorID != userID {
-		return ErrForbidden
-	}
-	switch sk.Status {
-	case model.ResourceStatusDraft, model.ResourceStatusRejected, model.ResourceStatusArchived, model.ResourceStatusPublished:
-	default:
-		return ErrSkillState
-	}
-	file, err := os.Open(zipPath)
-	if err != nil {
-		return platform.ErrInvalidInput
-	}
-	defer file.Close()
-	info, err := file.Stat()
-	if err != nil || !info.Mode().IsRegular() {
-		return platform.ErrInvalidInput
-	}
-	skillMD, err := extractSkillMD(file, info.Size())
-	if err != nil {
-		return err
-	}
-	updated, err := s.skills.UpdateZipMetadata(ctx, skillID, userID, sk.Status, zipURL, zipFilename, fileSize, skillMD)
-	if err != nil {
-		return err
-	}
-	if !updated {
-		return ErrSkillState
-	}
-	metadataUpdated = true
-	if originalZipPath != "" && originalZipPath != zipPath {
-		if err := removeRegularSkillZip(originalZipPath); err != nil {
-			slog.Warn("remove replaced Skill ZIP", "skill_id", skillID, "err", err)
-		}
-	}
-	return nil
-}
-
-func (s *SkillService) Download(ctx context.Context, skillID uint) (string, error) {
-	sk, err := s.skills.FindByID(nil, skillID)
-	if err != nil || !s.canView(sk, 0) {
-		return "", ErrSkillNotFound
-	}
-	if sk.ZipURL == "" {
-		return "", ErrSkillState
-	}
-	if err := s.skills.IncrCount(nil, skillID, "downloads", 1); err != nil {
-		return "", err
-	}
-	return sk.ZipURL, nil
 }
 
 func (s *SkillService) ToggleLike(ctx context.Context, userID, skillID uint) (bool, int, error) {
@@ -526,7 +413,7 @@ func (s *SkillService) List(ctx context.Context, q SkillListQuery) (*SkillListRe
 		q.PageSize = s.cfg.MaxPageSize
 	}
 	switch q.Sort {
-	case "hot", "downloads":
+	case "hot":
 	default:
 		q.Sort = "latest"
 	}
@@ -559,7 +446,7 @@ func (s *SkillService) List(ctx context.Context, q SkillListQuery) (*SkillListRe
 		return nil, err
 	}
 	out := &SkillListResult{
-		List: make([]SkillSummary, 0, len(list)),
+		List:  make([]SkillSummary, 0, len(list)),
 		Total: total, Page: q.Page, PageSize: q.PageSize,
 	}
 	for _, sk := range list {

@@ -109,27 +109,20 @@ export interface AdminResource {
   status: string
   hidden: boolean
   views: number
-  downloads: number
   created_at: string
   updated_at: string
 }
 
 export interface AdminSkillDetail extends AdminResource {
   repo_url: string
-  zip_url: string
-  zip_filename: string
-  file_size: number
   skill_md: string
   reject_reason?: string
 }
 
 export interface AdminMCPServerDetail extends AdminResource {
   repo_url: string
-  tools_json: string
+  installations: import('@/types').McpInstallation[]
   readme: string
-  zip_url: string
-  zip_filename: string
-  file_size: number
   reject_reason?: string
 }
 

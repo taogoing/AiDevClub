@@ -1,6 +1,6 @@
 <template>
   <div class="resource-sidebar">
-    <div class="sidebar-section">
+    <div v-if="type === 'skill'" class="sidebar-section">
       <h3 class="section-title">
         <el-icon><TrendCharts /></el-icon> 热门{{ type === 'skill' ? 'Skill' : 'MCP Server' }}
       </h3>
@@ -18,31 +18,13 @@
       </div>
     </div>
 
-    <div class="sidebar-section">
-      <h3 class="section-title">
-        <el-icon><Download /></el-icon> 下载排行
-      </h3>
-      <div class="hot-resources">
-        <div
-          v-for="(item, index) in topDownloads"
-          :key="item.id"
-          class="hot-resource-item"
-          @click="handleResourceClick(item.id)"
-        >
-          <span class="rank" :class="`rank-${index + 1}`">{{ index + 1 }}</span>
-          <span class="hot-title">{{ item.name }}</span>
-          <span class="download-count">{{ item.downloads }}</span>
-        </div>
-        <el-empty v-if="!topDownloads.length" description="暂无资源" :image-size="60" />
-      </div>
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { TrendCharts, Download } from '@element-plus/icons-vue'
+import { TrendCharts } from '@element-plus/icons-vue'
 import { getSkillRanking, getMcpServerRanking } from '@/api/ranking'
 import { getSkills } from '@/api/skill'
 import { getMcpServers } from '@/api/mcpServer'
@@ -54,7 +36,6 @@ const props = defineProps<{
 
 const router = useRouter()
 const hotResources = ref<(SkillSummary | McpServerSummary)[]>([])
-const topDownloads = ref<(SkillSummary | McpServerSummary)[]>([])
 
 onMounted(async () => {
   await fetchData()
@@ -69,13 +50,9 @@ async function fetchData() {
     const getRanking = props.type === 'skill' ? getSkillRanking : getMcpServerRanking
     const getList = props.type === 'skill' ? getSkills : getMcpServers
 
-    const [hotRankingRes, downloadRankingRes] = await Promise.all([
-      getRanking({ type: 'hot', page_size: 5 }),
-      getRanking({ type: 'downloads', page_size: 5 }),
-    ])
+    const hotRankingRes = await getRanking({ type: 'hot', page_size: 5 })
 
     const hotIds = hotRankingRes.data.data.ids
-    const downloadIds = downloadRankingRes.data.data.ids
 
     if (hotIds.length > 0) {
       const hotListRes = await getList({ page: 1, page_size: 5, sort: 'hot' })
@@ -84,15 +61,8 @@ async function fetchData() {
       hotResources.value = []
     }
 
-    if (downloadIds.length > 0) {
-      const downloadListRes = await getList({ page: 1, page_size: 5, sort: 'downloads' })
-      topDownloads.value = downloadListRes.data.data.list.slice(0, 5)
-    } else {
-      topDownloads.value = []
-    }
   } catch {
     hotResources.value = []
-    topDownloads.value = []
   }
 }
 
@@ -204,9 +174,4 @@ function handleResourceClick(id: number) {
   transition: color 0.2s;
 }
 
-.download-count {
-  flex-shrink: 0;
-  font-size: 12px;
-  color: #909399;
-}
 </style>

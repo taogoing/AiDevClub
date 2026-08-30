@@ -9,8 +9,8 @@ AIDevClub 是一个面向开发者和 AI Agent 的技术内容与 AI 资源分�
 | 板块 | 说明 |
 |------|------|
 | **技术社区** | 发布和交流技术文章，支持评论、点赞、收藏 |
-| **Skills Hub** | 发布和分享 Skill（ZIP 资源包，内含 `SKILL.md`） |
-| **MCP Hub** | 发布和分享 MCP Server |
+| **Skills Hub** | 发布和分享 Skill 及其 `SKILL.md` 文档 |
+| **MCP Hub** | 发布和分享 MCP Server、安装命令与客户端配置 |
 
 ### 其他功能
 
@@ -181,9 +181,11 @@ npm run typecheck
 | GET | `/api/v1/skills/:id` | Skill 详情 |
 | PUT | `/api/v1/skills/:id` | 更新 Skill |
 | DELETE | `/api/v1/skills/:id` | 删除 Skill |
-| POST | `/api/v1/skills/:id/upload` | 上传 ZIP |
 | POST | `/api/v1/skills/:id/submit` | 提交审核 |
-| POST | `/api/v1/skills/:id/download` | 下载 |
+| POST | `/api/v1/skills/:id/withdraw` | 撤回审核 |
+| POST | `/api/v1/skills/:id/archive` | 下架 Skill |
+| POST | `/api/v1/skills/:id/like` | 点赞/取消点赞 |
+| POST | `/api/v1/skills/:id/favorite` | 收藏/取消收藏 |
 
 ### MCP Servers
 
@@ -194,9 +196,11 @@ npm run typecheck
 | GET | `/api/v1/mcp-servers/:id` | MCP Server 详情 |
 | PUT | `/api/v1/mcp-servers/:id` | 更新 MCP Server |
 | DELETE | `/api/v1/mcp-servers/:id` | 删除 MCP Server |
-| POST | `/api/v1/mcp-servers/:id/upload` | 上传 ZIP |
 | POST | `/api/v1/mcp-servers/:id/submit` | 提交审核 |
-| POST | `/api/v1/mcp-servers/:id/download` | 下载 |
+| POST | `/api/v1/mcp-servers/:id/withdraw` | 撤回审核 |
+| POST | `/api/v1/mcp-servers/:id/archive` | 下架 MCP Server |
+| POST | `/api/v1/mcp-servers/:id/like` | 点赞/取消点赞 |
+| POST | `/api/v1/mcp-servers/:id/favorite` | 收藏/取消收藏 |
 
 ### 搜索与排行
 

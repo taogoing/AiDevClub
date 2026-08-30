@@ -109,12 +109,13 @@
         <h3>{{ selectedMCPServer.name }}</h3>
         <p class="text-gray">作者: {{ selectedMCPServer.author.nickname }} | 状态: {{ getStatusText(selectedMCPServer.status) }}</p>
         <p>{{ selectedMCPServer.description }}</p>
-        <div v-if="selectedMCPServer.tools_json" class="tools-json">
-          <h4>Tools JSON</h4>
-          <pre>{{ formatJSON(selectedMCPServer.tools_json) }}</pre>
+        <p><a :href="selectedMCPServer.repo_url" target="_blank" rel="noopener noreferrer">查看 Git 仓库</a></p>
+        <div v-if="selectedMCPServer.installations.length" class="tools-json">
+          <h4>安装配置</h4>
+          <pre>{{ JSON.stringify(selectedMCPServer.installations, null, 2) }}</pre>
         </div>
         <div v-if="selectedMCPServer.readme" class="readme">
-          <h4>README</h4>
+          <h4>补充说明</h4>
           <pre>{{ selectedMCPServer.readme }}</pre>
         </div>
       </div>
@@ -299,14 +300,6 @@ async function confirmReject() {
     }
   } catch {
     ElMessage.error('操作失败')
-  }
-}
-
-function formatJSON(str: string) {
-  try {
-    return JSON.stringify(JSON.parse(str), null, 2)
-  } catch {
-    return str
   }
 }
 

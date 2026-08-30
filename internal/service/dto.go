@@ -87,7 +87,6 @@ type SkillSummary struct {
 	Tags           []TagBrief  `json:"tags"`
 	Author         AuthorBrief `json:"author"`
 	Views          int         `json:"views"`
-	Downloads      int         `json:"downloads"`
 	LikesCount     int         `json:"likes_count"`
 	FavoritesCount int         `json:"favorites_count"`
 	CommentsCount  int         `json:"comments_count"`
@@ -104,18 +103,16 @@ type SkillListResult struct {
 
 type SkillDetail struct {
 	SkillSummary
-	ZipURL      string `json:"zip_url"`
-	ZipFilename string `json:"zip_filename"`
-	FileSize    int64  `json:"file_size"`
-	SkillMD     string `json:"skill_md"`
-	Liked       bool   `json:"liked"`
-	Favorited   bool   `json:"favorited"`
+	SkillMD   string `json:"skill_md"`
+	Liked     bool   `json:"liked"`
+	Favorited bool   `json:"favorited"`
 }
 
 type CreateSkillInput struct {
 	Name        string
 	Description string
 	RepoURL     string
+	SkillMD     string
 	TagIDs      []uint
 	TagNames    []string
 }
@@ -137,7 +134,6 @@ type McpServerSummary struct {
 	Tags           []TagBrief  `json:"tags"`
 	Author         AuthorBrief `json:"author"`
 	Views          int         `json:"views"`
-	Downloads      int         `json:"downloads"`
 	LikesCount     int         `json:"likes_count"`
 	FavoritesCount int         `json:"favorites_count"`
 	CommentsCount  int         `json:"comments_count"`
@@ -147,13 +143,10 @@ type McpServerSummary struct {
 
 type McpServerDetail struct {
 	McpServerSummary
-	ToolsJSON   string `json:"tools_json"`
-	Readme      string `json:"readme"`
-	ZipURL      string `json:"zip_url"`
-	ZipFilename string `json:"zip_filename"`
-	FileSize    int64  `json:"file_size"`
-	Liked       bool   `json:"liked"`
-	Favorited   bool   `json:"favorited"`
+	Installations []McpInstallation `json:"installations"`
+	Readme        string            `json:"readme"`
+	Liked         bool              `json:"liked"`
+	Favorited     bool              `json:"favorited"`
 }
 
 type McpServerListResult struct {
@@ -164,13 +157,20 @@ type McpServerListResult struct {
 }
 
 type CreateMcpServerInput struct {
-	Name        string
-	Description string
-	RepoURL     string
-	ToolsJSON   string
-	Readme      string
-	TagIDs      []uint
-	TagNames    []string
+	Name          string
+	Description   string
+	RepoURL       string
+	Installations []McpInstallation
+	Readme        string
+	TagIDs        []uint
+	TagNames      []string
+}
+
+type McpInstallation struct {
+	Client        string         `json:"client"`
+	Command       string         `json:"command,omitempty"`
+	Config        map[string]any `json:"config,omitempty"`
+	WindowsConfig map[string]any `json:"windows_config,omitempty"`
 }
 
 type McpServerListQuery struct {
@@ -231,13 +231,13 @@ type AdminLogListResult struct {
 }
 
 type DashboardData struct {
-	TotalUsers          int64 `json:"total_users"`
-	TotalArticles       int64 `json:"total_articles"`
-	TotalSkills         int64 `json:"total_skills"`
-	TotalMcpServers     int64 `json:"total_mcp_servers"`
-	PendingSkills       int64 `json:"pending_skills"`
-	PendingMcpServers   int64 `json:"pending_mcp_servers"`
-	PendingReports      int64 `json:"pending_reports"`
+	TotalUsers        int64 `json:"total_users"`
+	TotalArticles     int64 `json:"total_articles"`
+	TotalSkills       int64 `json:"total_skills"`
+	TotalMcpServers   int64 `json:"total_mcp_servers"`
+	PendingSkills     int64 `json:"pending_skills"`
+	PendingMcpServers int64 `json:"pending_mcp_servers"`
+	PendingReports    int64 `json:"pending_reports"`
 }
 
 type AnnouncementItem struct {
@@ -256,16 +256,16 @@ type AnnouncementListResult struct {
 }
 
 type ReportItem struct {
-	ID           uint      `json:"id"`
-	ReporterID   uint      `json:"reporter_id"`
-	TargetType   string    `json:"target_type"`
-	TargetID     uint      `json:"target_id"`
-	Reason       string    `json:"reason"`
-	Description  string    `json:"description"`
-	Status       string    `json:"status"`
-	HandlerID    uint      `json:"handler_id"`
-	HandleResult string    `json:"handle_result"`
-	CreatedAt    time.Time `json:"created_at"`
+	ID           uint       `json:"id"`
+	ReporterID   uint       `json:"reporter_id"`
+	TargetType   string     `json:"target_type"`
+	TargetID     uint       `json:"target_id"`
+	Reason       string     `json:"reason"`
+	Description  string     `json:"description"`
+	Status       string     `json:"status"`
+	HandlerID    uint       `json:"handler_id"`
+	HandleResult string     `json:"handle_result"`
+	CreatedAt    time.Time  `json:"created_at"`
 	ResolvedAt   *time.Time `json:"resolved_at"`
 }
 

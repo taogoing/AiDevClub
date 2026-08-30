@@ -25,11 +25,9 @@ func mcpServerRouter(t *testing.T) (*gin.Engine, *repo.UserRepo, *repo.McpServer
 	users := repo.NewUserRepo(db)
 	rdb := testutil.NewTestRedis(t)
 	cfg := &platform.Config{
-		DefaultPageSize:     20,
-		MaxPageSize:         50,
-		HotCacheTTL:         60e9,
-		McpServerZipDir:     t.TempDir(),
-		MaxResourceZipBytes: 10 << 20,
+		DefaultPageSize: 20,
+		MaxPageSize:     50,
+		HotCacheTTL:     60e9,
 	}
 	mcpRepo := repo.NewMcpServerRepo(db)
 	notifSvc := service.NewNotificationService(repo.NewNotificationRepo(db), users)
@@ -50,8 +48,6 @@ func mcpServerRouter(t *testing.T) (*gin.Engine, *repo.UserRepo, *repo.McpServer
 	g.POST("/:id/submit", auth, h.Submit)
 	g.POST("/:id/withdraw", auth, h.Withdraw)
 	g.POST("/:id/archive", auth, h.Archive)
-	g.POST("/:id/upload", auth, h.Upload)
-	g.POST("/:id/download", h.Download)
 	g.POST("/:id/like", auth, h.Like)
 	g.POST("/:id/favorite", auth, h.Favorite)
 	return r, users, mcpRepo
@@ -65,7 +61,7 @@ func TestMcpServerCreateEndpoint(t *testing.T) {
 
 	body, _ := json.Marshal(map[string]interface{}{
 		"name": "my-mcp", "description": "desc", "repo_url": "https://github.com/x",
-		"tools_json": `{"tools":[]}`, "readme": "# Readme",
+		"installations": []map[string]interface{}{{"client": "cursor", "command": "npx -y my-mcp"}}, "readme": "# Readme",
 		"tag_names": []string{"go"},
 	})
 	w := httptest.NewRecorder()
@@ -124,7 +120,7 @@ func TestMcpServerListEndpointAuthorIDHidesHidden(t *testing.T) {
 		t.Fatal(err)
 	}
 	hidden := &model.McpServer{
-		AuthorID: owner.ID, Name: "hidden", Description: "content", ToolsJSON: "[]",
+		AuthorID: owner.ID, Name: "hidden", Description: "content",
 		Status: model.ResourceStatusPublished, Hidden: true,
 	}
 	if err := servers.Create(nil, hidden); err != nil {
@@ -192,7 +188,11 @@ func TestMcpServerSubmitWithdrawEndpoint(t *testing.T) {
 	_ = users.Create(u)
 	tok, _ := platform.GenerateAccessToken("s", time.Minute, u.ID)
 
-	body, _ := json.Marshal(map[string]interface{}{"name": "flow-mcp"})
+	body, _ := json.Marshal(map[string]interface{}{
+		"name":          "flow-mcp",
+		"repo_url":      "https://github.com/example/flow-mcp",
+		"installations": []map[string]interface{}{{"client": "cursor", "command": "npx -y flow-mcp"}},
+	})
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodPost, "/api/v1/mcp-servers", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")

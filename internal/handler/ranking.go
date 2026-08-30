@@ -61,8 +61,6 @@ func (h *RankingHandler) GetSkillRanking(c *gin.Context) {
 	switch rankType {
 	case "hot":
 		ids, err = h.rankingSvc.GetSkillHotRanking(c.Request.Context(), page, pageSize)
-	case "downloads":
-		ids, err = h.rankingSvc.GetSkillDownloadRanking(c.Request.Context(), page, pageSize)
 	default:
 		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "不支持的排行类型")
 		return
@@ -91,8 +89,6 @@ func (h *RankingHandler) GetMcpServerRanking(c *gin.Context) {
 	switch rankType {
 	case "hot":
 		ids, err = h.rankingSvc.GetMcpServerHotRanking(c.Request.Context(), page, pageSize)
-	case "downloads":
-		ids, err = h.rankingSvc.GetMcpServerDownloadRanking(c.Request.Context(), page, pageSize)
 	default:
 		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "不支持的排行类型")
 		return

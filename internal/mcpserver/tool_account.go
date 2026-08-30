@@ -41,7 +41,6 @@ type myContentOutput struct {
 	Tags        []TagOutput  `json:"tags"`
 	Status      string       `json:"status"`
 	Views       int          `json:"views"`
-	Downloads   int          `json:"downloads,omitempty"`
 	PublishedAt string       `json:"published_at,omitempty"`
 }
 
@@ -306,7 +305,7 @@ func ownedSkillOutputs(summaries []service.SkillSummary, publicBaseURL string) [
 		output = append(output, myContentOutput{
 			ID: summary.ID, Type: "skill", Title: summary.Name, Summary: summary.Description,
 			URL: contentPageURL(publicBaseURL, "skill", summary.ID), Author: authorOutput(summary.Author, publicBaseURL),
-			Tags: tagOutputs(summary.Tags), Status: summary.Status, Views: summary.Views, Downloads: summary.Downloads,
+			Tags: tagOutputs(summary.Tags), Status: summary.Status, Views: summary.Views,
 			PublishedAt: publishedAtOutput(summary.PublishedAt),
 		})
 	}
@@ -319,7 +318,7 @@ func ownedMCPServerOutputs(summaries []service.McpServerSummary, publicBaseURL s
 		output = append(output, myContentOutput{
 			ID: summary.ID, Type: "mcp_server", Title: summary.Name, Summary: summary.Description,
 			URL: contentPageURL(publicBaseURL, "mcp_server", summary.ID), Author: authorOutput(summary.Author, publicBaseURL),
-			Tags: tagOutputs(summary.Tags), Status: summary.Status, Views: summary.Views, Downloads: summary.Downloads,
+			Tags: tagOutputs(summary.Tags), Status: summary.Status, Views: summary.Views,
 			PublishedAt: publishedAtOutput(summary.PublishedAt),
 		})
 	}

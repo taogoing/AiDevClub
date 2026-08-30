@@ -103,39 +103,6 @@ func (s *RankingService) RecalculateMcpServerHotRanking(ctx context.Context) err
 	return err
 }
 
-func (s *RankingService) RecalculateDownloadRanking(ctx context.Context) error {
-	skills, _, err := s.skillRepo.List(ctx, repo.SkillQuery{Sort: "downloads"})
-	if err != nil {
-		return err
-	}
-
-	pipe := s.rdb.Pipeline()
-	pipe.Del(ctx, "rank:skills:downloads")
-
-	for _, sk := range skills {
-		pipe.ZAdd(ctx, "rank:skills:downloads", redis.Z{
-			Score:  float64(sk.Downloads),
-			Member: sk.ID,
-		})
-	}
-
-	servers, _, err := s.mcpRepo.List(ctx, repo.McpServerQuery{Sort: "downloads"})
-	if err != nil {
-		return err
-	}
-
-	pipe.Del(ctx, "rank:mcp_servers:downloads")
-	for _, sv := range servers {
-		pipe.ZAdd(ctx, "rank:mcp_servers:downloads", redis.Z{
-			Score:  float64(sv.Downloads),
-			Member: sv.ID,
-		})
-	}
-
-	_, err = pipe.Exec(ctx)
-	return err
-}
-
 func (s *RankingService) GetArticleHotRanking(ctx context.Context, page, pageSize int) ([]uint, error) {
 	start := int64((page - 1) * pageSize)
 	stop := start + int64(pageSize) - 1
@@ -179,44 +146,6 @@ func (s *RankingService) GetMcpServerHotRanking(ctx context.Context, page, pageS
 	stop := start + int64(pageSize) - 1
 
 	ids, err := s.rdb.ZRevRange(ctx, "rank:mcp_servers:hot", start, stop).Result()
-	if err != nil {
-		return nil, err
-	}
-
-	result := make([]uint, 0, len(ids))
-	for _, id := range ids {
-		var uid uint
-		if _, err := fmt.Sscanf(id, "%d", &uid); err == nil {
-			result = append(result, uid)
-		}
-	}
-	return result, nil
-}
-
-func (s *RankingService) GetSkillDownloadRanking(ctx context.Context, page, pageSize int) ([]uint, error) {
-	start := int64((page - 1) * pageSize)
-	stop := start + int64(pageSize) - 1
-
-	ids, err := s.rdb.ZRevRange(ctx, "rank:skills:downloads", start, stop).Result()
-	if err != nil {
-		return nil, err
-	}
-
-	result := make([]uint, 0, len(ids))
-	for _, id := range ids {
-		var uid uint
-		if _, err := fmt.Sscanf(id, "%d", &uid); err == nil {
-			result = append(result, uid)
-		}
-	}
-	return result, nil
-}
-
-func (s *RankingService) GetMcpServerDownloadRanking(ctx context.Context, page, pageSize int) ([]uint, error) {
-	start := int64((page - 1) * pageSize)
-	stop := start + int64(pageSize) - 1
-
-	ids, err := s.rdb.ZRevRange(ctx, "rank:mcp_servers:downloads", start, stop).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -362,7 +291,7 @@ func rankingSkillSummary(skill model.Skill, tags []model.Tag) SkillSummary {
 	summary := SkillSummary{
 		ID: skill.ID, Name: skill.Name, Description: skill.Description,
 		RepoURL: skill.RepoURL, Tags: rankingTagBriefs(tags),
-		Views: skill.Views, Downloads: skill.Downloads,
+		Views:      skill.Views,
 		LikesCount: skill.LikesCount, FavoritesCount: skill.FavoritesCount,
 		CommentsCount: skill.CommentsCount, Status: string(skill.Status),
 		PublishedAt: skill.PublishedAt, Author: AuthorBrief{ID: skill.AuthorID},
@@ -377,7 +306,7 @@ func rankingMcpServerSummary(server model.McpServer, tags []model.Tag) McpServer
 	summary := McpServerSummary{
 		ID: server.ID, Name: server.Name, Description: server.Description,
 		RepoURL: server.RepoURL, Tags: rankingTagBriefs(tags),
-		Views: server.Views, Downloads: server.Downloads,
+		Views:      server.Views,
 		LikesCount: server.LikesCount, FavoritesCount: server.FavoritesCount,
 		CommentsCount: server.CommentsCount, Status: string(server.Status),
 		PublishedAt: server.PublishedAt, Author: AuthorBrief{ID: server.AuthorID},

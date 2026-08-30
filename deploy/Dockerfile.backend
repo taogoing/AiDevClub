@@ -15,7 +15,7 @@ WORKDIR /app
 COPY --from=builder /build/server .
 COPY --from=builder /build/mcp-server .
 
-RUN mkdir -p storage/avatars storage/articles storage/skills storage/mcp_servers
+RUN mkdir -p storage/avatars storage/articles
 
 EXPOSE 8080 8081
 

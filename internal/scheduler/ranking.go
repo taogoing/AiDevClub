@@ -13,7 +13,6 @@ type rankingRecalculator interface {
 	RecalculateArticleHotRanking(context.Context) error
 	RecalculateSkillHotRanking(context.Context) error
 	RecalculateMcpServerHotRanking(context.Context) error
-	RecalculateDownloadRanking(context.Context) error
 }
 
 type RankingScheduler struct {
@@ -101,13 +100,4 @@ func (s *RankingScheduler) recalculate(ctx context.Context) {
 	if err := s.rankingSvc.RecalculateMcpServerHotRanking(ctx); err != nil {
 		log.Printf("Failed to recalculate mcp server hot ranking: %v", err)
 	}
-	if ctx.Err() != nil {
-		return
-	}
-
-	if err := s.rankingSvc.RecalculateDownloadRanking(ctx); err != nil {
-		log.Printf("Failed to recalculate download ranking: %v", err)
-	}
-
-	log.Println("Ranking recalculation completed")
 }

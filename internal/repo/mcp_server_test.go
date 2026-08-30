@@ -21,13 +21,13 @@ func TestMcpServerRepoCRUD(t *testing.T) {
 
 	s := &model.McpServer{
 		AuthorID: u.ID, Name: "test-mcp", Description: "desc",
-		ToolsJSON: "[]", Status: model.ResourceStatusDraft,
+		Status: model.ResourceStatusDraft,
 	}
 	if err := r.Create(db, s); err != nil {
 		t.Fatal(err)
 	}
 	got, err := r.FindByID(db, s.ID)
-	if err != nil || got.Name != "test-mcp" {
+	if err != nil || got.Name != "test-mcp" || got.InstallationsJSON != "[]" {
 		t.Fatalf("FindByID = %v, %v", got, err)
 	}
 	if err := r.SetMcpServerTags(db, s.ID, []uint{10, 11}); err != nil {
@@ -40,18 +40,19 @@ func TestMcpServerRepoCRUD(t *testing.T) {
 	now := time.Now()
 	s.Status = model.ResourceStatusPublished
 	s.PublishedAt = &now
+	s.InstallationsJSON = ""
 	if err := r.Update(db, s); err != nil {
 		t.Fatal(err)
+	}
+	if s.InstallationsJSON != "[]" {
+		t.Fatalf("empty installations were not normalized on update: %q", s.InstallationsJSON)
 	}
 	if err := r.IncrCount(db, s.ID, "views", 1); err != nil {
 		t.Fatal(err)
 	}
-	if err := r.IncrCount(db, s.ID, "downloads", 3); err != nil {
-		t.Fatal(err)
-	}
 	got, _ = r.FindByID(db, s.ID)
-	if got.Views != 1 || got.Downloads != 3 {
-		t.Fatalf("counts = views %d downloads %d", got.Views, got.Downloads)
+	if got.Views != 1 {
+		t.Fatalf("views = %d", got.Views)
 	}
 	if err := r.IncrViews(ctx, s.ID); err != nil {
 		t.Fatal(err)
@@ -79,7 +80,7 @@ func TestMcpServerRepoList(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		s := &model.McpServer{
 			AuthorID: 1, Name: "mcp", Description: "d",
-			ToolsJSON: "[]", Status: model.ResourceStatusPublished, PublishedAt: &now,
+			Status: model.ResourceStatusPublished, PublishedAt: &now,
 		}
 		if err := r.Create(db, s); err != nil {
 			t.Fatal(err)
@@ -106,12 +107,6 @@ func TestMcpServerRepoList(t *testing.T) {
 	if total != 3 || len(list) != 2 {
 		t.Fatalf("hot sort = %d total, %d len", total, len(list))
 	}
-
-	q.Sort = "downloads"
-	list, total, _ = r.List(ctx, q)
-	if total != 3 || len(list) != 2 {
-		t.Fatalf("downloads sort = %d total, %d len", total, len(list))
-	}
 }
 
 func TestMcpServerRepoPublicListWithAuthorIDHidesHidden(t *testing.T) {
@@ -123,7 +118,7 @@ func TestMcpServerRepoPublicListWithAuthorIDHidesHidden(t *testing.T) {
 		t.Fatal(err)
 	}
 	hidden := &model.McpServer{
-		AuthorID: owner.ID, Name: "hidden", Description: "content", ToolsJSON: "[]",
+		AuthorID: owner.ID, Name: "hidden", Description: "content",
 		Status: model.ResourceStatusPublished, Hidden: true,
 	}
 	if err := r.Create(nil, hidden); err != nil {
@@ -152,10 +147,10 @@ func TestMcpServerRepoListOwnedScopesAuthorIncludesHiddenAndRejectsUnknownStatus
 	if err := NewUserRepo(db).Create(other); err != nil {
 		t.Fatal(err)
 	}
-	draft := &model.McpServer{AuthorID: owner.ID, Name: "draft", ToolsJSON: "[]", Status: model.ResourceStatusDraft}
-	hidden := &model.McpServer{AuthorID: owner.ID, Name: "hidden", ToolsJSON: "[]", Status: model.ResourceStatusPublished, Hidden: true}
-	foreign := &model.McpServer{AuthorID: other.ID, Name: "foreign", ToolsJSON: "[]", Status: model.ResourceStatusRejected}
-	deleted := &model.McpServer{AuthorID: owner.ID, Name: "deleted", ToolsJSON: "[]", Status: model.ResourceStatusArchived}
+	draft := &model.McpServer{AuthorID: owner.ID, Name: "draft", Status: model.ResourceStatusDraft}
+	hidden := &model.McpServer{AuthorID: owner.ID, Name: "hidden", Status: model.ResourceStatusPublished, Hidden: true}
+	foreign := &model.McpServer{AuthorID: other.ID, Name: "foreign", Status: model.ResourceStatusRejected}
+	deleted := &model.McpServer{AuthorID: owner.ID, Name: "deleted", Status: model.ResourceStatusArchived}
 	for _, server := range []*model.McpServer{draft, hidden, foreign, deleted} {
 		if err := r.Create(db, server); err != nil {
 			t.Fatal(err)

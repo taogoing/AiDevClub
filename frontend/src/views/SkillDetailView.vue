@@ -1,39 +1,56 @@
 <template>
-  <div class="page-container" v-loading="loading">
+  <div class="page-container skill-page" v-loading="loading">
     <template v-if="skill">
-      <div class="detail-header">
-        <h1 class="detail-title">{{ skill.name }}</h1>
-        <el-tag :type="statusType">{{ statusLabel }}</el-tag>
-      </div>
-      <div class="detail-meta">
-        <el-avatar :size="28" :src="skill.author.avatar_url || undefined">
-          {{ skill.author.nickname?.charAt(0) || '?' }}
-        </el-avatar>
-        <span>{{ skill.author.nickname }}</span>
-        <el-tag v-for="tag in skill.tags" :key="tag.id" size="small">{{ tag.name }}</el-tag>
-        <span class="meta-time">{{ formatTime(skill.published_at) }}</span>
-      </div>
-      <div class="detail-stats">
+      <section class="skill-hero">
+        <div class="hero-copy">
+          <div class="eyebrow">COMMUNITY SKILL</div>
+          <div class="detail-header">
+            <h1 class="detail-title">{{ skill.name }}</h1>
+            <el-tag v-if="skill.status !== 'published'" :type="statusType">{{ statusLabel }}</el-tag>
+          </div>
+          <p class="hero-description">{{ skill.description || '暂无描述' }}</p>
+          <div class="detail-meta">
+            <el-avatar :size="30" :src="skill.author.avatar_url || undefined">
+              {{ skill.author.nickname?.charAt(0) || '?' }}
+            </el-avatar>
+            <span class="author-name">{{ skill.author.nickname }}</span>
+            <span class="meta-time">发布于 {{ formatTime(skill.published_at) }}</span>
+          </div>
+          <div class="tag-list">
+            <el-tag v-for="tag in skill.tags" :key="tag.id" size="small" effect="plain">{{ tag.name }}</el-tag>
+          </div>
+        </div>
+        <div class="hero-stats">
+          <div><strong>{{ skill.views }}</strong><span>浏览</span></div>
+          <div><strong>{{ skill.likes_count }}</strong><span>点赞</span></div>
+          <div><strong>{{ skill.comments_count }}</strong><span>评论</span></div>
+        </div>
+      </section>
+      <div class="detail-stats mobile-stats">
         <span><el-icon><View /></el-icon> {{ skill.views }}</span>
-        <span><el-icon><Download /></el-icon> {{ skill.downloads }}</span>
         <span><el-icon><ChatDotRound /></el-icon> {{ skill.comments_count }}</span>
       </div>
-      <div class="detail-description">
-        <p>{{ skill.description }}</p>
-      </div>
-      <div v-if="skill.repo_url" class="detail-repo">
-        <el-link :href="skill.repo_url" target="_blank" type="primary">
-          <el-icon><Link /></el-icon> 仓库地址
-        </el-link>
-      </div>
-      <div class="detail-actions">
-        <el-button
-          v-if="skill.zip_url"
-          type="primary"
-          @click="handleDownload"
-        >
-          <el-icon><Download /></el-icon> 下载 ({{ formatFileSize(skill.file_size) }})
+      <section class="skill-repo-card" v-if="skill.repo_url">
+        <div><span class="repo-kicker">SOURCE REPOSITORY</span><strong>从 Git 仓库获取完整 Skill</strong></div>
+        <el-button type="primary" plain tag="a" :href="skill.repo_url" target="_blank" rel="noopener noreferrer">
+          <el-icon><Link /></el-icon> 查看 Git 仓库
         </el-button>
+      </section>
+      <section v-if="skill.skill_md" class="skill-content">
+        <div class="content-heading">
+          <div class="content-title-wrap">
+            <span class="content-icon"><el-icon><Document /></el-icon></span>
+            <div>
+              <span class="section-kicker">DOCUMENTATION</span>
+              <h2>详细说明</h2>
+            </div>
+          </div>
+        </div>
+        <div class="markdown-card">
+          <div class="markdown-content" v-html="renderedSkillMD"></div>
+        </div>
+      </section>
+      <div class="detail-actions">
         <el-button
           :type="skill.liked ? 'primary' : 'default'"
           @click="handleLike"
@@ -144,9 +161,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { View, Download, ChatDotRound, CaretTop, Star, Link } from '@element-plus/icons-vue'
+import MarkdownIt from 'markdown-it'
+import { View, ChatDotRound, CaretTop, Star, Link, Document } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getSkill, likeSkill, favoriteSkill, downloadSkill, submitSkill, withdrawSkill, archiveSkill } from '@/api/skill'
+import { getSkill, likeSkill, favoriteSkill, submitSkill, withdrawSkill, archiveSkill } from '@/api/skill'
 import { getResourceComments, createResourceComment, likeResourceComment } from '@/api/resourceComment'
 import { useAuthStore } from '@/stores/auth'
 import type { SkillDetail, ResourceCommentItem } from '@/types'
@@ -159,6 +177,7 @@ const loading = ref(false)
 const commentContent = ref('')
 const replyingTo = ref<number | null>(null)
 const replyContent = ref('')
+const md = new MarkdownIt({ html: false, linkify: true, breaks: true })
 
 const statusType = computed(() => {
   const map: Record<string, string> = { draft: 'info', pending_review: 'warning', published: 'success', rejected: 'danger', archived: 'info' }
@@ -171,6 +190,7 @@ const statusLabel = computed(() => {
 })
 
 const isAuthor = computed(() => auth.isLoggedIn && auth.user?.id === skill.value?.author.id)
+const renderedSkillMD = computed(() => md.render(skill.value?.skill_md || ''))
 
 onMounted(() => fetchData())
 watch(() => route.params.id, () => fetchData())
@@ -214,15 +234,6 @@ async function handleFavorite() {
     const data = res.data.data
     skill.value!.favorited = data.favorited
     skill.value!.favorites_count = data.favorites_count
-  } catch (e: unknown) { ElMessage.error((e as Error).message) }
-}
-
-async function handleDownload() {
-  try {
-    const res = await downloadSkill(skill.value!.id)
-    if (res.data.data.url) {
-      window.open(res.data.data.url, '_blank')
-    }
   } catch (e: unknown) { ElMessage.error((e as Error).message) }
 }
 
@@ -293,17 +304,42 @@ function formatTime(t: string | null) {
   return new Date(t).toLocaleDateString('zh-CN')
 }
 
-function formatFileSize(bytes: number) {
-  if (!bytes) return '0 B'
-  const units = ['B', 'KB', 'MB', 'GB']
-  let i = 0
-  let size = bytes
-  while (size >= 1024 && i < units.length - 1) { size /= 1024; i++ }
-  return `${size.toFixed(1)} ${units[i]}`
-}
 </script>
 
 <style scoped>
+.skill-page { max-width: 1120px; margin: 0 auto; padding-bottom: 48px; }
+.skill-hero { display: flex; justify-content: space-between; gap: 32px; padding: 32px; margin-bottom: 20px; border: 1px solid #e4eaf3; border-radius: 18px; background: linear-gradient(135deg, #f8fbff 0%, #fff 62%); box-shadow: 0 12px 35px rgb(36 76 130 / 7%); }
+.hero-copy { min-width: 0; }
+.eyebrow, .section-kicker, .repo-kicker { color: #409eff; font-size: 11px; font-weight: 700; letter-spacing: .12em; }
+.detail-header { margin: 8px 0 14px; }
+.hero-description { max-width: 720px; margin: 0 0 20px; color: #52657d; font-size: 16px; line-height: 1.75; }
+.detail-meta { gap: 9px; }
+.author-name { color: #34495e; font-weight: 600; }
+.tag-list { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 16px; }
+.hero-stats { display: flex; align-items: center; gap: 22px; flex-shrink: 0; padding: 0 4px; }
+.hero-stats div { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 54px; }
+.hero-stats strong { color: #1f3b5b; font-size: 22px; }
+.hero-stats span { color: #8291a5; font-size: 12px; }
+.mobile-stats { display: none; }
+.skill-repo-card, .skill-content, .comment-section { padding: 24px 28px; border: 1px solid #e4eaf3; border-radius: 14px; background: #fff; box-shadow: 0 6px 22px rgb(36 76 130 / 5%); }
+.skill-repo-card { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+.skill-repo-card div { display: flex; flex-direction: column; gap: 5px; }
+.skill-repo-card strong { color: #263b53; font-size: 15px; }
+.skill-content { margin-bottom: 20px; }
+.content-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 18px; border-bottom: 1px solid #edf1f6; }
+.content-title-wrap { display: flex; align-items: center; gap: 12px; }
+.content-icon { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 10px; color: #409eff; background: #edf5ff; font-size: 18px; }
+.content-heading h2 { margin: 5px 0 0; color: #243b53; font-size: 21px; }
+.markdown-card { margin-top: 18px; padding: 4px 22px 20px; border: 1px solid #edf1f6; border-radius: 12px; background: #fbfcfe; }
+.markdown-content { color: #52657d; font-size: 15px; line-height: 1.8; }
+.markdown-content :deep(h1), .markdown-content :deep(h2), .markdown-content :deep(h3) { margin: 22px 0 8px; color: #243b53; line-height: 1.35; }
+.markdown-content :deep(h1:first-child), .markdown-content :deep(h2:first-child) { margin-top: 0; }
+.markdown-content :deep(p) { margin: 9px 0; }
+.markdown-content :deep(ul), .markdown-content :deep(ol) { padding-left: 24px; }
+.markdown-content :deep(code) { padding: 2px 5px; border-radius: 4px; background: #f1f5f9; color: #d14; font-family: Consolas, monospace; }
+.markdown-content :deep(pre) { padding: 14px 16px; overflow: auto; border-radius: 8px; background: #f6f8fb; }
+.markdown-content :deep(a) { color: #409eff; }
+.comment-section { margin-top: 20px; }
 .detail-header {
   display: flex;
   align-items: center;
@@ -450,5 +486,14 @@ function formatFileSize(bytes: number) {
 .reply-item {
   display: flex;
   gap: 10px;
+}
+@media (max-width: 700px) {
+  .skill-hero { flex-direction: column; padding: 24px 20px; }
+  .hero-stats { justify-content: flex-start; padding-top: 4px; }
+  .mobile-stats { display: none; }
+  .skill-repo-card, .skill-content, .comment-section { padding: 20px; }
+  .skill-repo-card { align-items: flex-start; flex-direction: column; }
+  .content-heading { align-items: flex-start; }
+  .markdown-card { padding: 4px 16px 16px; }
 }
 </style>

@@ -40,7 +40,7 @@ func TestMcpServerCreate(t *testing.T) {
 	ctx := context.Background()
 	sv, err := svc.Create(ctx, u.ID, CreateMcpServerInput{
 		Name: "my-mcp", Description: "desc", RepoURL: "https://github.com/x",
-		ToolsJSON: `{"tools":[]}`, Readme: "# Readme",
+		Installations: []McpInstallation{{Client: "cursor", Command: "npx -y my-mcp"}}, Readme: "# Readme",
 		TagNames: []string{"go", "mcp"},
 	})
 	if err != nil {
@@ -72,7 +72,10 @@ func TestMcpServerCreate(t *testing.T) {
 func TestMcpServerStatusFlow(t *testing.T) {
 	svc, u := newMcpServerTestEnv(t)
 	ctx := context.Background()
-	sv, _ := svc.Create(ctx, u.ID, CreateMcpServerInput{Name: "flow"})
+	sv, _ := svc.Create(ctx, u.ID, CreateMcpServerInput{
+		Name: "flow", RepoURL: "https://github.com/example/flow",
+		Installations: []McpInstallation{{Client: "cursor", Command: "npx -y flow"}},
+	})
 
 	if sv.Status != model.ResourceStatusDraft {
 		t.Fatalf("initial status = %s", sv.Status)
@@ -291,93 +294,6 @@ func TestMcpServerPublicListWithAuthorIDHidesHidden(t *testing.T) {
 	}
 }
 
-func TestMcpServerUploadZip(t *testing.T) {
-	svc, u := newMcpServerTestEnv(t)
-	ctx := context.Background()
-	sv, _ := svc.Create(ctx, u.ID, CreateMcpServerInput{Name: "zip-mcp"})
-	sv.Status = model.ResourceStatusPublished
-	now := sv.CreatedAt
-	sv.PublishedAt = &now
-	_ = svc.servers.Update(nil, sv)
-
-	if err := svc.UploadZip(ctx, u.ID, sv.ID, "/static/mcp-servers/abc.zip", "abc.zip", 1024); err != nil {
-		t.Fatal(err)
-	}
-	updated, _ := svc.servers.FindByID(nil, sv.ID)
-	if updated.Status != model.ResourceStatusPendingReview {
-		t.Fatalf("status = %s, want pending_review", updated.Status)
-	}
-	if updated.ZipURL != "/static/mcp-servers/abc.zip" {
-		t.Fatalf("zip_url = %q", updated.ZipURL)
-	}
-
-	if err := svc.UploadZip(ctx, u.ID+999, sv.ID, "/x.zip", "x.zip", 1); err == nil {
-		t.Fatal("non-author upload allowed")
-	}
-
-	sv2, _ := svc.Create(ctx, u.ID, CreateMcpServerInput{Name: "pending"})
-	sv2.Status = model.ResourceStatusPendingReview
-	_ = svc.servers.Update(nil, sv2)
-	if err := svc.UploadZip(ctx, u.ID, sv2.ID, "/x.zip", "x.zip", 1); err == nil {
-		t.Fatal("pending_review upload should fail")
-	}
-}
-
-func TestMcpServerDownload(t *testing.T) {
-	svc, u := newMcpServerTestEnv(t)
-	ctx := context.Background()
-	sv, _ := svc.Create(ctx, u.ID, CreateMcpServerInput{Name: "dl-mcp"})
-	sv.Status = model.ResourceStatusPublished
-	sv.ZipURL = "/static/mcp-servers/dl.zip"
-	now := sv.CreatedAt
-	sv.PublishedAt = &now
-	_ = svc.servers.Update(nil, sv)
-
-	url, err := svc.Download(ctx, sv.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if url != "/static/mcp-servers/dl.zip" {
-		t.Fatalf("url = %q", url)
-	}
-	dl, _ := svc.servers.FindByID(nil, sv.ID)
-	if dl.Downloads != 1 {
-		t.Fatalf("downloads = %d, want 1", dl.Downloads)
-	}
-
-	sv2, _ := svc.Create(ctx, u.ID, CreateMcpServerInput{Name: "no-zip"})
-	sv2.Status = model.ResourceStatusPublished
-	now2 := sv2.CreatedAt
-	sv2.PublishedAt = &now2
-	_ = svc.servers.Update(nil, sv2)
-	if _, err := svc.Download(ctx, sv2.ID); err == nil {
-		t.Fatal("download with empty zip_url should fail")
-	}
-
-	hidden, _ := svc.Create(ctx, u.ID, CreateMcpServerInput{Name: "hidden-download"})
-	hidden.Status = model.ResourceStatusPublished
-	hidden.Hidden = true
-	hidden.ZipURL = "/static/mcp-servers/hidden.zip"
-	hidden.Downloads = 7
-	if err := svc.servers.Update(nil, hidden); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := svc.Download(ctx, hidden.ID); err != ErrMcpServerNotFound {
-		t.Errorf("hidden download error = %v, want %v", err, ErrMcpServerNotFound)
-	}
-	persistedHidden, err := svc.servers.FindByID(nil, hidden.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if persistedHidden.Downloads != 7 {
-		t.Errorf("hidden downloads = %d, want 7", persistedHidden.Downloads)
-	}
-
-	if _, err := svc.Download(ctx, 99999); err == nil {
-		t.Fatal("download non-existent should fail")
-	}
-}
-
 func TestMcpServerToggleLike(t *testing.T) {
 	svc, u := newMcpServerTestEnv(t)
 	ctx := context.Background()
@@ -453,13 +369,12 @@ func TestMcpServerReadDoesNotIncrementViewsOrLoadInteractions(t *testing.T) {
 	}
 
 	beforeViews := server.Views
-	beforeDownloads := server.Downloads
 	detail, err := svc.Read(ctx, u.ID, server.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if detail.Views != beforeViews || detail.Downloads != beforeDownloads {
-		t.Fatalf("detail counts = views %d downloads %d, want views %d downloads %d", detail.Views, detail.Downloads, beforeViews, beforeDownloads)
+	if detail.Views != beforeViews {
+		t.Fatalf("detail views = %d, want %d", detail.Views, beforeViews)
 	}
 	if detail.Liked || detail.Favorited {
 		t.Fatalf("read returned interaction state: %+v", detail)
@@ -468,8 +383,8 @@ func TestMcpServerReadDoesNotIncrementViewsOrLoadInteractions(t *testing.T) {
 	if err := db.First(&persisted, server.ID).Error; err != nil {
 		t.Fatal(err)
 	}
-	if persisted.Views != beforeViews || persisted.Downloads != beforeDownloads {
-		t.Fatalf("persisted counts = views %d downloads %d, want views %d downloads %d", persisted.Views, persisted.Downloads, beforeViews, beforeDownloads)
+	if persisted.Views != beforeViews {
+		t.Fatalf("persisted views = %d, want %d", persisted.Views, beforeViews)
 	}
 }
 

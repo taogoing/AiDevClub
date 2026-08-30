@@ -17,7 +17,6 @@
       </div>
       <div class="meta-right">
         <span><el-icon><View /></el-icon>{{ skill.views }}</span>
-        <span><el-icon><Download /></el-icon>{{ skill.downloads }}</span>
         <span><el-icon><CaretTop /></el-icon>{{ skill.likes_count }}</span>
       </div>
     </div>
@@ -26,7 +25,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { View, Download, CaretTop } from '@element-plus/icons-vue'
+import { View, CaretTop } from '@element-plus/icons-vue'
 import type { SkillSummary } from '@/types'
 
 const props = defineProps<{ skill: SkillSummary }>()

@@ -73,10 +73,6 @@ func (r *cancelAwareRecalculator) RecalculateMcpServerHotRanking(ctx context.Con
 	return ctx.Err()
 }
 
-func (r *cancelAwareRecalculator) RecalculateDownloadRanking(ctx context.Context) error {
-	return ctx.Err()
-}
-
 type stuckRecalculator struct {
 	started chan struct{}
 	release chan struct{}
@@ -93,10 +89,6 @@ func (r *stuckRecalculator) RecalculateSkillHotRanking(context.Context) error {
 }
 
 func (r *stuckRecalculator) RecalculateMcpServerHotRanking(context.Context) error {
-	return nil
-}
-
-func (r *stuckRecalculator) RecalculateDownloadRanking(context.Context) error {
 	return nil
 }
 

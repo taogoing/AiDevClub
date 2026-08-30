@@ -2,9 +2,6 @@ package handler
 
 import (
 	"net/http"
-	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -14,17 +11,19 @@ import (
 
 type McpServerHandler struct{ svc *service.McpServerService }
 
-func NewMcpServerHandler(svc *service.McpServerService) *McpServerHandler { return &McpServerHandler{svc: svc} }
+func NewMcpServerHandler(svc *service.McpServerService) *McpServerHandler {
+	return &McpServerHandler{svc: svc}
+}
 
 func (h *McpServerHandler) Create(c *gin.Context) {
 	var in struct {
-		Name        string   `json:"name"`
-		Description string   `json:"description"`
-		RepoURL     string   `json:"repo_url"`
-		ToolsJSON   string   `json:"tools_json"`
-		Readme      string   `json:"readme"`
-		TagIDs      []uint   `json:"tag_ids"`
-		TagNames    []string `json:"tag_names"`
+		Name          string                    `json:"name"`
+		Description   string                    `json:"description"`
+		RepoURL       string                    `json:"repo_url"`
+		Installations []service.McpInstallation `json:"installations"`
+		Readme        string                    `json:"readme"`
+		TagIDs        []uint                    `json:"tag_ids"`
+		TagNames      []string                  `json:"tag_names"`
 	}
 	if err := c.ShouldBindJSON(&in); err != nil {
 		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "参数错误")
@@ -32,7 +31,7 @@ func (h *McpServerHandler) Create(c *gin.Context) {
 	}
 	sv, err := h.svc.Create(c.Request.Context(), c.GetUint("user_id"), service.CreateMcpServerInput{
 		Name: in.Name, Description: in.Description, RepoURL: in.RepoURL,
-		ToolsJSON: in.ToolsJSON, Readme: in.Readme,
+		Installations: in.Installations, Readme: in.Readme,
 		TagIDs: in.TagIDs, TagNames: in.TagNames,
 	})
 	if err != nil {
@@ -49,13 +48,13 @@ func (h *McpServerHandler) Update(c *gin.Context) {
 		return
 	}
 	var in struct {
-		Name        string   `json:"name"`
-		Description string   `json:"description"`
-		RepoURL     string   `json:"repo_url"`
-		ToolsJSON   string   `json:"tools_json"`
-		Readme      string   `json:"readme"`
-		TagIDs      []uint   `json:"tag_ids"`
-		TagNames    []string `json:"tag_names"`
+		Name          string                    `json:"name"`
+		Description   string                    `json:"description"`
+		RepoURL       string                    `json:"repo_url"`
+		Installations []service.McpInstallation `json:"installations"`
+		Readme        string                    `json:"readme"`
+		TagIDs        []uint                    `json:"tag_ids"`
+		TagNames      []string                  `json:"tag_names"`
 	}
 	if err := c.ShouldBindJSON(&in); err != nil {
 		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "参数错误")
@@ -63,7 +62,7 @@ func (h *McpServerHandler) Update(c *gin.Context) {
 	}
 	sv, err := h.svc.Update(c.Request.Context(), c.GetUint("user_id"), id, service.CreateMcpServerInput{
 		Name: in.Name, Description: in.Description, RepoURL: in.RepoURL,
-		ToolsJSON: in.ToolsJSON, Readme: in.Readme,
+		Installations: in.Installations, Readme: in.Readme,
 		TagIDs: in.TagIDs, TagNames: in.TagNames,
 	})
 	if err != nil {
@@ -163,57 +162,6 @@ func (h *McpServerHandler) Archive(c *gin.Context) {
 		return
 	}
 	platform.OK(c, gin.H{"id": sv.ID, "status": string(sv.Status)})
-}
-
-func (h *McpServerHandler) Upload(c *gin.Context) {
-	id, err := parseUintParam(c, "id")
-	if err != nil {
-		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "参数错误")
-		return
-	}
-	file, err := c.FormFile("file")
-	if err != nil {
-		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "参数错误")
-		return
-	}
-	ext := strings.ToLower(filepath.Ext(file.Filename))
-	if ext != ".zip" {
-		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "仅支持 .zip 文件")
-		return
-	}
-	if file.Size > h.svc.MaxZipBytes() {
-		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "文件过大")
-		return
-	}
-	if err := os.MkdirAll(h.svc.ZipDir(), 0o755); err != nil {
-		platform.Fail(c, http.StatusInternalServerError, platform.CodeInternalError, "服务器内部错误")
-		return
-	}
-	name := randomHex(16) + ".zip"
-	if err := c.SaveUploadedFile(file, filepath.Join(h.svc.ZipDir(), name)); err != nil {
-		platform.Fail(c, http.StatusInternalServerError, platform.CodeInternalError, "服务器内部错误")
-		return
-	}
-	url := "/static/mcp-servers/" + name
-	if err := h.svc.UploadZip(c.Request.Context(), c.GetUint("user_id"), id, url, file.Filename, file.Size); err != nil {
-		platform.Fail(c, errStatus(err), errCode(err), err.Error())
-		return
-	}
-	platform.OK(c, gin.H{"url": url})
-}
-
-func (h *McpServerHandler) Download(c *gin.Context) {
-	id, err := parseUintParam(c, "id")
-	if err != nil {
-		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "参数错误")
-		return
-	}
-	zipURL, err := h.svc.Download(c.Request.Context(), id)
-	if err != nil {
-		platform.Fail(c, errStatus(err), errCode(err), err.Error())
-		return
-	}
-	platform.OK(c, gin.H{"url": zipURL})
 }
 
 func (h *McpServerHandler) Like(c *gin.Context) {

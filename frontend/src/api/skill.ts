@@ -21,12 +21,6 @@ export function deleteSkill(id: number) {
   return http.delete<ApiResponse<null>>(`/api/v1/skills/${id}`)
 }
 
-export function uploadSkillZip(id: number, file: File) {
-  const form = new FormData()
-  form.append('file', file)
-  return http.post<ApiResponse<{ url: string }>>(`/api/v1/skills/${id}/upload`, form)
-}
-
 export function submitSkill(id: number) {
   return http.post<ApiResponse<null>>(`/api/v1/skills/${id}/submit`)
 }
@@ -37,10 +31,6 @@ export function withdrawSkill(id: number) {
 
 export function archiveSkill(id: number) {
   return http.post<ApiResponse<null>>(`/api/v1/skills/${id}/archive`)
-}
-
-export function downloadSkill(id: number) {
-  return http.post<ApiResponse<{ url: string }>>(`/api/v1/skills/${id}/download`)
 }
 
 export function likeSkill(id: number) {

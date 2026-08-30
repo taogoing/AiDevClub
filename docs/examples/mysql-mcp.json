@@ -1,0 +1,46 @@
+{
+  "name": "MySQL",
+  "description": "MySQL 数据库的 MCP Server，支持数据库操作和管理。",
+  "repo_url": "https://github.com/benborla/mcp-server-mysql",
+  "installations": [
+    {
+      "client": "cursor",
+      "command": "npx -y @mcp_hub_org/cli@latest install @benborla29/mcp-server-mysql --client cursor",
+      "config": {
+        "mcpServers": {
+          "@benborla29/mcp-server-mysql": {
+            "command": "npx",
+            "args": [
+              "-y",
+              "@mcp_hub_org/cli@latest",
+              "run",
+              "@benborla29/mcp-server-mysql"
+            ]
+          }
+        }
+      },
+      "windows_config": {
+        "mcpServers": {
+          "@benborla29/mcp-server-mysql": {
+            "command": "cmd",
+            "args": [
+              "/c",
+              "npx",
+              "-y",
+              "@mcp_hub_org/cli@latest",
+              "run",
+              "@benborla29/mcp-server-mysql"
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "readme": "该 MCP 需要配置 MySQL 连接信息。建议使用只读数据库账号，并在本地配置环境变量，不要将密码提交到仓库或分享页面。",
+  "tag_names": [
+    "数据库",
+    "MySQL",
+    "数据管理",
+    "SQL"
+  ]
+}

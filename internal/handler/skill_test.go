@@ -25,11 +25,9 @@ func skillRouter(t *testing.T) (*gin.Engine, *repo.UserRepo, *repo.SkillRepo) {
 	users := repo.NewUserRepo(db)
 	rdb := testutil.NewTestRedis(t)
 	cfg := &platform.Config{
-		DefaultPageSize:     20,
-		MaxPageSize:         50,
-		HotCacheTTL:         60e9,
-		SkillZipDir:         t.TempDir(),
-		MaxResourceZipBytes: 10 << 20,
+		DefaultPageSize: 20,
+		MaxPageSize:     50,
+		HotCacheTTL:     60e9,
 	}
 	skillRepo := repo.NewSkillRepo(db)
 	notifSvc := service.NewNotificationService(repo.NewNotificationRepo(db), users)
@@ -50,8 +48,6 @@ func skillRouter(t *testing.T) (*gin.Engine, *repo.UserRepo, *repo.SkillRepo) {
 	g.POST("/:id/submit", auth, h.Submit)
 	g.POST("/:id/withdraw", auth, h.Withdraw)
 	g.POST("/:id/archive", auth, h.Archive)
-	g.POST("/:id/upload", auth, h.Upload)
-	g.POST("/:id/download", h.Download)
 	g.POST("/:id/like", auth, h.Like)
 	g.POST("/:id/favorite", auth, h.Favorite)
 	return r, users, skillRepo

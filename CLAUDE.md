@@ -7,8 +7,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 AIDevClub 是一个面向开发者和 AI Agent 的技术内容与 AI 资源分享社区，包含三个核心板块：
 
 1. **技术社区**：发布和交流技术文章。
-2. **Skills Hub**：发布和分享 Skill（以 ZIP 资源包形式，内含 `SKILL.md`）。
-3. **MCP Hub**：发布和分享 MCP Server。
+2. **Skills Hub**：发布和分享 Skill 及其 `SKILL.md` 文档。
+3. **MCP Hub**：发布和分享 MCP Server、安装命令与客户端配置。
 
 平台同时提供整站 MCP Server，让 Claude Code、Codex 等 MCP 客户端检索和操作平台内容。完整需求见 [doc/AIDevClub需求文档.md](doc/AIDevClub需求文档.md)。
 

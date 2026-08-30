@@ -118,7 +118,6 @@ export interface SkillSummary {
   tags: TagBrief[]
   author: AuthorBrief
   views: number
-  downloads: number
   likes_count: number
   favorites_count: number
   comments_count: number
@@ -127,9 +126,7 @@ export interface SkillSummary {
 }
 
 export interface SkillDetail extends SkillSummary {
-  zip_url: string
-  zip_filename: string
-  file_size: number
+  skill_md: string
   liked: boolean
   favorited: boolean
 }
@@ -149,7 +146,6 @@ export interface McpServerSummary {
   tags: TagBrief[]
   author: AuthorBrief
   views: number
-  downloads: number
   likes_count: number
   favorites_count: number
   comments_count: number
@@ -157,12 +153,16 @@ export interface McpServerSummary {
   published_at: string | null
 }
 
+export interface McpInstallation {
+  client: 'cursor' | 'claude-code' | 'codex' | 'trae' | 'trae-global' | 'cline' | 'windsurf'
+  command?: string
+  config?: Record<string, unknown>
+  windows_config?: Record<string, unknown>
+}
+
 export interface McpServerDetail extends McpServerSummary {
-  tools_json: string
+  installations: McpInstallation[]
   readme: string
-  zip_url: string
-  zip_filename: string
-  file_size: number
   liked: boolean
   favorited: boolean
 }

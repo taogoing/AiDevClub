@@ -29,7 +29,6 @@
           <el-select v-model="sortBy" size="small" style="width: 120px">
             <el-option label="最新" value="latest" />
             <el-option label="热门" value="hot" />
-            <el-option label="下载量" value="downloads" />
           </el-select>
           <div class="tag-filters">
             <el-button
@@ -137,7 +136,7 @@ async function fetchServers() {
 .home-container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 24px;
+  padding: 32px 24px 56px;
   display: flex;
   gap: 24px;
 }
@@ -153,7 +152,12 @@ async function fetchServers() {
 }
 
 .filter-bar {
-  margin-bottom: 20px;
+  margin-bottom: 24px;
+  padding: 22px;
+  border: 1px solid #e4eaf3;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgb(31 78 121 / 5%);
 }
 
 .search-row {
@@ -186,7 +190,7 @@ async function fetchServers() {
 .mcps-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 16px;
+  gap: 20px;
 }
 
 @media (max-width: 768px) {

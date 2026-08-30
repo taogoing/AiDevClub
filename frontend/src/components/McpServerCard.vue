@@ -2,7 +2,7 @@
   <div class="mcp-card" @click="$router.push(`/mcps/${server.id}`)">
     <div class="card-header">
       <h3 class="card-title">{{ server.name }}</h3>
-      <el-tag size="small" :type="statusType">{{ statusLabel }}</el-tag>
+      <el-link v-if="server.repo_url" :href="server.repo_url" target="_blank" @click.stop>Git 仓库</el-link>
     </div>
     <p class="card-summary">{{ server.description || '暂无描述' }}</p>
     <div class="card-tags">
@@ -17,7 +17,6 @@
       </div>
       <div class="meta-right">
         <span><el-icon><View /></el-icon>{{ server.views }}</span>
-        <span><el-icon><Download /></el-icon>{{ server.downloads }}</span>
         <span><el-icon><CaretTop /></el-icon>{{ server.likes_count }}</span>
       </div>
     </div>
@@ -25,51 +24,29 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { View, Download, CaretTop } from '@element-plus/icons-vue'
+import { View, CaretTop } from '@element-plus/icons-vue'
 import type { McpServerSummary } from '@/types'
 
-const props = defineProps<{ server: McpServerSummary }>()
-
-const statusType = computed(() => {
-  const map: Record<string, string> = {
-    draft: 'info',
-    pending_review: 'warning',
-    published: 'success',
-    rejected: 'danger',
-    archived: 'info',
-  }
-  return (map[props.server.status] || 'info') as any
-})
-
-const statusLabel = computed(() => {
-  const map: Record<string, string> = {
-    draft: '草稿',
-    pending_review: '审核中',
-    published: '已发布',
-    rejected: '已拒绝',
-    archived: '已下架',
-  }
-  return map[props.server.status] || props.server.status
-})
+defineProps<{ server: McpServerSummary }>()
 </script>
 
 <style scoped>
 .mcp-card {
   background: #fff;
-  border-radius: 8px;
-  padding: 16px;
+  border-radius: 14px;
+  padding: 20px;
   cursor: pointer;
   transition: all 0.2s;
-  border: 1px solid #ebeef5;
+  border: 1px solid #e4eaf3;
   display: flex;
   flex-direction: column;
   height: 100%;
 }
 
 .mcp-card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  transform: translateY(-2px);
+  box-shadow: 0 14px 28px rgb(31 78 121 / 12%);
+  border-color: #b8d5f6;
+  transform: translateY(-4px);
 }
 
 .card-header {
@@ -81,9 +58,9 @@ const statusLabel = computed(() => {
 }
 
 .card-title {
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 600;
-  color: #303133;
+  color: #243b53;
   line-height: 1.4;
   flex: 1;
   display: -webkit-box;
@@ -93,9 +70,10 @@ const statusLabel = computed(() => {
 }
 
 .card-summary {
-  color: #606266;
-  font-size: 13px;
-  margin: 0 0 12px;
+  color: #61758a;
+  font-size: 14px;
+  margin: 0 0 16px;
+  line-height: 1.7;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -116,8 +94,8 @@ const statusLabel = computed(() => {
   align-items: center;
   font-size: 12px;
   color: #909399;
-  padding-top: 10px;
-  border-top: 1px solid #f0f0f0;
+  padding-top: 14px;
+  border-top: 1px solid #edf1f6;
 }
 
 .meta-left {

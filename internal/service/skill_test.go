@@ -2,13 +2,7 @@ package service
 
 import (
 	"context"
-	"errors"
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
-
-	"gorm.io/gorm"
 
 	"aidevclub/internal/model"
 	"aidevclub/internal/platform"
@@ -28,7 +22,6 @@ func newSkillTestEnv(t *testing.T) (*SkillService, *model.User) {
 		DefaultPageSize: 20,
 		MaxPageSize:     50,
 		HotCacheTTL:     60e9,
-		SkillZipDir:     t.TempDir(),
 	}
 	notifSvc := NewNotificationService(repo.NewNotificationRepo(db), users)
 	svc := NewSkillService(
@@ -47,12 +40,13 @@ func TestSkillCreate(t *testing.T) {
 	ctx := context.Background()
 	sk, err := svc.Create(ctx, u.ID, CreateSkillInput{
 		Name: "my-skill", Description: "desc", RepoURL: "https://github.com/x",
+		SkillMD:  "# My Skill",
 		TagNames: []string{"go", "mcp"},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if sk.ID == 0 || sk.Status != model.ResourceStatusDraft {
+	if sk.ID == 0 || sk.Status != model.ResourceStatusDraft || sk.SkillMD != "# My Skill" {
 		t.Fatalf("skill = %+v", sk)
 	}
 	db := svc.skills.DB()
@@ -83,13 +77,13 @@ func TestSkillUpdate(t *testing.T) {
 	})
 
 	got, err := svc.Update(ctx, u.ID, sk.ID, CreateSkillInput{
-		Name: "s1-updated", Description: "new desc", TagNames: []string{"rust"},
+		Name: "s1-updated", Description: "new desc", SkillMD: "# Updated", TagNames: []string{"rust"},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Name != "s1-updated" {
-		t.Fatalf("name = %q", got.Name)
+	if got.Name != "s1-updated" || got.SkillMD != "# Updated" {
+		t.Fatalf("updated skill = %+v", got)
 	}
 	db := svc.skills.DB()
 	tagRepo := repo.NewTagRepo(db)
@@ -289,386 +283,6 @@ func TestSkillGetRejectsHiddenForNonOwnersWithoutIncrementingViews(t *testing.T)
 	}
 }
 
-func TestSkillUploadZip(t *testing.T) {
-	svc, u := newSkillTestEnv(t)
-	ctx := context.Background()
-	sk, _ := svc.Create(ctx, u.ID, CreateSkillInput{Name: "zip-skill"})
-	sk.Status = model.ResourceStatusPublished
-	now := sk.CreatedAt
-	sk.PublishedAt = &now
-	_ = svc.skills.Update(nil, sk)
-
-	zipData := makeSkillZip(t, zipFixture{name: "SKILL.md", content: "# ABC"})
-	zipPath := filepath.Join(svc.ZipDir(), "abc.zip")
-	if err := os.WriteFile(zipPath, zipData, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := svc.UploadZip(ctx, u.ID, sk.ID, "/static/skills/abc.zip", "abc.zip", int64(len(zipData))); err != nil {
-		t.Fatal(err)
-	}
-	updated, _ := svc.skills.FindByID(nil, sk.ID)
-	if updated.Status != model.ResourceStatusPendingReview {
-		t.Fatalf("status = %s, want pending_review", updated.Status)
-	}
-	if updated.ZipURL != "/static/skills/abc.zip" {
-		t.Fatalf("zip_url = %q", updated.ZipURL)
-	}
-	if updated.SkillMD != "# ABC" {
-		t.Fatalf("skill_md = %q", updated.SkillMD)
-	}
-
-	if err := svc.UploadZip(ctx, u.ID+999, sk.ID, "/x.zip", "x.zip", 1); err == nil {
-		t.Fatal("non-author upload allowed")
-	}
-
-	sk2, _ := svc.Create(ctx, u.ID, CreateSkillInput{Name: "pending"})
-	sk2.Status = model.ResourceStatusPendingReview
-	_ = svc.skills.Update(nil, sk2)
-	if err := svc.UploadZip(ctx, u.ID, sk2.ID, "/x.zip", "x.zip", 1); err == nil {
-		t.Fatal("pending_review upload should fail")
-	}
-}
-
-func TestSkillUploadZipPreservesConcurrentNonZipFields(t *testing.T) {
-	svc, user := newSkillTestEnv(t)
-	ctx := context.Background()
-	skill, err := svc.Create(ctx, user.ID, CreateSkillInput{Name: "zip-concurrent-fields"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	skill.Status = model.ResourceStatusPublished
-	skill.Views = 3
-	skill.Downloads = 4
-	if err := svc.skills.Update(nil, skill); err != nil {
-		t.Fatal(err)
-	}
-	zipData := makeSkillZip(t, zipFixture{name: "SKILL.md", content: "# Concurrent"})
-	zipPath := filepath.Join(svc.ZipDir(), "concurrent.zip")
-	if err := os.WriteFile(zipPath, zipData, 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	db := svc.skills.DB()
-	sqlDB, err := db.DB()
-	if err != nil {
-		t.Fatal(err)
-	}
-	callbackName := "test:skill_zip_concurrent_fields"
-	callbackRan := false
-	if err := db.Callback().Query().After("gorm:query").Register(callbackName, func(tx *gorm.DB) {
-		if callbackRan || tx.Statement.Table != "skills" {
-			return
-		}
-		callbackRan = true
-		_, execErr := sqlDB.ExecContext(ctx, "UPDATE skills SET hidden = ?, views = ?, downloads = ? WHERE id = ?", true, 13, 14, skill.ID)
-		tx.AddError(execErr)
-	}); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = db.Callback().Query().Remove(callbackName) })
-
-	if err := svc.UploadZip(ctx, user.ID, skill.ID, "/static/skills/concurrent.zip", "concurrent.zip", int64(len(zipData))); err != nil {
-		t.Fatal(err)
-	}
-	if !callbackRan {
-		t.Fatal("concurrent database update callback did not run")
-	}
-	stored, err := svc.skills.FindByID(nil, skill.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !stored.Hidden || stored.Views != 13 || stored.Downloads != 14 {
-		t.Fatalf("concurrent fields overwritten: %+v", stored)
-	}
-}
-
-func TestSkillUploadZipRejectsConcurrentStatusChange(t *testing.T) {
-	svc, user := newSkillTestEnv(t)
-	ctx := context.Background()
-	skill, err := svc.Create(ctx, user.ID, CreateSkillInput{Name: "zip-concurrent-status"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	oldZip := makeSkillZip(t, zipFixture{name: "SKILL.md", content: "# Old"})
-	oldPath := filepath.Join(svc.ZipDir(), "old-status.zip")
-	if err := os.WriteFile(oldPath, oldZip, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	skill.Status = model.ResourceStatusPublished
-	skill.ZipURL = "/static/skills/old-status.zip"
-	skill.ZipFilename = "old-status.zip"
-	skill.FileSize = int64(len(oldZip))
-	skill.SkillMD = "# Old"
-	if err := svc.skills.Update(nil, skill); err != nil {
-		t.Fatal(err)
-	}
-	newZip := makeSkillZip(t, zipFixture{name: "SKILL.md", content: "# New"})
-	newPath := filepath.Join(svc.ZipDir(), "new-status.zip")
-	if err := os.WriteFile(newPath, newZip, 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	db := svc.skills.DB()
-	sqlDB, err := db.DB()
-	if err != nil {
-		t.Fatal(err)
-	}
-	callbackName := "test:skill_zip_concurrent_status"
-	callbackRan := false
-	if err := db.Callback().Query().After("gorm:query").Register(callbackName, func(tx *gorm.DB) {
-		if callbackRan || tx.Statement.Table != "skills" {
-			return
-		}
-		callbackRan = true
-		_, execErr := sqlDB.ExecContext(ctx, "UPDATE skills SET status = ? WHERE id = ?", model.ResourceStatusArchived, skill.ID)
-		tx.AddError(execErr)
-	}); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = db.Callback().Query().Remove(callbackName) })
-
-	err = svc.UploadZip(ctx, user.ID, skill.ID, "/static/skills/new-status.zip", "new-status.zip", int64(len(newZip)))
-	if !errors.Is(err, ErrSkillState) {
-		t.Fatalf("concurrent status update error = %v, want ErrSkillState", err)
-	}
-	if !callbackRan {
-		t.Fatal("concurrent status callback did not run")
-	}
-	if _, err := os.Stat(newPath); !os.IsNotExist(err) {
-		t.Fatalf("new ZIP still exists after conditional update failed: %v", err)
-	}
-	if got, err := os.ReadFile(oldPath); err != nil || string(got) != string(oldZip) {
-		t.Fatalf("old ZIP = %q, error %v", got, err)
-	}
-	stored, err := svc.skills.FindByID(nil, skill.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if stored.Status != model.ResourceStatusArchived || stored.ZipURL != "/static/skills/old-status.zip" || stored.ZipFilename != "old-status.zip" || stored.FileSize != int64(len(oldZip)) || stored.SkillMD != "# Old" {
-		t.Fatalf("concurrent status or old metadata overwritten: %+v", stored)
-	}
-}
-
-func TestSkillUploadZipRejectsInvalidReplacementWithoutChangingStoredMetadata(t *testing.T) {
-	svc, u := newSkillTestEnv(t)
-	ctx := context.Background()
-	sk, err := svc.Create(ctx, u.ID, CreateSkillInput{Name: "zip-replacement"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	sk.ZipURL = "/static/skills/old.zip"
-	sk.ZipFilename = "old.zip"
-	sk.FileSize = 10
-	sk.SkillMD = "# Old"
-	if err := svc.skills.Update(nil, sk); err != nil {
-		t.Fatal(err)
-	}
-
-	newPath := filepath.Join(svc.ZipDir(), "invalid.zip")
-	if err := os.WriteFile(newPath, makeSkillZip(t, zipFixture{name: "README.md", content: "missing"}), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	err = svc.UploadZip(ctx, u.ID, sk.ID, "/static/skills/invalid.zip", "invalid.zip", 1)
-	if !errors.Is(err, platform.ErrInvalidInput) {
-		t.Fatalf("error = %v, want platform.ErrInvalidInput", err)
-	}
-	if _, err := os.Stat(newPath); !os.IsNotExist(err) {
-		t.Fatalf("invalid replacement still exists: %v", err)
-	}
-	updated, err := svc.skills.FindByID(nil, sk.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if updated.ZipURL != "/static/skills/old.zip" || updated.ZipFilename != "old.zip" || updated.FileSize != 10 || updated.SkillMD != "# Old" {
-		t.Fatalf("metadata changed after invalid replacement: %+v", updated)
-	}
-}
-
-func TestSkillUploadZipRemovesOldFileAfterSuccessfulReplacement(t *testing.T) {
-	svc, user := newSkillTestEnv(t)
-	ctx := context.Background()
-	skill, err := svc.Create(ctx, user.ID, CreateSkillInput{Name: "zip-successful-replacement"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	oldZip := makeSkillZip(t, zipFixture{name: "SKILL.md", content: "# Old"})
-	oldPath := filepath.Join(svc.ZipDir(), "old-success.zip")
-	if err := os.WriteFile(oldPath, oldZip, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	skill.ZipURL = "/static/skills/old-success.zip"
-	skill.ZipFilename = "old-success.zip"
-	skill.FileSize = int64(len(oldZip))
-	skill.SkillMD = "# Old"
-	if err := svc.skills.Update(nil, skill); err != nil {
-		t.Fatal(err)
-	}
-	newZip := makeSkillZip(t, zipFixture{name: "SKILL.md", content: "# New"})
-	newPath := filepath.Join(svc.ZipDir(), "new-success.zip")
-	if err := os.WriteFile(newPath, newZip, 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := svc.UploadZip(ctx, user.ID, skill.ID, "/static/skills/new-success.zip", "new-success.zip", int64(len(newZip))); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Stat(oldPath); !os.IsNotExist(err) {
-		t.Fatalf("old ZIP still exists after successful replacement: %v", err)
-	}
-	if got, err := os.ReadFile(newPath); err != nil || string(got) != string(newZip) {
-		t.Fatalf("new ZIP = %q, error %v", got, err)
-	}
-	stored, err := svc.skills.FindByID(nil, skill.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if stored.Status != model.ResourceStatusDraft || stored.ZipURL != "/static/skills/new-success.zip" || stored.ZipFilename != "new-success.zip" || stored.FileSize != int64(len(newZip)) || stored.SkillMD != "# New" {
-		t.Fatalf("replacement metadata = %+v", stored)
-	}
-}
-
-func TestSkillUploadZipOldFileCleanupStaysWithinZipDirectory(t *testing.T) {
-	svc, user := newSkillTestEnv(t)
-	ctx := context.Background()
-	skill, err := svc.Create(ctx, user.ID, CreateSkillInput{Name: "zip-contained-cleanup"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	oldZip := makeSkillZip(t, zipFixture{name: "SKILL.md", content: "# Old"})
-	insideOldPath := filepath.Join(svc.ZipDir(), "outside.zip")
-	if err := os.WriteFile(insideOldPath, oldZip, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	outsidePath := filepath.Join(filepath.Dir(svc.ZipDir()), "outside.zip")
-	outsideContents := []byte("outside sentinel")
-	if err := os.WriteFile(outsidePath, outsideContents, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	skill.ZipURL = filepath.Join("..", "outside.zip")
-	skill.ZipFilename = "outside.zip"
-	skill.FileSize = int64(len(oldZip))
-	skill.SkillMD = "# Old"
-	if err := svc.skills.Update(nil, skill); err != nil {
-		t.Fatal(err)
-	}
-	newZip := makeSkillZip(t, zipFixture{name: "SKILL.md", content: "# New"})
-	newPath := filepath.Join(svc.ZipDir(), "contained-new.zip")
-	if err := os.WriteFile(newPath, newZip, 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := svc.UploadZip(ctx, user.ID, skill.ID, "/static/skills/contained-new.zip", "contained-new.zip", int64(len(newZip))); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Stat(insideOldPath); !os.IsNotExist(err) {
-		t.Fatalf("contained old ZIP still exists: %v", err)
-	}
-	if got, err := os.ReadFile(outsidePath); err != nil || string(got) != string(outsideContents) {
-		t.Fatalf("outside sentinel = %q, error %v", got, err)
-	}
-}
-
-func TestSkillUploadZipRemovesNewFileWhenMetadataUpdateFails(t *testing.T) {
-	svc, u := newSkillTestEnv(t)
-	ctx := context.Background()
-	sk, err := svc.Create(ctx, u.ID, CreateSkillInput{Name: "zip-update-failure"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	oldZip := makeSkillZip(t, zipFixture{name: "SKILL.md", content: "# Old"})
-	oldPath := filepath.Join(svc.ZipDir(), "old.zip")
-	if err := os.WriteFile(oldPath, oldZip, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	sk.ZipURL = "/static/skills/old.zip"
-	sk.ZipFilename = "old.zip"
-	sk.FileSize = int64(len(oldZip))
-	sk.SkillMD = "# Old"
-	if err := svc.skills.Update(nil, sk); err != nil {
-		t.Fatal(err)
-	}
-
-	newZip := makeSkillZip(t, zipFixture{name: "SKILL.md", content: "# New"})
-	newPath := filepath.Join(svc.ZipDir(), "new.zip")
-	if err := os.WriteFile(newPath, newZip, 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	err = svc.UploadZip(ctx, u.ID, sk.ID, "/static/skills/new.zip", strings.Repeat("a", 256), int64(len(newZip)))
-	if err == nil {
-		t.Fatal("upload with an oversized filename should fail database update")
-	}
-	if _, err := os.Stat(newPath); !os.IsNotExist(err) {
-		t.Fatalf("new file still exists after failed update: %v", err)
-	}
-	if got, err := os.ReadFile(oldPath); err != nil || string(got) != string(oldZip) {
-		t.Fatalf("old file = %q, err = %v, want original contents", got, err)
-	}
-	updated, err := svc.skills.FindByID(nil, sk.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if updated.ZipURL != "/static/skills/old.zip" || updated.ZipFilename != "old.zip" || updated.FileSize != int64(len(oldZip)) || updated.SkillMD != "# Old" {
-		t.Fatalf("metadata changed after failed update: %+v", updated)
-	}
-}
-
-func TestSkillDownload(t *testing.T) {
-	svc, u := newSkillTestEnv(t)
-	ctx := context.Background()
-	sk, _ := svc.Create(ctx, u.ID, CreateSkillInput{Name: "dl-skill"})
-	sk.Status = model.ResourceStatusPublished
-	sk.ZipURL = "/static/skills/dl.zip"
-	now := sk.CreatedAt
-	sk.PublishedAt = &now
-	_ = svc.skills.Update(nil, sk)
-
-	url, err := svc.Download(ctx, sk.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if url != "/static/skills/dl.zip" {
-		t.Fatalf("url = %q", url)
-	}
-	dl, _ := svc.skills.FindByID(nil, sk.ID)
-	if dl.Downloads != 1 {
-		t.Fatalf("downloads = %d, want 1", dl.Downloads)
-	}
-
-	sk2, _ := svc.Create(ctx, u.ID, CreateSkillInput{Name: "no-zip"})
-	sk2.Status = model.ResourceStatusPublished
-	now2 := sk2.CreatedAt
-	sk2.PublishedAt = &now2
-	_ = svc.skills.Update(nil, sk2)
-	if _, err := svc.Download(ctx, sk2.ID); err == nil {
-		t.Fatal("download with empty zip_url should fail")
-	}
-
-	hidden, _ := svc.Create(ctx, u.ID, CreateSkillInput{Name: "hidden-download"})
-	hidden.Status = model.ResourceStatusPublished
-	hidden.Hidden = true
-	hidden.ZipURL = "/static/skills/hidden.zip"
-	hidden.Downloads = 7
-	if err := svc.skills.Update(nil, hidden); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := svc.Download(ctx, hidden.ID); err != ErrSkillNotFound {
-		t.Errorf("hidden download error = %v, want %v", err, ErrSkillNotFound)
-	}
-	persistedHidden, err := svc.skills.FindByID(nil, hidden.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if persistedHidden.Downloads != 7 {
-		t.Errorf("hidden downloads = %d, want 7", persistedHidden.Downloads)
-	}
-
-	if _, err := svc.Download(ctx, 99999); err == nil {
-		t.Fatal("download non-existent should fail")
-	}
-}
-
 func TestSkillToggleLike(t *testing.T) {
 	svc, u := newSkillTestEnv(t)
 	ctx := context.Background()
@@ -820,13 +434,12 @@ func TestSkillReadDoesNotIncrementViewsOrLoadInteractions(t *testing.T) {
 	}
 
 	beforeViews := skill.Views
-	beforeDownloads := skill.Downloads
 	detail, err := svc.Read(ctx, u.ID, skill.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if detail.Views != beforeViews || detail.Downloads != beforeDownloads {
-		t.Fatalf("detail counts = views %d downloads %d, want views %d downloads %d", detail.Views, detail.Downloads, beforeViews, beforeDownloads)
+	if detail.Views != beforeViews {
+		t.Fatalf("detail views = %d, want %d", detail.Views, beforeViews)
 	}
 	if detail.Liked || detail.Favorited {
 		t.Fatalf("read returned interaction state: %+v", detail)
@@ -838,8 +451,8 @@ func TestSkillReadDoesNotIncrementViewsOrLoadInteractions(t *testing.T) {
 	if err := db.First(&persisted, skill.ID).Error; err != nil {
 		t.Fatal(err)
 	}
-	if persisted.Views != beforeViews || persisted.Downloads != beforeDownloads {
-		t.Fatalf("persisted counts = views %d downloads %d, want views %d downloads %d", persisted.Views, persisted.Downloads, beforeViews, beforeDownloads)
+	if persisted.Views != beforeViews {
+		t.Fatalf("persisted views = %d, want %d", persisted.Views, beforeViews)
 	}
 }
 

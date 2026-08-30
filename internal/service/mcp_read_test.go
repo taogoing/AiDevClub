@@ -104,7 +104,7 @@ func TestSearchAllKeepsResultsInSeparateTypeSections(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := db.WithContext(ctx).Create(&model.McpServer{
-		AuthorID: user.ID, Name: "Go server", Description: "server", ToolsJSON: "[]", Status: model.ResourceStatusPublished,
+		AuthorID: user.ID, Name: "Go server", Description: "server", Status: model.ResourceStatusPublished,
 	}).Error; err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +135,7 @@ func TestSearchResultsExposeRealPublicAuthorAndTags(t *testing.T) {
 		AuthorID: user.ID, Name: "Metadata skill", Description: "skill", Status: model.ResourceStatusPublished,
 	}
 	server := &model.McpServer{
-		AuthorID: user.ID, Name: "Metadata server", Description: "server", ToolsJSON: "[]", Status: model.ResourceStatusPublished,
+		AuthorID: user.ID, Name: "Metadata server", Description: "server", Status: model.ResourceStatusPublished,
 	}
 	if err := db.WithContext(ctx).Create(article).Error; err != nil {
 		t.Fatal(err)
@@ -250,10 +250,10 @@ func TestRankingBatchHydrationPreservesZSetOrderAndDropsUnavailableRows(t *testi
 		t.Fatalf("skill hot summaries = %+v, want Redis order of visible rows only", gotSkills)
 	}
 
-	serverFirst := &model.McpServer{AuthorID: user.ID, Name: "server first", ToolsJSON: "[]", Status: model.ResourceStatusPublished}
-	serverSecond := &model.McpServer{AuthorID: user.ID, Name: "server second", ToolsJSON: "[]", Status: model.ResourceStatusPublished}
-	serverHidden := &model.McpServer{AuthorID: user.ID, Name: "server hidden", ToolsJSON: "[]", Status: model.ResourceStatusPublished, Hidden: true}
-	serverDeleted := &model.McpServer{AuthorID: user.ID, Name: "server deleted", ToolsJSON: "[]", Status: model.ResourceStatusPublished}
+	serverFirst := &model.McpServer{AuthorID: user.ID, Name: "server first", Status: model.ResourceStatusPublished}
+	serverSecond := &model.McpServer{AuthorID: user.ID, Name: "server second", Status: model.ResourceStatusPublished}
+	serverHidden := &model.McpServer{AuthorID: user.ID, Name: "server hidden", Status: model.ResourceStatusPublished, Hidden: true}
+	serverDeleted := &model.McpServer{AuthorID: user.ID, Name: "server deleted", Status: model.ResourceStatusPublished}
 	if err := db.WithContext(ctx).Create([]*model.McpServer{serverFirst, serverSecond, serverHidden, serverDeleted}).Error; err != nil {
 		t.Fatal(err)
 	}

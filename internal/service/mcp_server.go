@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
@@ -33,8 +35,39 @@ func NewMcpServerService(servers *repo.McpServerRepo, tags *repo.TagRepo, inter 
 	return &McpServerService{servers: servers, tags: tags, inter: inter, rdb: rdb, cfg: cfg, notifSvc: notifSvc}
 }
 
-func (s *McpServerService) ZipDir() string     { return s.cfg.McpServerZipDir }
-func (s *McpServerService) MaxZipBytes() int64 { return s.cfg.MaxResourceZipBytes }
+var supportedMcpClients = map[string]bool{
+	"cursor": true, "claude-code": true, "codex": true,
+	"trae": true, "trae-global": true, "cline": true, "windsurf": true,
+}
+
+func normalizeMcpInstallations(installations []McpInstallation) (string, error) {
+	if len(installations) > 12 {
+		return "", ErrBadParam
+	}
+	seen := make(map[string]bool, len(installations))
+	for i := range installations {
+		item := &installations[i]
+		item.Client = strings.TrimSpace(item.Client)
+		item.Command = strings.TrimSpace(item.Command)
+		if !supportedMcpClients[item.Client] || seen[item.Client] || len(item.Command) > 4000 {
+			return "", ErrBadParam
+		}
+		if item.Command == "" && len(item.Config) == 0 && len(item.WindowsConfig) == 0 {
+			return "", ErrBadParam
+		}
+		seen[item.Client] = true
+	}
+	b, err := json.Marshal(installations)
+	if err != nil || len(b) > 128*1024 {
+		return "", ErrBadParam
+	}
+	return string(b), nil
+}
+
+func validMcpRepoURL(raw string) bool {
+	u, err := url.ParseRequestURI(strings.TrimSpace(raw))
+	return err == nil && u.Scheme == "https" && u.Host != ""
+}
 
 func (s *McpServerService) ResolveTagSet(ctx context.Context, tx *gorm.DB, tagIDs []uint, tagNames []string) ([]uint, error) {
 	set := map[uint]bool{}
@@ -78,26 +111,29 @@ func (s *McpServerService) ResolveTagSet(ctx context.Context, tx *gorm.DB, tagID
 }
 
 func (s *McpServerService) Create(ctx context.Context, userID uint, in CreateMcpServerInput) (*model.McpServer, error) {
+	in.Name = strings.TrimSpace(in.Name)
+	in.Description = strings.TrimSpace(in.Description)
+	in.RepoURL = strings.TrimSpace(in.RepoURL)
 	if in.Name == "" {
 		return nil, ErrBadParam
 	}
-	if len(in.Name) > 100 {
+	if len([]rune(in.Name)) > 100 || len([]rune(in.Description)) > 500 || (in.RepoURL != "" && !validMcpRepoURL(in.RepoURL)) {
 		return nil, ErrBadParam
 	}
-	toolsJSON := in.ToolsJSON
-	if toolsJSON == "" {
-		toolsJSON = "[]"
+	installationsJSON, err := normalizeMcpInstallations(in.Installations)
+	if err != nil {
+		return nil, err
 	}
 	sv := &model.McpServer{
-		AuthorID:    userID,
-		Name:        in.Name,
-		Description: in.Description,
-		RepoURL:     in.RepoURL,
-		ToolsJSON:   toolsJSON,
-		Readme:      in.Readme,
-		Status:      model.ResourceStatusDraft,
+		AuthorID:          userID,
+		Name:              in.Name,
+		Description:       in.Description,
+		RepoURL:           in.RepoURL,
+		InstallationsJSON: installationsJSON,
+		Readme:            in.Readme,
+		Status:            model.ResourceStatusDraft,
 	}
-	err := s.servers.DB().Transaction(func(tx *gorm.DB) error {
+	err = s.servers.DB().Transaction(func(tx *gorm.DB) error {
 		if err := s.servers.Create(tx, sv); err != nil {
 			return err
 		}
@@ -124,11 +160,18 @@ func (s *McpServerService) Create(ctx context.Context, userID uint, in CreateMcp
 }
 
 func (s *McpServerService) Update(ctx context.Context, userID, serverID uint, in CreateMcpServerInput) (*model.McpServer, error) {
+	in.Name = strings.TrimSpace(in.Name)
+	in.Description = strings.TrimSpace(in.Description)
+	in.RepoURL = strings.TrimSpace(in.RepoURL)
 	if in.Name == "" {
 		return nil, ErrBadParam
 	}
-	if len(in.Name) > 100 {
+	if len([]rune(in.Name)) > 100 || len([]rune(in.Description)) > 500 || (in.RepoURL != "" && !validMcpRepoURL(in.RepoURL)) {
 		return nil, ErrBadParam
+	}
+	installationsJSON, err := normalizeMcpInstallations(in.Installations)
+	if err != nil {
+		return nil, err
 	}
 	sv, err := s.servers.FindByID(nil, serverID)
 	if err != nil {
@@ -148,7 +191,7 @@ func (s *McpServerService) Update(ctx context.Context, userID, serverID uint, in
 	sv.Name = in.Name
 	sv.Description = in.Description
 	sv.RepoURL = in.RepoURL
-	sv.ToolsJSON = in.ToolsJSON
+	sv.InstallationsJSON = installationsJSON
 	sv.Readme = in.Readme
 
 	err = s.servers.DB().Transaction(func(tx *gorm.DB) error {
@@ -222,6 +265,10 @@ func (s *McpServerService) Submit(ctx context.Context, userID, serverID uint) (*
 	if sv.AuthorID != userID {
 		return nil, ErrForbidden
 	}
+	var installations []McpInstallation
+	if !validMcpRepoURL(sv.RepoURL) || json.Unmarshal([]byte(sv.InstallationsJSON), &installations) != nil || len(installations) == 0 {
+		return nil, ErrBadParam
+	}
 	switch sv.Status {
 	case model.ResourceStatusDraft, model.ResourceStatusRejected, model.ResourceStatusArchived:
 	default:
@@ -281,7 +328,7 @@ func (s *McpServerService) summaryOf(sv model.McpServer, tags []model.Tag) McpSe
 	sm := McpServerSummary{
 		ID: sv.ID, Name: sv.Name, Description: sv.Description,
 		RepoURL: sv.RepoURL, Tags: []TagBrief{},
-		Views: sv.Views, Downloads: sv.Downloads,
+		Views:      sv.Views,
 		LikesCount: sv.LikesCount, FavoritesCount: sv.FavoritesCount,
 		CommentsCount: sv.CommentsCount, Status: string(sv.Status),
 		PublishedAt: sv.PublishedAt,
@@ -323,11 +370,13 @@ func (s *McpServerService) detail(ctx context.Context, userID, serverID uint, tr
 	sm := s.summaryOf(*sv, tagMap[serverID])
 	d := &McpServerDetail{
 		McpServerSummary: sm,
-		ToolsJSON:        sv.ToolsJSON,
+		Installations:    []McpInstallation{},
 		Readme:           sv.Readme,
-		ZipURL:           sv.ZipURL,
-		ZipFilename:      sv.ZipFilename,
-		FileSize:         sv.FileSize,
+	}
+	if strings.TrimSpace(sv.InstallationsJSON) != "" {
+		if err := json.Unmarshal([]byte(sv.InstallationsJSON), &d.Installations); err != nil {
+			return nil, err
+		}
 	}
 	if loadInteractions && userID > 0 {
 		if d.Liked, err = s.inter.McpServerLiked(ctx, userID, serverID); err != nil {
@@ -338,40 +387,6 @@ func (s *McpServerService) detail(ctx context.Context, userID, serverID uint, tr
 		}
 	}
 	return d, nil
-}
-
-func (s *McpServerService) UploadZip(ctx context.Context, userID, serverID uint, zipURL, zipFilename string, fileSize int64) error {
-	sv, err := s.servers.FindByID(nil, serverID)
-	if err != nil {
-		return ErrMcpServerNotFound
-	}
-	if sv.AuthorID != userID {
-		return ErrForbidden
-	}
-	if sv.Status == model.ResourceStatusPendingReview {
-		return ErrMcpServerState
-	}
-	sv.ZipURL = zipURL
-	sv.ZipFilename = zipFilename
-	sv.FileSize = fileSize
-	if sv.Status == model.ResourceStatusPublished {
-		sv.Status = model.ResourceStatusPendingReview
-	}
-	return s.servers.Update(nil, sv)
-}
-
-func (s *McpServerService) Download(ctx context.Context, serverID uint) (string, error) {
-	sv, err := s.servers.FindByID(nil, serverID)
-	if err != nil || !s.canView(sv, 0) {
-		return "", ErrMcpServerNotFound
-	}
-	if sv.ZipURL == "" {
-		return "", ErrMcpServerState
-	}
-	if err := s.servers.IncrCount(nil, serverID, "downloads", 1); err != nil {
-		return "", err
-	}
-	return sv.ZipURL, nil
 }
 
 func (s *McpServerService) ToggleLike(ctx context.Context, userID, serverID uint) (bool, int, error) {
@@ -460,7 +475,7 @@ func (s *McpServerService) List(ctx context.Context, q McpServerListQuery) (*Mcp
 		q.PageSize = s.cfg.MaxPageSize
 	}
 	switch q.Sort {
-	case "hot", "downloads":
+	case "hot":
 	default:
 		q.Sort = "latest"
 	}
@@ -493,7 +508,7 @@ func (s *McpServerService) List(ctx context.Context, q McpServerListQuery) (*Mcp
 		return nil, err
 	}
 	out := &McpServerListResult{
-		List: make([]McpServerSummary, 0, len(list)),
+		List:  make([]McpServerSummary, 0, len(list)),
 		Total: total, Page: q.Page, PageSize: q.PageSize,
 	}
 	for _, sv := range list {

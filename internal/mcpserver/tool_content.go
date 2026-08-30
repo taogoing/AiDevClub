@@ -31,7 +31,6 @@ type contentSummaryOutput struct {
 	Author      AuthorOutput `json:"author"`
 	Tags        []TagOutput  `json:"tags"`
 	Views       int          `json:"views"`
-	Downloads   int          `json:"downloads,omitempty"`
 	PublishedAt string       `json:"published_at,omitempty"`
 }
 
@@ -47,7 +46,7 @@ type searchContentOutput struct {
 
 type browseContentInput struct {
 	ContentType string `json:"content_type,omitempty" jsonschema:"Content type: all, article, skill, or mcp_server."`
-	Sort        string `json:"sort,omitempty" jsonschema:"Sort mode: latest, hot, or downloads."`
+	Sort        string `json:"sort,omitempty" jsonschema:"Sort mode: latest or hot."`
 	Page        int    `json:"page,omitempty" jsonschema:"Page number, starting at 1."`
 	PageSize    int    `json:"page_size,omitempty" jsonschema:"Results per type."`
 }
@@ -91,7 +90,7 @@ func browseContentInputSchema() *jsonschema.Schema {
 	schema := mustInputSchema[browseContentInput]()
 	schema.Properties["content_type"].Enum = []any{"all", "article", "skill", "mcp_server"}
 	schema.Properties["content_type"].Default = json.RawMessage(`"all"`)
-	schema.Properties["sort"].Enum = []any{"latest", "hot", "downloads"}
+	schema.Properties["sort"].Enum = []any{"latest", "hot"}
 	schema.Properties["sort"].Default = json.RawMessage(`"latest"`)
 	setPagedContentSchema(schema)
 	return schema
@@ -285,11 +284,8 @@ func browseContent(deps PublicDependencies, publicBaseURL string) mcp.ToolHandle
 		if sort == "" {
 			sort = "latest"
 		}
-		if sort != "latest" && sort != "hot" && sort != "downloads" {
-			return nil, browseContentOutput{}, invalidArgument("sort must be latest, hot, or downloads")
-		}
-		if sort == "downloads" && contentType != "skill" && contentType != "mcp_server" {
-			return nil, browseContentOutput{}, invalidArgument("downloads sort is only valid for skill or mcp_server")
+		if sort != "latest" && sort != "hot" {
+			return nil, browseContentOutput{}, invalidArgument("sort must be latest or hot")
 		}
 		page, pageSize, err := normalizePage(input.Page, input.PageSize, contentType)
 		if err != nil {
@@ -458,7 +454,7 @@ func skillSummariesOutput(summaries []service.SkillSummary, publicBaseURL string
 			ID: summary.ID, Type: "skill", Title: summary.Name, Summary: summary.Description,
 			URL:    contentPageURL(publicBaseURL, "skill", summary.ID),
 			Author: authorOutput(summary.Author, publicBaseURL), Tags: tagOutputs(summary.Tags),
-			Views: summary.Views, Downloads: summary.Downloads, PublishedAt: publishedAtOutput(summary.PublishedAt),
+			Views: summary.Views, PublishedAt: publishedAtOutput(summary.PublishedAt),
 		})
 	}
 	return output
@@ -471,7 +467,7 @@ func mcpServerSummariesOutput(summaries []service.McpServerSummary, publicBaseUR
 			ID: summary.ID, Type: "mcp_server", Title: summary.Name, Summary: summary.Description,
 			URL:    contentPageURL(publicBaseURL, "mcp_server", summary.ID),
 			Author: authorOutput(summary.Author, publicBaseURL), Tags: tagOutputs(summary.Tags),
-			Views: summary.Views, Downloads: summary.Downloads, PublishedAt: publishedAtOutput(summary.PublishedAt),
+			Views: summary.Views, PublishedAt: publishedAtOutput(summary.PublishedAt),
 		})
 	}
 	return output

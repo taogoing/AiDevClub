@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"path"
 	"strings"
 
 	"github.com/google/jsonschema-go/jsonschema"
@@ -53,25 +52,21 @@ type getSkillInput struct {
 }
 
 type getSkillOutput struct {
-	ID                uint         `json:"id"`
-	Name              string       `json:"name"`
-	Description       string       `json:"description"`
-	RepoURL           string       `json:"repo_url,omitempty"`
-	Tags              []TagOutput  `json:"tags"`
-	Author            AuthorOutput `json:"author"`
-	Views             int          `json:"views"`
-	Downloads         int          `json:"downloads"`
-	LikesCount        int          `json:"likes_count"`
-	FavoritesCount    int          `json:"favorites_count"`
-	CommentsCount     int          `json:"comments_count"`
-	PublishedAt       string       `json:"published_at,omitempty"`
-	URL               string       `json:"url"`
-	DownloadAvailable bool         `json:"download_available"`
-	Filename          string       `json:"filename,omitempty"`
-	FileSize          int64        `json:"file_size"`
-	SkillMD           string       `json:"skill_md"`
-	HasMore           bool         `json:"has_more"`
-	NextOffset        int          `json:"next_offset"`
+	ID             uint         `json:"id"`
+	Name           string       `json:"name"`
+	Description    string       `json:"description"`
+	RepoURL        string       `json:"repo_url,omitempty"`
+	Tags           []TagOutput  `json:"tags"`
+	Author         AuthorOutput `json:"author"`
+	Views          int          `json:"views"`
+	LikesCount     int          `json:"likes_count"`
+	FavoritesCount int          `json:"favorites_count"`
+	CommentsCount  int          `json:"comments_count"`
+	PublishedAt    string       `json:"published_at,omitempty"`
+	URL            string       `json:"url"`
+	SkillMD        string       `json:"skill_md"`
+	HasMore        bool         `json:"has_more"`
+	NextOffset     int          `json:"next_offset"`
 }
 
 type getMCPServerInput struct {
@@ -80,26 +75,22 @@ type getMCPServerInput struct {
 }
 
 type getMCPServerOutput struct {
-	ID                uint         `json:"id"`
-	Name              string       `json:"name"`
-	Description       string       `json:"description"`
-	RepoURL           string       `json:"repo_url,omitempty"`
-	Tags              []TagOutput  `json:"tags"`
-	Author            AuthorOutput `json:"author"`
-	Views             int          `json:"views"`
-	Downloads         int          `json:"downloads"`
-	LikesCount        int          `json:"likes_count"`
-	FavoritesCount    int          `json:"favorites_count"`
-	CommentsCount     int          `json:"comments_count"`
-	PublishedAt       string       `json:"published_at,omitempty"`
-	URL               string       `json:"url"`
-	DownloadAvailable bool         `json:"download_available"`
-	Filename          string       `json:"filename,omitempty"`
-	FileSize          int64        `json:"file_size"`
-	ToolsJSON         any          `json:"tools_json"`
-	Readme            string       `json:"readme"`
-	HasMore           bool         `json:"has_more"`
-	NextOffset        int          `json:"next_offset"`
+	ID             uint                      `json:"id"`
+	Name           string                    `json:"name"`
+	Description    string                    `json:"description"`
+	RepoURL        string                    `json:"repo_url"`
+	Installations  []service.McpInstallation `json:"installations"`
+	Tags           []TagOutput               `json:"tags"`
+	Author         AuthorOutput              `json:"author"`
+	Views          int                       `json:"views"`
+	LikesCount     int                       `json:"likes_count"`
+	FavoritesCount int                       `json:"favorites_count"`
+	CommentsCount  int                       `json:"comments_count"`
+	PublishedAt    string                    `json:"published_at,omitempty"`
+	URL            string                    `json:"url"`
+	Readme         string                    `json:"readme"`
+	HasMore        bool                      `json:"has_more"`
+	NextOffset     int                       `json:"next_offset"`
 }
 
 func getArticleInputSchema() *jsonschema.Schema {
@@ -176,16 +167,13 @@ func getSkill(reader SkillReader, publicBaseURL string) mcp.ToolHandlerFor[getSk
 			return nil, getSkillOutput{}, internalError()
 		}
 		window := unicodeWindow(detail.SkillMD, offset, limit)
-		filename := archiveFilenameOutput(detail.ZipFilename)
 		output := getSkillOutput{
 			ID: detail.ID, Name: detail.Name, Description: detail.Description,
 			RepoURL: absoluteExternalURL(detail.RepoURL),
 			Tags:    tagOutputs(detail.Tags), Author: authorOutput(detail.Author, publicBaseURL),
-			Views: detail.Views, Downloads: detail.Downloads, LikesCount: detail.LikesCount,
+			Views: detail.Views, LikesCount: detail.LikesCount,
 			FavoritesCount: detail.FavoritesCount, CommentsCount: detail.CommentsCount,
 			PublishedAt: publishedAtOutput(detail.PublishedAt), URL: contentPageURL(publicBaseURL, "skill", detail.ID),
-			DownloadAvailable: detail.ZipURL != "" && filename != "" && detail.FileSize > 0,
-			Filename:          filename, FileSize: detail.FileSize,
 			SkillMD: window.Text, HasMore: window.HasMore, NextOffset: window.NextOffset,
 		}
 		return summaryResult(fmt.Sprintf("Skill %d returned %d Unicode character(s) from SKILL.md.", detail.ID, len([]rune(window.Text)))), output, nil
@@ -208,26 +196,16 @@ func getMCPServer(reader MCPServerReader, publicBaseURL string) mcp.ToolHandlerF
 		if detail == nil {
 			return nil, getMCPServerOutput{}, internalError()
 		}
-		toolsSource := strings.TrimSpace(detail.ToolsJSON)
-		if toolsSource == "" {
-			toolsSource = "[]"
-		}
-		var tools any
-		if err := json.Unmarshal([]byte(toolsSource), &tools); err != nil {
-			return nil, getMCPServerOutput{}, internalError()
-		}
 		window := unicodeWindow(detail.Readme, offset, limit)
-		filename := archiveFilenameOutput(detail.ZipFilename)
 		output := getMCPServerOutput{
 			ID: detail.ID, Name: detail.Name, Description: detail.Description,
-			RepoURL: absoluteExternalURL(detail.RepoURL),
-			Tags:    tagOutputs(detail.Tags), Author: authorOutput(detail.Author, publicBaseURL),
-			Views: detail.Views, Downloads: detail.Downloads, LikesCount: detail.LikesCount,
+			RepoURL:       absoluteExternalURL(detail.RepoURL),
+			Installations: detail.Installations,
+			Tags:          tagOutputs(detail.Tags), Author: authorOutput(detail.Author, publicBaseURL),
+			Views: detail.Views, LikesCount: detail.LikesCount,
 			FavoritesCount: detail.FavoritesCount, CommentsCount: detail.CommentsCount,
 			PublishedAt: publishedAtOutput(detail.PublishedAt), URL: contentPageURL(publicBaseURL, "mcp_server", detail.ID),
-			DownloadAvailable: detail.ZipURL != "" && filename != "" && detail.FileSize > 0,
-			Filename:          filename, FileSize: detail.FileSize,
-			ToolsJSON: tools, Readme: window.Text, HasMore: window.HasMore, NextOffset: window.NextOffset,
+			Readme: window.Text, HasMore: window.HasMore, NextOffset: window.NextOffset,
 		}
 		return summaryResult(fmt.Sprintf("MCP Server %d returned %d Unicode character(s) from README.", detail.ID, len([]rune(window.Text)))), output, nil
 	}
@@ -259,16 +237,4 @@ func absoluteExternalURL(value string) string {
 		return value
 	}
 	return ""
-}
-
-func archiveFilenameOutput(value string) string {
-	normalized := strings.ReplaceAll(strings.TrimSpace(value), `\`, "/")
-	if normalized == "" || strings.HasSuffix(normalized, "/") {
-		return ""
-	}
-	filename := path.Base(normalized)
-	if filename == "." || filename == ".." || filename == "/" {
-		return ""
-	}
-	return filename
 }

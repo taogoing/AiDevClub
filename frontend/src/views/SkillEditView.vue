@@ -5,8 +5,8 @@
       <el-form-item label="名称">
         <el-input v-model="form.name" placeholder="请输入 Skill 名称" maxlength="200" show-word-limit />
       </el-form-item>
-      <el-form-item label="描述（可选）">
-        <el-input v-model="form.description" type="textarea" :rows="3" placeholder="请输入描述" maxlength="1000" />
+      <el-form-item label="描述">
+        <el-input v-model="form.description" type="textarea" :rows="3" placeholder="用一两句话说明这个 Skill 解决什么问题" maxlength="500" show-word-limit />
       </el-form-item>
       <el-form-item label="仓库地址（可选）">
         <el-input v-model="form.repo_url" placeholder="https://github.com/..." />
@@ -25,20 +25,13 @@
           <el-option v-for="tag in availableTags" :key="tag.id" :label="tag.name" :value="tag.id" />
         </el-select>
       </el-form-item>
-      <el-form-item label="ZIP 文件（可选）">
-        <el-upload
-          ref="uploadRef"
-          :auto-upload="false"
-          :limit="1"
-          accept=".zip"
-          :on-change="handleFileChange"
-          :on-remove="handleFileRemove"
-        >
-          <el-button type="primary">选择 ZIP 文件</el-button>
-          <template #tip>
-            <div class="el-upload__tip">仅支持 .zip 文件</div>
-          </template>
-        </el-upload>
+      <el-form-item label="详细说明（Markdown）" required>
+        <el-input
+          v-model="form.skill_md"
+          type="textarea"
+          :rows="16"
+          placeholder="建议包含：功能说明、适用场景、使用方式、示例、配置要求和注意事项"
+        />
       </el-form-item>
       <el-form-item>
         <el-button type="primary" @click="handleSubmit('published')" :loading="submitting">发布</el-button>
@@ -52,8 +45,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import type { UploadFile } from 'element-plus'
-import { createSkill, updateSkill, getSkill, uploadSkillZip } from '@/api/skill'
+import { createSkill, updateSkill, getSkill } from '@/api/skill'
 import { getTags } from '@/api/tag'
 import type { Tag } from '@/types'
 
@@ -63,12 +55,12 @@ const isEdit = computed(() => !!route.params.id)
 const availableTags = ref<Tag[]>([])
 const pageLoading = ref(false)
 const submitting = ref(false)
-const zipFile = ref<File | null>(null)
 
 const form = ref({
   name: '',
   description: '',
   repo_url: '',
+  skill_md: '',
   tag_ids: [] as number[],
   tag_names: [] as string[],
 })
@@ -88,6 +80,7 @@ onMounted(async () => {
         name: data.name,
         description: data.description,
         repo_url: data.repo_url,
+        skill_md: data.skill_md || '',
         tag_ids: data.tags.map((t) => t.id),
         tag_names: [],
       }
@@ -105,14 +98,6 @@ function onTagChange(ids: number[]) {
   form.value.tag_ids = ids.filter((id) => existingIds.has(id))
 }
 
-function handleFileChange(file: UploadFile) {
-  zipFile.value = file.raw || null
-}
-
-function handleFileRemove() {
-  zipFile.value = null
-}
-
 async function handleSubmit(status: string) {
   if (!form.value.name.trim()) {
     ElMessage.warning('请输入名称')
@@ -124,6 +109,7 @@ async function handleSubmit(status: string) {
       name: form.value.name,
       description: form.value.description,
       repo_url: form.value.repo_url,
+      skill_md: form.value.skill_md,
       tag_ids: form.value.tag_ids,
       tag_names: form.value.tag_names,
       status,
@@ -138,9 +124,6 @@ async function handleSubmit(status: string) {
       id = res.data.data.id
     }
 
-    if (zipFile.value) {
-      await uploadSkillZip(id, zipFile.value)
-    }
 
     ElMessage.success(status === 'published' ? '发布成功' : '已保存草稿')
     router.push('/skills')

@@ -42,29 +42,6 @@ func (r *SkillRepo) Update(db *gorm.DB, s *model.Skill) error {
 	return r.exec(db).Save(s).Error
 }
 
-func (r *SkillRepo) UpdateZipMetadata(
-	ctx context.Context,
-	id, authorID uint,
-	currentStatus model.ResourceStatus,
-	zipURL, zipFilename string,
-	fileSize int64,
-	skillMD string,
-) (bool, error) {
-	updates := map[string]any{
-		"zip_url":      zipURL,
-		"zip_filename": zipFilename,
-		"file_size":    fileSize,
-		"skill_md":     skillMD,
-	}
-	if currentStatus == model.ResourceStatusPublished {
-		updates["status"] = model.ResourceStatusPendingReview
-	}
-	result := r.db.WithContext(ctx).Model(&model.Skill{}).
-		Where("id = ? AND author_id = ? AND status = ?", id, authorID, currentStatus).
-		Updates(updates)
-	return result.RowsAffected == 1, result.Error
-}
-
 func (r *SkillRepo) Delete(db *gorm.DB, id uint) error {
 	return r.exec(db).Delete(&model.Skill{}, id).Error
 }
@@ -143,8 +120,6 @@ func (r *SkillRepo) List(ctx context.Context, q SkillQuery) ([]model.Skill, int6
 	switch q.Sort {
 	case "hot":
 		d = d.Order("(views + 3*likes_count + 5*favorites_count + 2*comments_count) desc, id desc")
-	case "downloads":
-		d = d.Order("downloads desc, id desc")
 	default:
 		d = d.Order("published_at desc, id desc")
 	}

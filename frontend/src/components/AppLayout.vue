@@ -91,8 +91,9 @@ function handleCommand(cmd: string) {
 }
 
 .navbar {
-  background: #fff;
-  border-bottom: 1px solid #e4e7ed;
+  background: rgb(255 255 255 / 92%);
+  border-bottom: 1px solid #e4eaf3;
+  box-shadow: 0 4px 18px rgb(31 59 91 / 5%);
   position: sticky;
   top: 0;
   z-index: 100;
@@ -110,7 +111,7 @@ function handleCommand(cmd: string) {
 .logo {
   font-size: 20px;
   font-weight: 700;
-  color: #409eff;
+  color: #1f6feb;
   text-decoration: none;
   margin-right: 40px;
 }
@@ -140,8 +141,8 @@ function handleCommand(cmd: string) {
 }
 
 .nav-link.active {
-  color: #409eff;
-  border-bottom-color: #409eff;
+  color: #1f6feb;
+  border-bottom-color: #1f6feb;
 }
 
 .navbar-right {
@@ -164,7 +165,7 @@ function handleCommand(cmd: string) {
   padding: 24px;
   color: #999;
   font-size: 14px;
-  border-top: 1px solid #e4e7ed;
+  border-top: 1px solid #e4eaf3;
   background: #fff;
 }
 </style>

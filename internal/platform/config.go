@@ -34,9 +34,6 @@ type Config struct {
 	HotCacheTTL          time.Duration
 	ArticleImageDir      string
 	MaxArticleImageBytes int64
-	SkillZipDir          string
-	McpServerZipDir      string
-	MaxResourceZipBytes  int64
 	AdminEmails          []string
 }
 
@@ -65,9 +62,6 @@ func LoadConfig() (*Config, error) {
 	v.SetDefault("article.page_size_max", 50)
 	v.SetDefault("article_image.dir", "storage/articles")
 	v.SetDefault("article_image.max_bytes", int64(5<<20))
-	v.SetDefault("skill_zip.dir", "storage/skills")
-	v.SetDefault("mcp_server_zip.dir", "storage/mcp_servers")
-	v.SetDefault("resource_zip.max_bytes", int64(50<<20))
 	v.SetDefault("admin.emails", "")
 
 	v.AutomaticEnv()
@@ -132,9 +126,6 @@ func LoadConfig() (*Config, error) {
 		HotCacheTTL:          hotCacheTTL,
 		ArticleImageDir:      v.GetString("article_image.dir"),
 		MaxArticleImageBytes: v.GetInt64("article_image.max_bytes"),
-		SkillZipDir:          v.GetString("skill_zip.dir"),
-		McpServerZipDir:      v.GetString("mcp_server_zip.dir"),
-		MaxResourceZipBytes:  v.GetInt64("resource_zip.max_bytes"),
 		AdminEmails:          adminEmails,
 	}
 

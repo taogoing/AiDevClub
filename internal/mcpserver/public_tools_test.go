@@ -423,7 +423,7 @@ func TestPublicToolInputSchemasAdvertiseConstraintsAndDefaults(t *testing.T) {
 		"enum": []any{"all", "article", "skill", "mcp_server"}, "default": "all",
 	})
 	assertSchemaProperty(t, browse, "sort", map[string]any{
-		"enum": []any{"latest", "hot", "downloads"}, "default": "latest",
+		"enum": []any{"latest", "hot"}, "default": "latest",
 	})
 	assertSchemaProperty(t, browse, "page", map[string]any{"minimum": float64(1), "default": float64(1)})
 	assertSchemaProperty(t, browse, "page_size", map[string]any{"minimum": float64(1), "maximum": float64(20)})
@@ -607,23 +607,6 @@ func TestBrowseContentAllHotUsesRankingSections(t *testing.T) {
 	}
 }
 
-func TestBrowseContentDownloadsUsesResourceList(t *testing.T) {
-	skills := &fakeSkillReader{list: &service.SkillListResult{
-		List: []service.SkillSummary{{ID: 4, Name: "Popular", Tags: []service.TagBrief{}}}, Total: 9, Page: 1, PageSize: 10,
-	}}
-	deps := publicTestDependencies()
-	deps.Skills = skills
-	output := callTool[browseContentOutput](t, newTestServer(deps), "browse_content", map[string]any{
-		"content_type": "skill", "sort": "downloads",
-	})
-	if skills.listCalls != 1 || skills.listQuery.Sort != "downloads" {
-		t.Fatalf("skill list calls/query = %d/%#v", skills.listCalls, skills.listQuery)
-	}
-	if len(output.Skills) != 1 || output.Total != 9 {
-		t.Fatalf("output = %#v", output)
-	}
-}
-
 func TestGetArticleUsesReadAndReturnsUnicodeWindow(t *testing.T) {
 	article := &fakeArticleReader{detail: &service.ArticleDetail{
 		ArticleSummary: service.ArticleSummary{ID: 9, Title: "Unicode", Tags: []service.TagBrief{}},
@@ -675,12 +658,9 @@ func TestGetArticleMapsReaderFailureWithoutLeakingDatabaseDetails(t *testing.T) 
 	}
 }
 
-func TestGetSkillReturnsPersistedSkillMDWindowAndDownloadMetadata(t *testing.T) {
+func TestGetSkillReturnsPersistedSkillMDWindow(t *testing.T) {
 	skill := &fakeSkillReader{detail: &service.SkillDetail{
 		SkillSummary: service.SkillSummary{ID: 12, Name: "Agent Skill", Tags: []service.TagBrief{}},
-		ZipURL:       "/static/skills/on-disk.zip",
-		ZipFilename:  "agent-skill.zip",
-		FileSize:     1234,
 		SkillMD:      "甲乙丙丁戊己庚辛",
 	}}
 	deps := publicTestDependencies()
@@ -699,62 +679,19 @@ func TestGetSkillReturnsPersistedSkillMDWindowAndDownloadMetadata(t *testing.T) 
 	if output.SkillMD != "丙丁戊" || !output.HasMore || output.NextOffset != 5 {
 		t.Fatalf("skill_md window = %#v", output)
 	}
-	if !output.DownloadAvailable || output.Filename != "agent-skill.zip" || output.FileSize != 1234 {
-		t.Fatalf("download metadata = %#v", output)
-	}
-	if output.URL != testPublicBaseURL+"/skills/12" || strings.Contains(string(payload), "zip_url") || strings.Contains(string(payload), "on-disk") {
-		t.Fatalf("resource output leaked a storage path or has wrong URL: %s", payload)
+	if output.URL != testPublicBaseURL+"/skills/12" || strings.Contains(string(payload), "zip_url") || strings.Contains(string(payload), "downloads") {
+		t.Fatalf("resource output contains a legacy field or has wrong URL: %s", payload)
 	}
 	if skill.readCalls != 1 || skill.readUser != 0 {
 		t.Fatalf("Read calls/user = %d/%d", skill.readCalls, skill.readUser)
 	}
 }
 
-func TestResourceToolsSanitizePersistedZipFilenameAtOutputBoundary(t *testing.T) {
-	skill := &fakeSkillReader{detail: &service.SkillDetail{
-		SkillSummary: service.SkillSummary{ID: 12, Name: "Agent Skill", Tags: []service.TagBrief{}},
-		ZipURL:       "/static/skills/agent-skill.zip",
-		ZipFilename:  "/srv/aidevclub/private/agent-skill.zip",
-		FileSize:     1234,
-	}}
-	deps := publicTestDependencies()
-	deps.Skills = skill
-	skillOutput := callTool[getSkillOutput](t, newTestServer(deps), "get_skill", map[string]any{"id": 12})
-	if skillOutput.Filename != "agent-skill.zip" || !skillOutput.DownloadAvailable {
-		t.Fatalf("skill download metadata = %#v, want sanitized available basename", skillOutput)
-	}
-
-	server := &fakeMCPServerReader{detail: &service.McpServerDetail{
-		McpServerSummary: service.McpServerSummary{ID: 15, Name: "Toolbox", Tags: []service.TagBrief{}},
-		ToolsJSON:        "[]",
-		ZipURL:           "/static/mcps/toolbox.zip",
-		ZipFilename:      `C:\aidevclub\private\toolbox.zip`,
-		FileSize:         987,
-	}}
-	deps = publicTestDependencies()
-	deps.MCPServers = server
-	serverOutput := callTool[getMCPServerOutput](t, newTestServer(deps), "get_mcp_server", map[string]any{"id": 15})
-	if serverOutput.Filename != "toolbox.zip" || !serverOutput.DownloadAvailable {
-		t.Fatalf("MCP server download metadata = %#v, want sanitized available basename", serverOutput)
-	}
-
-	skill.detail.ZipFilename = "/"
-	deps = publicTestDependencies()
-	deps.Skills = skill
-	unavailable := callTool[getSkillOutput](t, newTestServer(deps), "get_skill", map[string]any{"id": 12})
-	if unavailable.Filename != "" || unavailable.DownloadAvailable {
-		t.Fatalf("unusable filename metadata = %#v, want empty and unavailable", unavailable)
-	}
-}
-
-func TestGetMCPServerReturnsStructuredToolsJSONAndReadmeWindow(t *testing.T) {
+func TestGetMCPServerReturnsInstallationsAndReadmeWindow(t *testing.T) {
 	reader := &fakeMCPServerReader{detail: &service.McpServerDetail{
 		McpServerSummary: service.McpServerSummary{ID: 15, Name: "Toolbox", Tags: []service.TagBrief{}},
-		ToolsJSON:        `[{"name":"lookup","description":"Look up content"}]`,
+		Installations:    []service.McpInstallation{{Client: "cursor", Command: "npx -y toolbox"}},
 		Readme:           "零一二三四五六七八九",
-		ZipURL:           `C:\\private\\mcp.zip`,
-		ZipFilename:      "toolbox.zip",
-		FileSize:         987,
 	}}
 	deps := publicTestDependencies()
 	deps.MCPServers = reader
@@ -772,33 +709,14 @@ func TestGetMCPServerReturnsStructuredToolsJSONAndReadmeWindow(t *testing.T) {
 	if output.Readme != "三四五六" || !output.HasMore || output.NextOffset != 7 {
 		t.Fatalf("readme window = %#v", output)
 	}
-	tools, ok := output.ToolsJSON.([]any)
-	if !ok || len(tools) != 1 {
-		t.Fatalf("tools_json = %#v, want structured array", output.ToolsJSON)
+	if len(output.Installations) != 1 || output.Installations[0].Client != "cursor" {
+		t.Fatalf("installations = %#v", output.Installations)
 	}
-	tool, ok := tools[0].(map[string]any)
-	if !ok || tool["name"] != "lookup" {
-		t.Fatalf("tools_json[0] = %#v", tools[0])
+	if strings.Contains(string(payload), "tools_json") || strings.Contains(string(payload), "zip_url") || strings.Contains(string(payload), "downloads") {
+		t.Fatalf("legacy MCP fields leaked: %s", payload)
 	}
-	if strings.Contains(string(payload), `"tools_json":"`) || strings.Contains(string(payload), "private") || strings.Contains(string(payload), "zip_url") {
-		t.Fatalf("tools_json is escaped or storage path leaked: %s", payload)
-	}
-	if output.URL != testPublicBaseURL+"/mcps/15" || output.Filename != "toolbox.zip" || output.FileSize != 987 || !output.DownloadAvailable {
+	if output.URL != testPublicBaseURL+"/mcps/15" {
 		t.Fatalf("resource metadata = %#v", output)
-	}
-}
-
-func TestGetMCPServerRejectsInvalidPersistedToolsJSONWithoutLeak(t *testing.T) {
-	reader := &fakeMCPServerReader{detail: &service.McpServerDetail{
-		McpServerSummary: service.McpServerSummary{ID: 15, Name: "Broken", Tags: []service.TagBrief{}},
-		ToolsJSON:        `{not-json`,
-	}}
-	deps := publicTestDependencies()
-	deps.MCPServers = reader
-	result := callToolResult(t, newTestServer(deps), "get_mcp_server", map[string]any{"id": 15})
-	assertToolErrorCode(t, result, errorCodeInternal)
-	if strings.Contains(toolText(result), "not-json") || strings.Contains(toolText(result), "invalid character") {
-		t.Fatalf("persisted JSON details leaked in %q", toolText(result))
 	}
 }
 

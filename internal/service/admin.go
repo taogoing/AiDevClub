@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"time"
 
@@ -13,16 +14,16 @@ import (
 )
 
 type AdminService struct {
-	users          *repo.UserRepo
-	articles       *repo.ArticleRepo
-	skills         *repo.SkillRepo
-	mcpServers     *repo.McpServerRepo
-	comments       *repo.CommentRepo
+	users            *repo.UserRepo
+	articles         *repo.ArticleRepo
+	skills           *repo.SkillRepo
+	mcpServers       *repo.McpServerRepo
+	comments         *repo.CommentRepo
 	resourceComments *repo.ResourceCommentRepo
-	reportRepo     *repo.ReportRepo
+	reportRepo       *repo.ReportRepo
 	announcementRepo *repo.AnnouncementRepo
-	adminLogSvc    *AdminLogService
-	notifSvc       *NotificationService
+	adminLogSvc      *AdminLogService
+	notifSvc         *NotificationService
 }
 
 func NewAdminService(
@@ -177,17 +178,17 @@ type AdminArticleQuery struct {
 }
 
 type AdminArticleItem struct {
-	ID          uint        `json:"id"`
-	Title       string      `json:"title"`
-	Summary     string      `json:"summary"`
-	Author      AuthorBrief `json:"author"`
-	CategoryID  uint        `json:"category_id"`
-	Views       int         `json:"views"`
-	LikesCount  int         `json:"likes_count"`
-	CommentsCount int       `json:"comments_count"`
-	Hidden      bool        `json:"hidden"`
-	PublishedAt *time.Time  `json:"published_at"`
-	CreatedAt   time.Time   `json:"created_at"`
+	ID            uint        `json:"id"`
+	Title         string      `json:"title"`
+	Summary       string      `json:"summary"`
+	Author        AuthorBrief `json:"author"`
+	CategoryID    uint        `json:"category_id"`
+	Views         int         `json:"views"`
+	LikesCount    int         `json:"likes_count"`
+	CommentsCount int         `json:"comments_count"`
+	Hidden        bool        `json:"hidden"`
+	PublishedAt   *time.Time  `json:"published_at"`
+	CreatedAt     time.Time   `json:"created_at"`
 }
 
 type AdminArticleListResult struct {
@@ -242,20 +243,20 @@ func (s *AdminService) ListArticles(ctx context.Context, q AdminArticleQuery) (*
 }
 
 type AdminArticleDetail struct {
-	ID            uint        `json:"id"`
-	Title         string      `json:"title"`
-	Summary       string      `json:"summary"`
-	Content       string      `json:"content"`
-	Author        AuthorBrief `json:"author"`
-	CategoryID    uint        `json:"category_id"`
-	CategoryName  string      `json:"category_name"`
-	Views         int         `json:"views"`
-	LikesCount    int         `json:"likes_count"`
-	FavoritesCount int        `json:"favorites_count"`
-	CommentsCount int         `json:"comments_count"`
-	Hidden        bool        `json:"hidden"`
-	PublishedAt   *time.Time  `json:"published_at"`
-	CreatedAt     time.Time   `json:"created_at"`
+	ID             uint        `json:"id"`
+	Title          string      `json:"title"`
+	Summary        string      `json:"summary"`
+	Content        string      `json:"content"`
+	Author         AuthorBrief `json:"author"`
+	CategoryID     uint        `json:"category_id"`
+	CategoryName   string      `json:"category_name"`
+	Views          int         `json:"views"`
+	LikesCount     int         `json:"likes_count"`
+	FavoritesCount int         `json:"favorites_count"`
+	CommentsCount  int         `json:"comments_count"`
+	Hidden         bool        `json:"hidden"`
+	PublishedAt    *time.Time  `json:"published_at"`
+	CreatedAt      time.Time   `json:"created_at"`
 }
 
 func (s *AdminService) GetArticle(ctx context.Context, id uint) (*AdminArticleDetail, error) {
@@ -467,7 +468,6 @@ type AdminResourceItem struct {
 	Status      string      `json:"status"`
 	Hidden      bool        `json:"hidden"`
 	Views       int         `json:"views"`
-	Downloads   int         `json:"downloads"`
 	CreatedAt   time.Time   `json:"created_at"`
 	UpdatedAt   time.Time   `json:"updated_at"`
 }
@@ -515,7 +515,6 @@ func (s *AdminService) ListSkills(ctx context.Context, q AdminResourceQuery) (*A
 			Status:      string(sk.Status),
 			Hidden:      sk.Hidden,
 			Views:       sk.Views,
-			Downloads:   sk.Downloads,
 			CreatedAt:   sk.CreatedAt,
 			UpdatedAt:   sk.UpdatedAt,
 		})
@@ -525,11 +524,8 @@ func (s *AdminService) ListSkills(ctx context.Context, q AdminResourceQuery) (*A
 
 type AdminSkillDetail struct {
 	AdminResourceItem
-	RepoURL     string `json:"repo_url"`
-	ZipURL      string `json:"zip_url"`
-	ZipFilename string `json:"zip_filename"`
-	FileSize    int64  `json:"file_size"`
-	SkillMD     string `json:"skill_md"`
+	RepoURL      string `json:"repo_url"`
+	SkillMD      string `json:"skill_md"`
 	RejectReason string `json:"reject_reason,omitempty"`
 }
 
@@ -547,14 +543,10 @@ func (s *AdminService) GetSkill(ctx context.Context, id uint) (*AdminSkillDetail
 			Status:      string(sk.Status),
 			Hidden:      sk.Hidden,
 			Views:       sk.Views,
-			Downloads:   sk.Downloads,
 			CreatedAt:   sk.CreatedAt,
 			UpdatedAt:   sk.UpdatedAt,
 		},
 		RepoURL:      sk.RepoURL,
-		ZipURL:       sk.ZipURL,
-		ZipFilename:  sk.ZipFilename,
-		FileSize:     sk.FileSize,
 		SkillMD:      sk.SkillMD,
 		RejectReason: sk.RejectReason,
 	}, nil
@@ -596,7 +588,6 @@ func (s *AdminService) ListMCPServers(ctx context.Context, q AdminResourceQuery)
 			Status:      string(m.Status),
 			Hidden:      m.Hidden,
 			Views:       m.Views,
-			Downloads:   m.Downloads,
 			CreatedAt:   m.CreatedAt,
 			UpdatedAt:   m.UpdatedAt,
 		})
@@ -606,19 +597,22 @@ func (s *AdminService) ListMCPServers(ctx context.Context, q AdminResourceQuery)
 
 type AdminMCPServerDetail struct {
 	AdminResourceItem
-	RepoURL      string `json:"repo_url"`
-	ToolsJSON    string `json:"tools_json"`
-	Readme       string `json:"readme"`
-	ZipURL       string `json:"zip_url"`
-	ZipFilename  string `json:"zip_filename"`
-	FileSize     int64  `json:"file_size"`
-	RejectReason string `json:"reject_reason,omitempty"`
+	RepoURL       string            `json:"repo_url"`
+	Installations []McpInstallation `json:"installations"`
+	Readme        string            `json:"readme"`
+	RejectReason  string            `json:"reject_reason,omitempty"`
 }
 
 func (s *AdminService) GetMCPServer(ctx context.Context, id uint) (*AdminMCPServerDetail, error) {
 	m, err := s.mcpServers.AdminFindByID(ctx, id)
 	if err != nil {
 		return nil, ErrMcpServerNotFound
+	}
+	installations := []McpInstallation{}
+	if m.InstallationsJSON != "" {
+		if err := json.Unmarshal([]byte(m.InstallationsJSON), &installations); err != nil {
+			return nil, err
+		}
 	}
 	return &AdminMCPServerDetail{
 		AdminResourceItem: AdminResourceItem{
@@ -629,17 +623,13 @@ func (s *AdminService) GetMCPServer(ctx context.Context, id uint) (*AdminMCPServ
 			Status:      string(m.Status),
 			Hidden:      m.Hidden,
 			Views:       m.Views,
-			Downloads:   m.Downloads,
 			CreatedAt:   m.CreatedAt,
 			UpdatedAt:   m.UpdatedAt,
 		},
-		RepoURL:      m.RepoURL,
-		ToolsJSON:    m.ToolsJSON,
-		Readme:       m.Readme,
-		ZipURL:       m.ZipURL,
-		ZipFilename:  m.ZipFilename,
-		FileSize:     m.FileSize,
-		RejectReason: m.RejectReason,
+		RepoURL:       m.RepoURL,
+		Installations: installations,
+		Readme:        m.Readme,
+		RejectReason:  m.RejectReason,
 	}, nil
 }
 
