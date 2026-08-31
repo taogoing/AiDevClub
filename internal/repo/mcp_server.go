@@ -204,8 +204,6 @@ func (r *McpServerRepo) AdminList(ctx context.Context, q AdminResourceQuery) ([]
 	d := r.db.WithContext(ctx).Model(&model.McpServer{})
 	if q.Status != "" {
 		d = d.Where("status = ?", q.Status)
-	} else {
-		d = d.Where("status = ?", model.ResourceStatusPendingReview)
 	}
 	if q.Keyword != "" {
 		like := "%" + q.Keyword + "%"

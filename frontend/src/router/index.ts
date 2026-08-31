@@ -37,6 +37,18 @@ const router = createRouter({
           component: () => import('@/views/MyArticlesView.vue'),
           meta: { requiresAuth: true },
         },
+        {
+          path: 'my/skills',
+          name: 'my-skills',
+          component: () => import('@/views/MySkillsView.vue'),
+          meta: { requiresAuth: true },
+        },
+        {
+          path: 'my/mcps',
+          name: 'my-mcps',
+          component: () => import('@/views/MyMcpServersView.vue'),
+          meta: { requiresAuth: true },
+        },
         { path: 'login', name: 'login', component: () => import('@/views/LoginView.vue') },
         { path: 'register', name: 'register', component: () => import('@/views/RegisterView.vue') },
         {

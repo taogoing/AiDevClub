@@ -8,7 +8,9 @@
             <el-input v-model="skillKeyword" placeholder="名称/描述" clearable @clear="loadSkills" />
           </el-form-item>
           <el-form-item label="状态">
-            <el-select v-model="skillStatus" clearable placeholder="待审核" @change="loadSkills">
+            <el-select v-model="skillStatus" clearable placeholder="全部状态" @change="loadSkills">
+              <el-option label="全部" value="" />
+              <el-option label="草稿" value="draft" />
               <el-option label="待审核" value="pending_review" />
               <el-option label="已发布" value="published" />
               <el-option label="已拒绝" value="rejected" />
@@ -54,7 +56,9 @@
             <el-input v-model="mcpKeyword" placeholder="名称/描述" clearable @clear="loadMCPServers" />
           </el-form-item>
           <el-form-item label="状态">
-            <el-select v-model="mcpStatus" clearable placeholder="待审核" @change="loadMCPServers">
+            <el-select v-model="mcpStatus" clearable placeholder="全部状态" @change="loadMCPServers">
+              <el-option label="全部" value="" />
+              <el-option label="草稿" value="draft" />
               <el-option label="待审核" value="pending_review" />
               <el-option label="已发布" value="published" />
               <el-option label="已拒绝" value="rejected" />
@@ -139,7 +143,7 @@ const activeTab = ref('skill')
 
 const skills = ref<AdminResource[]>([])
 const skillKeyword = ref('')
-const skillStatus = ref('pending_review')
+const skillStatus = ref('')
 const skillPage = ref(1)
 const skillPageSize = ref(20)
 const skillTotal = ref(0)
@@ -147,7 +151,7 @@ const skillLoading = ref(false)
 
 const mcpServers = ref<AdminResource[]>([])
 const mcpKeyword = ref('')
-const mcpStatus = ref('pending_review')
+const mcpStatus = ref('')
 const mcpPage = ref(1)
 const mcpPageSize = ref(20)
 const mcpTotal = ref(0)

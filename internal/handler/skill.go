@@ -93,6 +93,18 @@ func (h *SkillHandler) Get(c *gin.Context) {
 	platform.OK(c, detail)
 }
 
+func (h *SkillHandler) ListMine(c *gin.Context) {
+	page := queryInt(c, "page", 1)
+	pageSize := queryInt(c, "page_size", 20)
+	status := c.Query("status")
+	res, err := h.svc.ListOwned(c.Request.Context(), c.GetUint("user_id"), status, page, pageSize)
+	if err != nil {
+		platform.Fail(c, errStatus(err), errCode(err), err.Error())
+		return
+	}
+	platform.OK(c, res)
+}
+
 func (h *SkillHandler) List(c *gin.Context) {
 	q := service.SkillListQuery{
 		Page:     queryInt(c, "page", 1),

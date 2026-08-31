@@ -30,7 +30,8 @@
                 <el-dropdown-menu>
                   <el-dropdown-item command="profile">个人中心</el-dropdown-item>
                   <el-dropdown-item command="my-articles">我的文章</el-dropdown-item>
-                  <el-dropdown-item command="new-article">发布文章</el-dropdown-item>
+                  <el-dropdown-item command="my-skills">我的 Skills</el-dropdown-item>
+                  <el-dropdown-item command="my-mcps">我的 MCP</el-dropdown-item>
                   <el-dropdown-item divided command="logout">登出</el-dropdown-item>
                 </el-dropdown-menu>
               </template>
@@ -93,7 +94,8 @@ function handleSearch() {
 function handleCommand(cmd: string) {
   if (cmd === 'profile') router.push('/users/me')
   else if (cmd === 'my-articles') router.push('/my/articles')
-  else if (cmd === 'new-article') router.push('/articles/new')
+  else if (cmd === 'my-skills') router.push('/my/skills')
+  else if (cmd === 'my-mcps') router.push('/my/mcps')
   else if (cmd === 'logout') {
     auth.logout().then(() => router.push('/'))
   }

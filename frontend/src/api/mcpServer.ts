@@ -5,6 +5,10 @@ export function getMcpServers(params: Record<string, unknown>) {
   return http.get<ApiResponse<McpServerListResult>>('/api/v1/mcp-servers', { params })
 }
 
+export function getMyMcpServers(params: Record<string, unknown>) {
+  return http.get<ApiResponse<McpServerListResult>>('/api/v1/mcp-servers/mine', { params })
+}
+
 export function getMcpServer(id: number) {
   return http.get<ApiResponse<McpServerDetail>>(`/api/v1/mcp-servers/${id}`)
 }

@@ -115,6 +115,7 @@ func main() {
 
 	skillsGroup := r.Group("/api/v1/skills")
 	skillsGroup.GET("", skillH.List)
+	skillsGroup.GET("/mine", p2Auth, skillH.ListMine)
 	skillsGroup.POST("", p2Auth, skillH.Create)
 	skillsGroup.GET("/:id", opt, skillH.Get)
 	skillsGroup.PUT("/:id", p2Auth, skillH.Update)
@@ -132,6 +133,7 @@ func main() {
 
 	mcpGroup := r.Group("/api/v1/mcp-servers")
 	mcpGroup.GET("", mcpH.List)
+	mcpGroup.GET("/mine", p2Auth, mcpH.ListMine)
 	mcpGroup.POST("", p2Auth, mcpH.Create)
 	mcpGroup.GET("/:id", opt, mcpH.Get)
 	mcpGroup.PUT("/:id", p2Auth, mcpH.Update)

@@ -5,6 +5,10 @@ export function getSkills(params: Record<string, unknown>) {
   return http.get<ApiResponse<SkillListResult>>('/api/v1/skills', { params })
 }
 
+export function getMySkills(params: Record<string, unknown>) {
+  return http.get<ApiResponse<SkillListResult>>('/api/v1/skills/mine', { params })
+}
+
 export function getSkill(id: number) {
   return http.get<ApiResponse<SkillDetail>>(`/api/v1/skills/${id}`)
 }
