@@ -43,7 +43,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="160" fixed="right">
+        <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="showEditDialog(row)">
               编辑
@@ -55,6 +55,9 @@
               @click="toggleTag(row)"
             >
               {{ row.enabled ? '禁用' : '启用' }}
+            </el-button>
+            <el-button type="danger" link size="small" @click="deleteTag(row)">
+              删除
             </el-button>
           </template>
         </el-table-column>
@@ -111,7 +114,7 @@ import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
-import { getAdminTags, createTag, updateTag } from '@/api/adminTag'
+import { getAdminTags, createTag, updateTag, deleteTag as apiDeleteTag } from '@/api/adminTag'
 import type { AdminTag } from '@/api/adminTag'
 
 const tags = ref<AdminTag[]>([])
@@ -219,6 +222,23 @@ const toggleTag = async (tag: AdminTag) => {
     loadTags()
   } catch {
     // cancelled
+  }
+}
+
+const deleteTag = async (tag: AdminTag) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除标签「${tag.name}」吗？此操作不可恢复！`,
+      '确认删除',
+      { type: 'error', confirmButtonText: '确定删除', cancelButtonText: '取消' }
+    )
+    await apiDeleteTag(tag.id)
+    ElMessage.success('删除成功')
+    loadTags()
+  } catch (e: any) {
+    if (e !== 'cancel' && e?.message) {
+      ElMessage.error(e.message || '删除失败')
+    }
   }
 }
 

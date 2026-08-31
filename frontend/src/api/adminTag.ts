@@ -33,3 +33,7 @@ export function createTag(data: { name: string; description?: string }) {
 export function updateTag(id: number, data: { name?: string; description?: string; enabled?: boolean }) {
   return http.put<ApiResponse<null>>(`/api/v1/admin/tags/${id}`, data)
 }
+
+export function deleteTag(id: number) {
+  return http.delete<ApiResponse<null>>(`/api/v1/admin/tags/${id}`)
+}

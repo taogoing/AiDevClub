@@ -105,3 +105,18 @@ func (h *AdminTagHandler) List(c *gin.Context) {
 		"page_size": pageSize,
 	})
 }
+
+func (h *AdminTagHandler) Delete(c *gin.Context) {
+	id, err := parseUintParam(c, "id")
+	if err != nil {
+		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "无效的标签 ID")
+		return
+	}
+
+	if err := h.svc.AdminDelete(c.Request.Context(), id); err != nil {
+		platform.Fail(c, errStatus(err), errCode(err), err.Error())
+		return
+	}
+
+	platform.OK(c, nil)
+}

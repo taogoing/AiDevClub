@@ -96,6 +96,7 @@ func main() {
 	adminTags := r.Group("/api/v1/admin/tags")
 	adminTags.POST("", adminTagH.Create)
 	adminTags.PUT("/:id", adminTagH.Update)
+	adminTags.DELETE("/:id", adminTagH.Delete)
 	adminTags.GET("", adminTagH.List)
 
 	searchH := handler.NewSearchHandler(services.Search)

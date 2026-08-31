@@ -78,6 +78,17 @@ func (s *TagService) AdminUpdate(ctx context.Context, id uint, updates map[strin
 	return s.tags.AdminPatch(ctx, id, updates)
 }
 
+func (s *TagService) AdminDelete(ctx context.Context, id uint) error {
+	count, err := s.tags.CountTagUsage(ctx, id)
+	if err != nil {
+		return err
+	}
+	if count > 0 {
+		return fmt.Errorf("该标签正在被 %d 个内容引用，无法删除", count)
+	}
+	return s.tags.AdminDelete(ctx, id)
+}
+
 func (s *TagService) AdminList(ctx context.Context, keyword, status string, page, pageSize int) ([]model.Tag, int64, error) {
 	return s.tags.AdminList(ctx, keyword, status, page, pageSize)
 }

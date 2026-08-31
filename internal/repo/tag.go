@@ -72,6 +72,26 @@ func (r *TagRepo) AdminPatch(ctx context.Context, id uint, updates map[string]in
 		Updates(updates).Error
 }
 
+func (r *TagRepo) AdminDelete(ctx context.Context, id uint) error {
+	return r.db.WithContext(ctx).Delete(&model.Tag{}, id).Error
+}
+
+func (r *TagRepo) CountTagUsage(ctx context.Context, tagID uint) (int64, error) {
+	var count int64
+	if err := r.db.WithContext(ctx).Table("article_tags").Where("tag_id = ?", tagID).Count(&count).Error; err != nil {
+		return 0, err
+	}
+	var skillCount int64
+	if err := r.db.WithContext(ctx).Table("skill_tags").Where("tag_id = ?", tagID).Count(&skillCount).Error; err != nil {
+		return 0, err
+	}
+	var mcpCount int64
+	if err := r.db.WithContext(ctx).Table("mcp_server_tags").Where("tag_id = ?", tagID).Count(&mcpCount).Error; err != nil {
+		return 0, err
+	}
+	return count + skillCount + mcpCount, nil
+}
+
 func (r *TagRepo) AdminList(ctx context.Context, keyword, status string, page, pageSize int) ([]model.Tag, int64, error) {
 	query := r.db.WithContext(ctx).Model(&model.Tag{})
 
