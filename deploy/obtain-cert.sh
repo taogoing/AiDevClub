@@ -40,18 +40,23 @@ echo "=== Restarting frontend with fallback cert ==="
 docker compose restart frontend
 sleep 3
 
-echo "=== Removing fallback / stale cert data so certbot can issue a fresh certificate ==="
-docker run --rm -v "${VOLUME}:/etc/letsencrypt" alpine sh -c \
-  "rm -rf /etc/letsencrypt/live/${DOMAIN} /etc/letsencrypt/archive/${DOMAIN} /etc/letsencrypt/renewal/${DOMAIN}.conf"
-
 echo "=== Requesting Let's Encrypt certificate ==="
-docker compose run --rm --entrypoint certbot certbot certonly --webroot \
+if docker compose run --rm --entrypoint certbot certbot certonly --webroot \
   --webroot-path /var/www/certbot \
   -d "${DOMAIN}" -d "www.${DOMAIN}" \
-  --non-interactive --agree-tos --email "${EMAIL}"
+  --non-interactive --agree-tos --email "${EMAIL}"; then
 
-echo "=== Reloading nginx to use the real certificate ==="
-docker compose exec frontend nginx -s reload
+  echo "=== Certificate obtained successfully; cleaning up old cert data ==="
+  docker run --rm -v "${VOLUME}:/etc/letsencrypt" alpine sh -c \
+    "rm -rf /etc/letsencrypt/archive/${DOMAIN}0* /etc/letsencrypt/renewal/${DOMAIN}.conf 2>/dev/null; true"
+
+  echo "=== Reloading nginx to use the real certificate ==="
+  docker compose exec frontend nginx -s reload
+else
+  echo "=== WARNING: certbot failed (possibly rate limited). Keeping fallback self-signed certificate. ==="
+  echo "=== The site will show a certificate warning in the browser. ==="
+  echo "=== Retry after rate limit resets, or manually install a certificate. ==="
+fi
 
 echo "=== service status ==="
 docker compose ps
