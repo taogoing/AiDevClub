@@ -180,6 +180,7 @@ function formatTime(t: string | null) {
   font-weight: 700;
   margin-bottom: 16px;
   color: #303133;
+  line-height: 1.3;
 }
 
 .article-meta {
@@ -211,7 +212,117 @@ function formatTime(t: string | null) {
 
 .article-content {
   margin: 24px 0;
-  line-height: 1.5;
+  line-height: 1.8;
+  font-size: 16px;
+  color: #2c3e50;
+}
+
+.article-content :deep(h1) {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 32px 0 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #eaecef;
+  color: #1a1a2e;
+}
+
+.article-content :deep(h2) {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 28px 0 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #eaecef;
+  color: #1a1a2e;
+}
+
+.article-content :deep(h3) {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 24px 0 10px;
+  color: #1a1a2e;
+}
+
+.article-content :deep(p) {
+  margin: 12px 0;
+}
+
+.article-content :deep(ul),
+.article-content :deep(ol) {
+  padding-left: 24px;
+  margin: 12px 0;
+}
+
+.article-content :deep(li) {
+  margin: 6px 0;
+}
+
+.article-content :deep(blockquote) {
+  margin: 16px 0;
+  padding: 12px 16px;
+  border-left: 4px solid #409eff;
+  background: #f4f7fb;
+  color: #5a6a7a;
+  border-radius: 0 8px 8px 0;
+}
+
+.article-content :deep(blockquote p) {
+  margin: 0;
+}
+
+.article-content :deep(pre) {
+  margin: 16px 0;
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+.article-content :deep(pre code) {
+  display: block;
+  padding: 16px 20px;
+  background: #1e1e2e;
+  color: #cdd6f4;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
+  font-size: 14px;
+  line-height: 1.6;
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+.article-content :deep(:not(pre) > code) {
+  padding: 2px 6px;
+  margin: 0 2px;
+  background: #f0f2f5;
+  color: #e83e8c;
+  font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+  font-size: 14px;
+  border-radius: 4px;
+}
+
+.article-content :deep(img) {
+  max-width: 100%;
+  border-radius: 8px;
+  margin: 12px 0;
+}
+
+.article-content :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0;
+}
+
+.article-content :deep(th),
+.article-content :deep(td) {
+  padding: 10px 14px;
+  border: 1px solid #ebeef5;
+  text-align: left;
+}
+
+.article-content :deep(th) {
+  background: #f5f7fa;
+  font-weight: 600;
+}
+
+.article-content :deep(tr:hover) {
+  background: #f9fafc;
 }
 
 .article-actions {

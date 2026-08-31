@@ -29,7 +29,7 @@
       </div>
       <div v-loading="loading" class="mcps-grid">
         <McpServerCard v-for="server in servers" :key="server.id" :server="server" />
-        <el-empty v-if="!loading && !servers.length" description="暂无 MCP Server" />
+        <el-empty v-if="!loading && !servers.length" description="暂无 MCP" />
       </div>
       <div class="pagination-wrap" v-if="total > pageSize">
         <el-pagination

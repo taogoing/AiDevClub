@@ -1,9 +1,9 @@
 <template>
   <div class="page-container">
     <div class="page-header">
-      <h2>我的 MCP Servers</h2>
+      <h2>我的 MCP</h2>
       <el-button type="primary" @click="$router.push('/mcps/new')">
-        <el-icon><Plus /></el-icon> 发布 MCP Server
+        <el-icon><Plus /></el-icon> 发布 MCP
       </el-button>
     </div>
 
@@ -35,14 +35,14 @@
           <el-button size="small" @click="$router.push(`/mcps/${server.id}/edit`)">编辑</el-button>
           <el-button v-if="server.status === 'draft' || server.status === 'rejected' || server.status === 'archived'" size="small" type="success" @click="handleSubmit(server.id)">提交审核</el-button>
           <el-button v-if="server.status === 'pending_review'" size="small" @click="handleWithdraw(server.id)">撤回</el-button>
-          <el-popconfirm title="确定删除这个 MCP Server？" @confirm="handleDelete(server.id)">
+          <el-popconfirm title="确定删除这个 MCP？" @confirm="handleDelete(server.id)">
             <template #reference>
               <el-button size="small" type="danger">删除</el-button>
             </template>
           </el-popconfirm>
         </div>
       </div>
-      <el-empty v-if="!loading && !servers.length" description="暂无 MCP Server" />
+      <el-empty v-if="!loading && !servers.length" description="暂无 MCP" />
     </div>
 
     <div class="pagination-wrap" v-if="total > pageSize">

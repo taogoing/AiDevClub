@@ -71,7 +71,7 @@ const searchType = computed(() => {
 })
 const searchPlaceholder = computed(() => {
   if (searchType.value === 'skill') return '搜索 Skill...'
-  if (searchType.value === 'mcp_server') return '搜索 MCP Server...'
+  if (searchType.value === 'mcp_server') return '搜索 MCP...'
   return '搜索文章、Skill、MCP...'
 })
 

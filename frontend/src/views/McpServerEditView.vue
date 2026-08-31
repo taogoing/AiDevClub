@@ -1,6 +1,6 @@
 <template>
   <div class="page-container">
-    <h2>{{ isEdit ? '编辑 MCP Server' : '分享 MCP Server' }}</h2>
+    <h2>{{ isEdit ? '编辑 MCP' : '发布 MCP' }}</h2>
     <el-form :model="form" label-position="top" v-loading="pageLoading">
       <el-form-item label="名称" required>
         <el-input v-model="form.name" placeholder="例如：MySQL" maxlength="100" show-word-limit />
