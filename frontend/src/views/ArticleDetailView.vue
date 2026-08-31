@@ -38,12 +38,13 @@
       </div>
 
       <div class="article-actions-card">
-        <el-button
-          :type="article.liked ? 'primary' : 'default'"
-          @click="handleLike"
-        >
-          <el-icon><CaretTop /></el-icon> {{ article.liked ? '已赞' : '点赞' }}
-        </el-button>
+          <el-button
+            :type="article.liked ? 'primary' : 'default'"
+            @click="handleLike"
+          >
+            <svg class="thumbs-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+            {{ article.liked ? '已赞' : '点赞' }}
+          </el-button>
         <el-button
           :type="article.favorited ? 'warning' : 'default'"
           @click="handleFavorite"
@@ -89,7 +90,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { CaretTop, Star } from '@element-plus/icons-vue'
+import { Star } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import MarkdownIt from 'markdown-it'
 import hljs from 'highlight.js'
@@ -196,7 +197,7 @@ function formatTime(t: string | null) {
 </script>
 
 <style scoped>
-.page-container { max-width: 900px; margin: 0 auto; padding: 32px 24px 48px; }
+.page-container { max-width: 1120px; margin: 0 auto; padding: 32px 24px 48px; }
 
 .article-hero {
   display: flex;
@@ -436,6 +437,12 @@ function formatTime(t: string | null) {
 
 .comment-input {
   margin-bottom: 20px;
+}
+
+.thumbs-icon {
+  width: 16px;
+  height: 16px;
+  margin-right: 4px;
 }
 
 @media (max-width: 700px) {
