@@ -19,6 +19,7 @@
         </div>
         <div class="navbar-right">
           <template v-if="auth.isLoggedIn">
+            <NotificationBell />
             <el-dropdown trigger="click" @command="handleCommand">
               <div class="user-avatar-wrap">
                 <el-avatar :size="32" :src="auth.user?.avatar_url || undefined">
@@ -56,6 +57,7 @@ import { computed, ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Search } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
+import NotificationBell from './NotificationBell.vue'
 
 const router = useRouter()
 const route = useRoute()
