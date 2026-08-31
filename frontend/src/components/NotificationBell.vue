@@ -50,10 +50,12 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { Bell, ChatDotRound, ChatLineRound, Star, CircleCheck, CircleClose, Warning } from '@element-plus/icons-vue'
 import { getNotifications, getUnreadCount, markAsRead, markAllAsRead } from '@/api/notification'
 import type { Notification } from '@/types/notification'
 
+const router = useRouter()
 const bellRef = ref<HTMLElement>()
 const showPanel = ref(false)
 const unreadCount = ref(0)
@@ -95,7 +97,20 @@ const handleNotificationClick = async (item: Notification) => {
       console.error('Failed to mark as read:', error)
     }
   }
-  // TODO: 跳转到相关页面
+  
+  // 根据资源类型跳转
+  if (item.resource_type && item.resource_id) {
+    const routeMap: Record<string, string> = {
+      article: `/articles/${item.resource_id}`,
+      skill: `/skills/${item.resource_id}`,
+      mcp_server: `/mcps/${item.resource_id}`,
+    }
+    const path = routeMap[item.resource_type]
+    if (path) {
+      router.push(path)
+    }
+  }
+  
   showPanel.value = false
 }
 
