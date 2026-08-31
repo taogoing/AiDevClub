@@ -103,10 +103,11 @@ func (s *ArticleService) Create(ctx context.Context, userID uint, in CreateArtic
 	if err := s.validateStatus(in.Status); err != nil {
 		return nil, err
 	}
-	if in.CategoryID != 0 {
-		if _, err := s.cats.FindByID(ctx, in.CategoryID); err != nil {
-			return nil, ErrCategoryNotFound
-		}
+	if in.CategoryID == 0 {
+		return nil, ErrCategoryNotFound
+	}
+	if _, err := s.cats.FindByID(ctx, in.CategoryID); err != nil {
+		return nil, ErrCategoryNotFound
 	}
 	a := &model.Article{
 		AuthorID:   userID,
@@ -157,10 +158,11 @@ func (s *ArticleService) Update(ctx context.Context, userID, articleID uint, in 
 	if err := s.validateStatus(in.Status); err != nil {
 		return nil, err
 	}
-	if in.CategoryID != 0 {
-		if _, err := s.cats.FindByID(ctx, in.CategoryID); err != nil {
-			return nil, ErrCategoryNotFound
-		}
+	if in.CategoryID == 0 {
+		return nil, ErrCategoryNotFound
+	}
+	if _, err := s.cats.FindByID(ctx, in.CategoryID); err != nil {
+		return nil, ErrCategoryNotFound
 	}
 	a, err := s.articles.FindByID(nil, articleID)
 	if err != nil {
