@@ -4,7 +4,7 @@
       <div class="filter-bar">
         <div v-if="auth.isLoggedIn" class="filter-actions">
           <el-button type="success" @click="$router.push('/mcps/new')">
-            发布 MCP Server
+            发布 MCP
           </el-button>
         </div>
         <div class="sort-bar">

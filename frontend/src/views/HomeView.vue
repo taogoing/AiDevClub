@@ -2,24 +2,24 @@
   <div class="home-container">
     <div class="main-area">
       <div class="filter-bar">
-        <div class="tag-tabs">
-          <el-button :type="!selectedTag ? 'primary' : 'default'" size="small" @click="selectedTag = 0">全部标签</el-button>
-          <el-button
-            v-for="tag in hotTags"
-            :key="tag.id"
-            :type="selectedTag === tag.id ? 'primary' : 'default'"
-            size="small"
-            @click="selectedTag = tag.id"
-          >
-            {{ tag.name }}
-          </el-button>
-        </div>
         <div class="sort-bar">
-          <el-select v-model="sortBy" size="small" style="width: 100px">
+          <el-select v-model="sortBy" size="small" style="width: 120px">
             <el-option label="最新" value="latest" />
             <el-option label="热门" value="hot" />
             <el-option label="置顶" value="pinned" />
           </el-select>
+          <div class="tag-filters">
+            <el-button :type="!selectedTag ? 'primary' : 'default'" size="small" @click="selectedTag = 0">全部标签</el-button>
+            <el-button
+              v-for="tag in hotTags"
+              :key="tag.id"
+              :type="selectedTag === tag.id ? 'primary' : 'default'"
+              size="small"
+              @click="selectedTag = tag.id"
+            >
+              {{ tag.name }}
+            </el-button>
+          </div>
         </div>
       </div>
       <div v-loading="loading">
@@ -117,7 +117,7 @@ async function fetchArticles() {
 .home-container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 24px;
+  padding: 32px 24px 56px;
   display: flex;
   gap: 24px;
 }
@@ -133,18 +133,26 @@ async function fetchArticles() {
 }
 
 .filter-bar {
-  margin-bottom: 20px;
-}
-
-.tag-tabs {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 12px;
+  margin-bottom: 24px;
+  padding: 22px;
+  border: 1px solid #e4eaf3;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgb(31 78 121 / 5%);
 }
 
 .sort-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.tag-filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .pagination-wrap {

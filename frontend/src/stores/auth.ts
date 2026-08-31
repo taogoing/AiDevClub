@@ -1,7 +1,7 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { getMe } from '@/api/user'
-import { logout as logoutApi } from '@/api/auth'
+import { refreshToken as refreshTokenApi, logout as logoutApi } from '@/api/auth'
 import type { UserProfile } from '@/types'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -35,12 +35,22 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function restoreSession(): Promise<void> {
-    if (!accessToken.value || user.value) return
+    if (user.value) return
     if (restorePromise) return restorePromise
-    restorePromise = fetchUser()
-      .then(() => {})
-      .catch(() => clearAuth())
-      .finally(() => { restorePromise = null })
+    restorePromise = (async () => {
+      if (!accessToken.value && refreshToken.value) {
+        try {
+          const res = await refreshTokenApi(refreshToken.value)
+          const data = res.data.data
+          setAuth(data.access_token, data.refresh_token)
+        } catch {
+          clearAuth()
+          return
+        }
+      }
+      if (!accessToken.value) return
+      await fetchUser()
+    })().finally(() => { restorePromise = null })
     return restorePromise
   }
 
