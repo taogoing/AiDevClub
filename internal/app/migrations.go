@@ -10,7 +10,9 @@ import (
 )
 
 func Migrate(db *gorm.DB) error {
+	db.Exec("SET FOREIGN_KEY_CHECKS = 0")
 	if db.Migrator().HasColumn(&model.Article{}, "category_id") {
+		db.Exec("ALTER TABLE articles DROP FOREIGN KEY fk_articles_category")
 		if err := db.Migrator().DropColumn(&model.Article{}, "category_id"); err != nil {
 			return err
 		}
@@ -20,6 +22,7 @@ func Migrate(db *gorm.DB) error {
 			return err
 		}
 	}
+	db.Exec("SET FOREIGN_KEY_CHECKS = 1")
 	if err := db.AutoMigrate(
 		&model.User{}, &model.Tag{}, &model.Article{},
 		&model.ArticleTag{}, &model.ArticleLike{}, &model.ArticleFavorite{},
