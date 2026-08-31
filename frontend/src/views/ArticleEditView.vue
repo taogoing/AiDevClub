@@ -110,7 +110,7 @@ function onTagChange(ids: number[]) {
   form.value.tag_ids = ids.filter((id) => existingIds.has(id))
 }
 
-async function handleImageUpload(files: File[]) {
+async function handleImageUpload(files: File[], callBack: (urls: string[]) => void) {
   const urls: string[] = []
   for (const file of files) {
     try {
@@ -120,7 +120,7 @@ async function handleImageUpload(files: File[]) {
       ElMessage.error((e as Error).message)
     }
   }
-  return urls
+  callBack(urls)
 }
 
 async function handleSubmit(status: 'draft' | 'published') {
