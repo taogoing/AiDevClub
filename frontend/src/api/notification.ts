@@ -1,4 +1,4 @@
-import http from '@/utils/http'
+import http from '@/api/http'
 import type { ApiResponse } from '@/types'
 import type { NotificationListResult, UnreadCountResult } from '@/types/notification'
 
