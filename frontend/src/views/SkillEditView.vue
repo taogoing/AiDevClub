@@ -34,8 +34,8 @@
         />
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" @click="handleSubmit('published')" :loading="submitting">发布</el-button>
-        <el-button @click="handleSubmit('draft')" :loading="submitting">保存草稿</el-button>
+        <el-button type="primary" :loading="submitting" @click="handleSubmit(true)">保存并提交审核</el-button>
+        <el-button :loading="submitting" @click="handleSubmit(false)">保存草稿</el-button>
       </el-form-item>
     </el-form>
   </div>
@@ -45,7 +45,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { createSkill, updateSkill, getSkill } from '@/api/skill'
+import { createSkill, updateSkill, getSkill, submitSkill } from '@/api/skill'
 import { getTags } from '@/api/tag'
 import type { Tag } from '@/types'
 
@@ -98,7 +98,7 @@ function onTagChange(ids: number[]) {
   form.value.tag_ids = ids.filter((id) => existingIds.has(id))
 }
 
-async function handleSubmit(status: string) {
+async function handleSubmit(shouldSubmit: boolean) {
   if (!form.value.name.trim()) {
     ElMessage.warning('请输入名称')
     return
@@ -112,7 +112,6 @@ async function handleSubmit(status: string) {
       skill_md: form.value.skill_md,
       tag_ids: form.value.tag_ids,
       tag_names: form.value.tag_names,
-      status,
     }
 
     let id: number
@@ -124,8 +123,9 @@ async function handleSubmit(status: string) {
       id = res.data.data.id
     }
 
+    if (shouldSubmit) await submitSkill(id)
 
-    ElMessage.success(status === 'published' ? '发布成功' : '已保存草稿')
+    ElMessage.success(shouldSubmit ? '已提交审核' : '已保存草稿')
     router.push('/skills')
   } catch (e: unknown) {
     ElMessage.error((e as Error).message)
