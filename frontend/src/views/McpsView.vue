@@ -2,11 +2,6 @@
   <div class="home-container">
     <div class="main-area">
       <div class="filter-bar">
-        <div v-if="auth.isLoggedIn" class="filter-actions">
-          <el-button type="success" @click="$router.push('/mcps/new')">
-            发布 MCP
-          </el-button>
-        </div>
         <div class="sort-bar">
           <el-select v-model="sortBy" size="small" style="width: 120px">
             <el-option label="最新" value="latest" />
@@ -59,10 +54,7 @@ import McpServerCard from '@/components/McpServerCard.vue'
 import ResourceSidebar from '@/components/ResourceSidebar.vue'
 import { getMcpServers } from '@/api/mcpServer'
 import { getHotTags } from '@/api/tag'
-import { useAuthStore } from '@/stores/auth'
 import type { McpServerSummary, Tag } from '@/types'
-
-const auth = useAuthStore()
 const servers = ref<McpServerSummary[]>([])
 const hotTags = ref<Tag[]>([])
 const loading = ref(false)

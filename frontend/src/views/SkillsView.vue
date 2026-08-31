@@ -2,11 +2,6 @@
   <div class="home-container">
     <div class="main-area">
       <div class="filter-bar">
-        <div v-if="auth.isLoggedIn" class="filter-actions">
-          <el-button type="success" @click="$router.push('/skills/new')">
-            发布 Skill
-          </el-button>
-        </div>
         <div class="sort-bar">
           <el-select v-model="sortBy" size="small" style="width: 120px">
             <el-option label="最新" value="latest" />
@@ -59,10 +54,7 @@ import SkillCard from '@/components/SkillCard.vue'
 import ResourceSidebar from '@/components/ResourceSidebar.vue'
 import { getSkills } from '@/api/skill'
 import { getHotTags } from '@/api/tag'
-import { useAuthStore } from '@/stores/auth'
 import type { SkillSummary, Tag } from '@/types'
-
-const auth = useAuthStore()
 const skills = ref<SkillSummary[]>([])
 const hotTags = ref<Tag[]>([])
 const loading = ref(false)
