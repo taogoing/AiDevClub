@@ -16,11 +16,11 @@ func TestTagServiceList(t *testing.T) {
 	_, _ = tagRepo.Create(ctx, "gorm")
 	svc := NewTagService(tagRepo, nil)
 
-	hot, err := svc.List(ctx, "", true, 10, "")
+	hot, err := svc.List(ctx, "", true, 10)
 	if err != nil || len(hot) != 2 {
 		t.Fatalf("hot = %v, %v", hot, err)
 	}
-	filtered, err := svc.List(ctx, "gi", false, 10, "")
+	filtered, err := svc.List(ctx, "gi", false, 10)
 	if err != nil || len(filtered) != 1 {
 		t.Fatalf("filtered = %v, %v", filtered, err)
 	}

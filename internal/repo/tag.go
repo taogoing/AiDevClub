@@ -53,30 +53,6 @@ func (r *TagRepo) ListHot(ctx context.Context, limit int) ([]model.Tag, error) {
 	return list, err
 }
 
-func (r *TagRepo) ListHotByType(ctx context.Context, contentType string, limit int) ([]model.Tag, error) {
-	var table string
-	switch contentType {
-	case "article":
-		table = "article_tags"
-	case "skill":
-		table = "skill_tags"
-	case "mcp":
-		table = "mcp_server_tags"
-	default:
-		return r.ListHot(ctx, limit)
-	}
-
-	var list []model.Tag
-	err := r.db.WithContext(ctx).
-		Joins("JOIN "+table+" ON "+table+".tag_id = tags.id").
-		Where("tags.enabled = ?", true).
-		Group("tags.id").
-		Order("COUNT("+table+".id) DESC, tags.id ASC").
-		Limit(limit).
-		Find(&list).Error
-	return list, err
-}
-
 func (r *TagRepo) IncrUsage(db *gorm.DB, tagID uint, delta int) error {
 	return db.Model(&model.Tag{}).
 		Where("id = ?", tagID).

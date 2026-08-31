@@ -17,9 +17,8 @@ func (h *TagHandler) List(c *gin.Context) {
 	prefix := c.Query("prefix")
 	hot := c.Query("hot") == "1"
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
-	contentType := c.Query("type")
 
-	list, err := h.svc.List(c.Request.Context(), prefix, hot, limit, contentType)
+	list, err := h.svc.List(c.Request.Context(), prefix, hot, limit)
 	if err != nil {
 		platform.Fail(c, errStatus(err), errCode(err), err.Error())
 		return
