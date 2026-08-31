@@ -11,27 +11,20 @@ import (
 )
 
 type listTaxonomyInput struct {
-	Kind    string `json:"kind,omitempty" jsonschema:"Taxonomy kind: all, categories, or tags."`
+	Kind    string `json:"kind,omitempty" jsonschema:"Taxonomy kind: tags."`
 	Keyword string `json:"keyword,omitempty" jsonschema:"Optional case-insensitive taxonomy keyword."`
 	Limit   int    `json:"limit,omitempty" jsonschema:"Maximum results per taxonomy kind, from 1 through 100."`
 }
 
-type categoryOutput struct {
-	ID   uint   `json:"id"`
-	Name string `json:"name"`
-	Slug string `json:"slug"`
-}
-
 type listTaxonomyOutput struct {
-	Kind       string           `json:"kind"`
-	Categories []categoryOutput `json:"categories"`
-	Tags       []TagOutput      `json:"tags"`
+	Kind string      `json:"kind"`
+	Tags []TagOutput `json:"tags"`
 }
 
 func listTaxonomyInputSchema() *jsonschema.Schema {
 	schema := mustInputSchema[listTaxonomyInput]()
-	schema.Properties["kind"].Enum = []any{"all", "categories", "tags"}
-	schema.Properties["kind"].Default = json.RawMessage(`"all"`)
+	schema.Properties["kind"].Enum = []any{"tags"}
+	schema.Properties["kind"].Default = json.RawMessage(`"tags"`)
 	schema.Properties["limit"].Minimum = jsonschema.Ptr(float64(1))
 	schema.Properties["limit"].Maximum = jsonschema.Ptr(float64(100))
 	schema.Properties["limit"].Default = json.RawMessage(`50`)
@@ -42,10 +35,10 @@ func listTaxonomy(deps PublicDependencies, _ string) mcp.ToolHandlerFor[listTaxo
 	return func(ctx context.Context, _ *mcp.CallToolRequest, input listTaxonomyInput) (*mcp.CallToolResult, listTaxonomyOutput, error) {
 		kind := strings.TrimSpace(input.Kind)
 		if kind == "" {
-			kind = "all"
+			kind = "tags"
 		}
-		if kind != "all" && kind != "categories" && kind != "tags" {
-			return nil, listTaxonomyOutput{}, invalidArgument("kind must be all, categories, or tags")
+		if kind != "tags" {
+			return nil, listTaxonomyOutput{}, invalidArgument("kind must be tags")
 		}
 		if input.Limit < 0 || input.Limit > 100 {
 			return nil, listTaxonomyOutput{}, invalidArgument("limit must be from 1 through 100")
@@ -55,20 +48,8 @@ func listTaxonomy(deps PublicDependencies, _ string) mcp.ToolHandlerFor[listTaxo
 			limit = 50
 		}
 		keyword := strings.TrimSpace(input.Keyword)
-		output := listTaxonomyOutput{Kind: kind, Categories: []categoryOutput{}, Tags: []TagOutput{}}
-		if kind == "all" || kind == "categories" {
-			if deps.Categories == nil {
-				return nil, listTaxonomyOutput{}, internalError()
-			}
-			categories, err := deps.Categories.ListForMCP(ctx, keyword, limit)
-			if err != nil {
-				return nil, listTaxonomyOutput{}, internalError()
-			}
-			for _, category := range categories {
-				output.Categories = append(output.Categories, categoryOutput{ID: category.ID, Name: category.Name, Slug: category.Slug})
-			}
-		}
-		if kind == "all" || kind == "tags" {
+		output := listTaxonomyOutput{Kind: kind, Tags: []TagOutput{}}
+		{
 			if deps.Tags == nil {
 				return nil, listTaxonomyOutput{}, internalError()
 			}
@@ -82,6 +63,6 @@ func listTaxonomy(deps PublicDependencies, _ string) mcp.ToolHandlerFor[listTaxo
 				})
 			}
 		}
-		return summaryResult(fmt.Sprintf("Taxonomy returned %d categories and %d tags.", len(output.Categories), len(output.Tags))), output, nil
+		return summaryResult(fmt.Sprintf("Taxonomy returned %d tags.", len(output.Tags))), output, nil
 	}
 }

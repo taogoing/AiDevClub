@@ -40,7 +40,6 @@ export interface AdminArticle {
   title: string
   summary: string
   author: AuthorBrief
-  category_id: number
   views: number
   likes_count: number
   comments_count: number
@@ -51,7 +50,6 @@ export interface AdminArticle {
 
 export interface AdminArticleDetail extends AdminArticle {
   content: string
-  category_name: string
   favorites_count: number
 }
 

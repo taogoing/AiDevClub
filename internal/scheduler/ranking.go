@@ -41,8 +41,12 @@ func (s *RankingScheduler) Start(parent context.Context) {
 	go func() {
 		defer s.wg.Done()
 		defer cancel()
+		if s.rankingSvc == nil {
+			return
+		}
 		ticker := time.NewTicker(s.interval)
 		defer ticker.Stop()
+		s.recalculate(ctx)
 
 		for {
 			select {

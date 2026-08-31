@@ -177,7 +177,7 @@ func (s *RankingService) ListArticleHot(ctx context.Context, page, pageSize int)
 		Where("id IN ?", ids).
 		Where("status = ?", model.ArticleStatusPublished).
 		Where("hidden = ?", false).
-		Preload("Category").Preload("Author").Find(&articles).Error; err != nil {
+		Preload("Author").Find(&articles).Error; err != nil {
 		return nil, err
 	}
 	tagMap, err := s.articleRepo.TagsForArticles(ctx, ids)
@@ -272,14 +272,11 @@ func (s *RankingService) ListMcpServerHot(ctx context.Context, page, pageSize in
 func rankingArticleSummary(article model.Article, tags []model.Tag) ArticleSummary {
 	summary := ArticleSummary{
 		ID: article.ID, Title: article.Title, Summary: article.Summary,
-		CategoryID: article.CategoryID, Tags: rankingTagBriefs(tags),
+		Tags:  rankingTagBriefs(tags),
 		Views: article.Views, LikesCount: article.LikesCount,
 		FavoritesCount: article.FavoritesCount, CommentsCount: article.CommentsCount,
 		Status: string(article.Status), PublishedAt: article.PublishedAt, Pinned: article.Pinned,
 		Author: AuthorBrief{ID: article.AuthorID},
-	}
-	if article.Category != nil {
-		summary.CategoryName = article.Category.Name
 	}
 	if article.Author != nil {
 		summary.Author = AuthorBrief{ID: article.Author.ID, Nickname: article.Author.Nickname, AvatarURL: article.Author.AvatarURL}

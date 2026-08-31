@@ -1,8 +1,6 @@
 package app
 
 import (
-	"context"
-
 	"aidevclub/internal/platform"
 	"aidevclub/internal/repo"
 	"aidevclub/internal/service"
@@ -19,18 +17,14 @@ type Services struct {
 	ResourceComments *service.ResourceCommentService
 	Search           *service.SearchService
 	Ranking          *service.RankingService
-	Categories       *service.CategoryService
 	Tags             *service.TagService
 	Notifications    *service.NotificationService
 	Reports          *service.ReportService
 	Admin            *service.AdminService
 	AdminLogs        *service.AdminLogService
-
-	categoryRepo *repo.CategoryRepo
 }
 
 func NewServices(infra *Infrastructure, cfg *platform.Config) *Services {
-	categories := repo.NewCategoryRepo(infra.DB)
 	users := repo.NewUserRepo(infra.DB)
 	tokens := repo.NewTokenRepo(infra.Redis, cfg.RefreshTokenTTL)
 	auth := service.NewAuthService(users, tokens, cfg)
@@ -43,10 +37,9 @@ func NewServices(infra *Infrastructure, cfg *platform.Config) *Services {
 	notificationRepo := repo.NewNotificationRepo(infra.DB)
 	notifications := service.NewNotificationService(notificationRepo, users)
 
-	categoryService := service.NewCategoryService(categories)
 	tagService := service.NewTagService(tags, infra.Redis)
-	articleService := service.NewArticleService(articles, tags, categories, interactions, infra.Redis, cfg, notifications)
-	commentService := service.NewCommentService(comments, articles, interactions, users, notifications)
+	articleService := service.NewArticleService(articles, tags, interactions, infra.Redis, cfg, notifications)
+	commentService := service.NewCommentService(comments, articles, interactions, users, notifications, infra.Redis)
 
 	searchRepo := repo.NewSearchRepo(infra.DB)
 	search := service.NewSearchService(searchRepo)
@@ -82,20 +75,10 @@ func NewServices(infra *Infrastructure, cfg *platform.Config) *Services {
 		ResourceComments: resourceCommentService,
 		Search:           search,
 		Ranking:          ranking,
-		Categories:       categoryService,
 		Tags:             tagService,
 		Notifications:    notifications,
 		Reports:          reports,
 		Admin:            admin,
 		AdminLogs:        adminLogs,
-		categoryRepo:     categories,
 	}
-}
-
-func (s *Services) SeedCategories(ctx context.Context) error {
-	return s.categoryRepo.Seed(ctx)
-}
-
-func (s *Services) SeedCategoriesForce(ctx context.Context) error {
-	return s.categoryRepo.SeedForce(ctx)
 }

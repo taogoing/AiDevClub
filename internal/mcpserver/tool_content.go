@@ -16,7 +16,6 @@ type searchContentInput struct {
 	Query       string `json:"query,omitempty" jsonschema:"Search keywords."`
 	ContentType string `json:"content_type,omitempty" jsonschema:"Content type: all, article, skill, or mcp_server."`
 	TagID       *uint  `json:"tag_id,omitempty" jsonschema:"Enabled tag ID filter."`
-	CategoryID  *uint  `json:"category_id,omitempty" jsonschema:"Article category ID filter."`
 	Sort        string `json:"sort,omitempty" jsonschema:"Sort mode: relevance or latest."`
 	Page        int    `json:"page,omitempty" jsonschema:"Page number, starting at 1."`
 	PageSize    int    `json:"page_size,omitempty" jsonschema:"Results per type."`
@@ -67,7 +66,6 @@ func searchContentInputSchema() *jsonschema.Schema {
 	schema.Properties["content_type"].Default = json.RawMessage(`"all"`)
 	schema.Properties["sort"].Enum = []any{"relevance", "latest"}
 	schema.Properties["tag_id"].Minimum = jsonschema.Ptr(float64(1))
-	schema.Properties["category_id"].Minimum = jsonschema.Ptr(float64(1))
 	setPagedContentSchema(schema)
 	schema.AllOf = append(schema.AllOf, &jsonschema.Schema{
 		If: &jsonschema.Schema{
@@ -138,8 +136,8 @@ func searchContent(deps PublicDependencies, publicBaseURL string) mcp.ToolHandle
 			}
 			response, err := deps.Search.Search(ctx, service.SearchQuery{
 				Keyword: strings.TrimSpace(input.Query), ContentType: contentType,
-				TagID: input.TagID, CategoryID: input.CategoryID,
-				Page: page, PageSize: pageSize, Highlight: false,
+				TagID: input.TagID,
+				Page:  page, PageSize: pageSize, Highlight: false,
 			})
 			if err != nil || response == nil {
 				return nil, searchContentOutput{}, internalError()
@@ -169,14 +167,8 @@ func normalizeSearchInput(input *searchContentInput) (contentType, sort string, 
 	if input.TagID != nil && *input.TagID == 0 {
 		return "", "", 0, 0, invalidArgument("tag_id must be greater than zero")
 	}
-	if input.CategoryID != nil && *input.CategoryID == 0 {
-		return "", "", 0, 0, invalidArgument("category_id must be greater than zero")
-	}
-	if input.Query == "" && input.TagID == nil && input.CategoryID == nil {
-		return "", "", 0, 0, invalidArgument("query, tag_id, or category_id is required")
-	}
-	if input.CategoryID != nil && contentType != "article" {
-		return "", "", 0, 0, invalidArgument("category_id is only valid for article content")
+	if input.Query == "" && input.TagID == nil {
+		return "", "", 0, 0, invalidArgument("query or tag_id is required")
 	}
 
 	sort = strings.TrimSpace(input.Sort)
@@ -210,7 +202,7 @@ func searchLatest(ctx context.Context, deps PublicDependencies, input searchCont
 		}
 		result, err := deps.Articles.List(ctx, service.ListQuery{
 			Page: output.Page, PageSize: output.PageSize, Keyword: query,
-			TagID: input.TagID, CategoryID: input.CategoryID, Sort: "latest",
+			TagID: input.TagID, Sort: "latest",
 		})
 		if err != nil || result == nil {
 			return internalError()

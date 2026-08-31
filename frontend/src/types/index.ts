@@ -20,17 +20,10 @@ export interface Tag extends TagBrief {
   usage_count: number
 }
 
-export interface Category {
-  id: number
-  name: string
-  slug: string
-}
-
 export interface ArticleSummary {
   id: number
   title: string
   summary: string
-  category_id: number
   tags: TagBrief[]
   author: AuthorBrief
   views: number
@@ -83,7 +76,6 @@ export interface LoginResult {
 export interface ArticleListQuery {
   page?: number
   page_size?: number
-  category_id?: number
   tag_id?: number
   keyword?: string
   author_id?: number
@@ -94,7 +86,6 @@ export interface ArticleForm {
   title: string
   summary: string
   content: string
-  category_id: number
   status: 'draft' | 'published'
   tag_ids: number[]
   tag_names: string[]

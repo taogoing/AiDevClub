@@ -12,7 +12,6 @@ const (
 	CodeUserNotFound         = 40401
 	CodeArticleNotFound      = 40402
 	CodeCommentNotFound      = 40403
-	CodeCategoryNotFound     = 40404
 	CodeTagNotFound          = 40405
 	CodeSkillNotFound        = 40406
 	CodeMcpServerNotFound    = 40407

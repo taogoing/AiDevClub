@@ -19,7 +19,7 @@ export interface Notification {
 }
 
 export interface NotificationListResult {
-  items: Notification[]
+  list: Notification[]
   total: number
   page: number
   page_size: number

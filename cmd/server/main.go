@@ -40,18 +40,6 @@ func main() {
 	}
 	services := app.NewServices(infra, cfg)
 
-	// 支持强制重新初始化分类（通过环境变量 AIDEVCLUB_SEED_CATEGORIES_FORCE=true）
-	if os.Getenv("AIDEVCLUB_SEED_CATEGORIES_FORCE") == "true" {
-		logger.Info("force seeding categories")
-		if err := services.SeedCategoriesForce(context.Background()); err != nil {
-			logger.Error("seed categories force", "err", err)
-			return
-		}
-	} else if err := services.SeedCategories(context.Background()); err != nil {
-		logger.Error("seed categories", "err", err)
-		return
-	}
-
 	for _, email := range cfg.AdminEmails {
 		u, err := services.UserRepo.FindByEmail(email)
 		if err == nil && u.Role != model.UserRoleAdmin {
@@ -82,14 +70,12 @@ func main() {
 	me.POST("/me/avatar", uh.UploadAvatar)
 	r.Static("/static/avatars", cfg.AvatarDir)
 
-	catH := handler.NewCategoryHandler(services.Categories)
 	tagH := handler.NewTagHandler(services.Tags)
 	artH := handler.NewArticleHandler(services.Articles)
 	comH := handler.NewCommentHandler(services.Comments)
 	p2Auth := platform.AuthMiddleware(cfg.JWTSecret)
 	opt := platform.OptionalAuthMiddleware(cfg.JWTSecret)
 
-	r.GET("/api/v1/categories", catH.List)
 	r.GET("/api/v1/tags", tagH.List)
 
 	adminTagH := handler.NewAdminTagHandler(services.Tags)

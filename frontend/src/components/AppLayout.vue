@@ -75,9 +75,7 @@ const searchPlaceholder = computed(() => {
 })
 
 onMounted(async () => {
-  if (auth.isLoggedIn && !auth.user) {
-    await auth.fetchUser()
-  }
+	await auth.restoreSession()
 })
 
 function handleSearch() {

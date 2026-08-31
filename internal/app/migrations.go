@@ -10,8 +10,18 @@ import (
 )
 
 func Migrate(db *gorm.DB) error {
+	if db.Migrator().HasColumn(&model.Article{}, "category_id") {
+		if err := db.Migrator().DropColumn(&model.Article{}, "category_id"); err != nil {
+			return err
+		}
+	}
+	if db.Migrator().HasTable("categories") {
+		if err := db.Migrator().DropTable("categories"); err != nil {
+			return err
+		}
+	}
 	if err := db.AutoMigrate(
-		&model.User{}, &model.Category{}, &model.Tag{}, &model.Article{},
+		&model.User{}, &model.Tag{}, &model.Article{},
 		&model.ArticleTag{}, &model.ArticleLike{}, &model.ArticleFavorite{},
 		&model.Comment{}, &model.CommentLike{},
 		&model.Skill{}, &model.SkillTag{},

@@ -28,7 +28,7 @@ func (r *ArticleRepo) Create(db *gorm.DB, a *model.Article) error {
 
 func (r *ArticleRepo) FindByID(db *gorm.DB, id uint) (*model.Article, error) {
 	var a model.Article
-	if err := r.exec(db).Preload("Category").Preload("Author").First(&a, id).Error; err != nil {
+	if err := r.exec(db).Preload("Author").First(&a, id).Error; err != nil {
 		return nil, err
 	}
 	return &a, nil
@@ -87,7 +87,6 @@ func (r *ArticleRepo) IncrCount(db *gorm.DB, id uint, column string, delta int) 
 
 type ArticleQuery struct {
 	Page, PageSize int
-	CategoryID     *uint
 	TagID          *uint
 	Keyword        string
 	AuthorID       *uint
@@ -98,9 +97,6 @@ func (r *ArticleRepo) baseQuery(ctx context.Context, q ArticleQuery) *gorm.DB {
 	d := r.db.WithContext(ctx).Model(&model.Article{}).
 		Where("status = ?", model.ArticleStatusPublished).
 		Where("hidden = ?", false)
-	if q.CategoryID != nil {
-		d = d.Where("category_id = ?", *q.CategoryID)
-	}
 	if q.AuthorID != nil {
 		d = d.Where("author_id = ?", *q.AuthorID)
 	}
@@ -130,7 +126,7 @@ func (r *ArticleRepo) List(ctx context.Context, q ArticleQuery) ([]model.Article
 		d = d.Order("published_at desc, id desc")
 	}
 	var list []model.Article
-	if err := d.Preload("Category").Preload("Author").
+	if err := d.Preload("Author").
 		Offset((q.Page - 1) * q.PageSize).Limit(q.PageSize).Find(&list).Error; err != nil {
 		return nil, 0, err
 	}
@@ -151,7 +147,7 @@ func (r *ArticleRepo) ListOwned(ctx context.Context, authorID uint, status strin
 		return nil, 0, err
 	}
 	var list []model.Article
-	if err := d.Order("updated_at desc, id desc").Preload("Category").Preload("Author").
+	if err := d.Order("updated_at desc, id desc").Preload("Author").
 		Offset((page - 1) * pageSize).Limit(pageSize).Find(&list).Error; err != nil {
 		return nil, 0, err
 	}
@@ -228,7 +224,7 @@ func (r *ArticleRepo) AdminList(ctx context.Context, q AdminArticleQuery) ([]mod
 
 func (r *ArticleRepo) AdminFindByID(ctx context.Context, id uint) (*model.Article, error) {
 	var a model.Article
-	if err := r.db.WithContext(ctx).Preload("Category").Preload("Author").First(&a, id).Error; err != nil {
+	if err := r.db.WithContext(ctx).Preload("Author").First(&a, id).Error; err != nil {
 		return nil, err
 	}
 	if a.Status != model.ArticleStatusPublished {

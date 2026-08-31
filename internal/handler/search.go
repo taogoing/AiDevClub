@@ -27,7 +27,7 @@ func (h *SearchHandler) Search(c *gin.Context) {
 
 	searchType := c.Query("type")
 
-	var tagID, categoryID *uint
+	var tagID *uint
 	if tagIDStr := c.Query("tag_id"); tagIDStr != "" {
 		if id, err := strconv.ParseUint(tagIDStr, 10, 64); err == nil {
 			id := uint(id)
@@ -35,18 +35,11 @@ func (h *SearchHandler) Search(c *gin.Context) {
 		}
 	}
 
-	if categoryIDStr := c.Query("category_id"); categoryIDStr != "" {
-		if id, err := strconv.ParseUint(categoryIDStr, 10, 64); err == nil {
-			id := uint(id)
-			categoryID = &id
-		}
-	}
-
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
 
 	result, err := h.svc.Search(c.Request.Context(), service.SearchQuery{
-		Keyword: keyword, ContentType: searchType, TagID: tagID, CategoryID: categoryID,
+		Keyword: keyword, ContentType: searchType, TagID: tagID,
 		Page: page, PageSize: pageSize, Highlight: true,
 	})
 	if err != nil {

@@ -31,8 +31,6 @@ type getArticleOutput struct {
 	ID             uint         `json:"id"`
 	Title          string       `json:"title"`
 	Summary        string       `json:"summary"`
-	CategoryID     uint         `json:"category_id"`
-	CategoryName   string       `json:"category_name"`
 	Tags           []TagOutput  `json:"tags"`
 	Author         AuthorOutput `json:"author"`
 	Views          int          `json:"views"`
@@ -139,7 +137,6 @@ func getArticle(reader ArticleReader, publicBaseURL string) mcp.ToolHandlerFor[g
 		window := unicodeWindow(detail.Content, offset, limit)
 		output := getArticleOutput{
 			ID: detail.ID, Title: detail.Title, Summary: detail.Summary,
-			CategoryID: detail.CategoryID, CategoryName: detail.CategoryName,
 			Tags: tagOutputs(detail.Tags), Author: authorOutput(detail.Author, publicBaseURL),
 			Views: detail.Views, LikesCount: detail.LikesCount, FavoritesCount: detail.FavoritesCount,
 			CommentsCount: detail.CommentsCount, PublishedAt: publishedAtOutput(detail.PublishedAt),

@@ -83,7 +83,7 @@ func createPerPIDDB() error {
 
 // allModels 测试库需迁移的全部模型（迁移顺序即此处顺序）。
 var allModels = []interface{}{
-	&model.User{}, &model.Category{}, &model.Tag{}, &model.Article{},
+	&model.User{}, &model.Tag{}, &model.Article{},
 	&model.ArticleTag{}, &model.ArticleLike{}, &model.ArticleFavorite{},
 	&model.Comment{}, &model.CommentLike{},
 	&model.Skill{}, &model.SkillTag{},

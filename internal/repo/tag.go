@@ -47,7 +47,7 @@ func (r *TagRepo) List(ctx context.Context, keyword string, limit int) ([]model.
 func (r *TagRepo) ListHot(ctx context.Context, limit int) ([]model.Tag, error) {
 	var list []model.Tag
 	err := r.db.WithContext(ctx).
-		Where("enabled = ? AND usage_count > 0", true).
+		Where("enabled = ?", true).
 		Order("usage_count desc, id asc").
 		Limit(limit).Find(&list).Error
 	return list, err

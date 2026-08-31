@@ -81,7 +81,7 @@ const fetchUnreadCount = async () => {
 const fetchNotifications = async () => {
   try {
     const res = await getNotifications({ page: 1, page_size: 10 })
-    notifications.value = res.data.data.items
+    notifications.value = res.data.data.list || []
   } catch (error) {
     console.error('Failed to fetch notifications:', error)
   }

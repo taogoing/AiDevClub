@@ -45,7 +45,6 @@ type SearchQuery struct {
 	Keyword     string
 	ContentType string
 	TagID       *uint
-	CategoryID  *uint
 	Page        int
 	PageSize    int
 	Highlight   bool
@@ -80,7 +79,7 @@ func (s *SearchService) Search(ctx context.Context, q SearchQuery) (*SearchRespo
 
 	switch q.ContentType {
 	case "article":
-		articles, count, err := s.searchRepo.SearchArticles(ctx, q.Keyword, q.TagID, q.CategoryID, q.Page, q.PageSize)
+		articles, count, err := s.searchRepo.SearchArticles(ctx, q.Keyword, q.TagID, q.Page, q.PageSize)
 		if err != nil {
 			return nil, err
 		}
@@ -125,7 +124,7 @@ func (s *SearchService) Search(ctx context.Context, q SearchQuery) (*SearchRespo
 		}
 
 	default:
-		articles, articleCount, err := s.searchRepo.SearchArticles(ctx, q.Keyword, q.TagID, q.CategoryID, q.Page, q.PageSize)
+		articles, articleCount, err := s.searchRepo.SearchArticles(ctx, q.Keyword, q.TagID, q.Page, q.PageSize)
 		if err != nil {
 			return nil, err
 		}

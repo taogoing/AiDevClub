@@ -36,10 +36,6 @@ type RankingReader interface {
 	ListMcpServerHot(context.Context, int, int) ([]service.McpServerSummary, error)
 }
 
-type CategoryReader interface {
-	ListForMCP(context.Context, string, int) ([]model.Category, error)
-}
-
 type TagReader interface {
 	ListForMCP(context.Context, string, int) ([]model.Tag, error)
 }
@@ -70,7 +66,6 @@ type PublicDependencies struct {
 	Skills     SkillReader
 	MCPServers MCPServerReader
 	Ranking    RankingReader
-	Categories CategoryReader
 	Tags       TagReader
 }
 
@@ -114,7 +109,7 @@ func RegisterPublicTools(server *mcp.Server, deps PublicDependencies, publicBase
 		InputSchema: getMCPServerInputSchema(),
 	}, getMCPServer(deps.MCPServers, publicBaseURL))
 	mcp.AddTool(server, &mcp.Tool{
-		Name: "list_taxonomy", Description: "List enabled tags and article categories.", Annotations: annotations,
+		Name: "list_taxonomy", Description: "List enabled tags.", Annotations: annotations,
 		InputSchema: listTaxonomyInputSchema(),
 	}, listTaxonomy(deps, publicBaseURL))
 }

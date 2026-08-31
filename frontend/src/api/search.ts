@@ -5,7 +5,6 @@ export interface SearchParams {
   q: string
   type?: 'article' | 'skill' | 'mcp_server' | ''
   tag_id?: number
-  category_id?: number
   page?: number
   page_size?: number
 }

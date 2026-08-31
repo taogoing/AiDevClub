@@ -20,13 +20,12 @@ func NewArticleHandler(svc *service.ArticleService) *ArticleHandler { return &Ar
 
 func (h *ArticleHandler) Create(c *gin.Context) {
 	var in struct {
-		Title      string              `json:"title"`
-		Summary    string              `json:"summary"`
-		Content    string              `json:"content"`
-		CategoryID uint                `json:"category_id"`
-		Status     model.ArticleStatus `json:"status"`
-		TagIDs     []uint              `json:"tag_ids"`
-		TagNames   []string            `json:"tag_names"`
+		Title    string              `json:"title"`
+		Summary  string              `json:"summary"`
+		Content  string              `json:"content"`
+		Status   model.ArticleStatus `json:"status"`
+		TagIDs   []uint              `json:"tag_ids"`
+		TagNames []string            `json:"tag_names"`
 	}
 	if err := c.ShouldBindJSON(&in); err != nil {
 		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "参数错误")
@@ -34,7 +33,7 @@ func (h *ArticleHandler) Create(c *gin.Context) {
 	}
 	a, err := h.svc.Create(c.Request.Context(), c.GetUint("user_id"), service.CreateArticleInput{
 		Title: in.Title, Summary: in.Summary, Content: in.Content,
-		CategoryID: in.CategoryID, Status: in.Status, TagIDs: in.TagIDs, TagNames: in.TagNames,
+		Status: in.Status, TagIDs: in.TagIDs, TagNames: in.TagNames,
 	})
 	if err != nil {
 		platform.Fail(c, errStatus(err), errCode(err), err.Error())
@@ -50,13 +49,12 @@ func (h *ArticleHandler) Update(c *gin.Context) {
 		return
 	}
 	var in struct {
-		Title      string              `json:"title"`
-		Summary    string              `json:"summary"`
-		Content    string              `json:"content"`
-		CategoryID uint                `json:"category_id"`
-		Status     model.ArticleStatus `json:"status"`
-		TagIDs     []uint              `json:"tag_ids"`
-		TagNames   []string            `json:"tag_names"`
+		Title    string              `json:"title"`
+		Summary  string              `json:"summary"`
+		Content  string              `json:"content"`
+		Status   model.ArticleStatus `json:"status"`
+		TagIDs   []uint              `json:"tag_ids"`
+		TagNames []string            `json:"tag_names"`
 	}
 	if err := c.ShouldBindJSON(&in); err != nil {
 		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "参数错误")
@@ -64,7 +62,7 @@ func (h *ArticleHandler) Update(c *gin.Context) {
 	}
 	a, err := h.svc.Update(c.Request.Context(), c.GetUint("user_id"), id, service.CreateArticleInput{
 		Title: in.Title, Summary: in.Summary, Content: in.Content,
-		CategoryID: in.CategoryID, Status: in.Status, TagIDs: in.TagIDs, TagNames: in.TagNames,
+		Status: in.Status, TagIDs: in.TagIDs, TagNames: in.TagNames,
 	})
 	if err != nil {
 		platform.Fail(c, errStatus(err), errCode(err), err.Error())
@@ -118,10 +116,6 @@ func (h *ArticleHandler) List(c *gin.Context) {
 		PageSize: queryInt(c, "page_size", 20),
 		Keyword:  c.Query("keyword"),
 		Sort:     c.Query("sort"),
-	}
-	if v := c.Query("category_id"); v != "" {
-		id := parseUint(v)
-		q.CategoryID = &id
 	}
 	if v := c.Query("tag_id"); v != "" {
 		id := parseUint(v)

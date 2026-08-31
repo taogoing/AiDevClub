@@ -7,13 +7,12 @@ import (
 )
 
 type CreateArticleInput struct {
-	Title      string
-	Summary    string
-	Content    string
-	CategoryID uint
-	Status     model.ArticleStatus
-	TagIDs     []uint
-	TagNames   []string
+	Title    string
+	Summary  string
+	Content  string
+	Status   model.ArticleStatus
+	TagIDs   []uint
+	TagNames []string
 }
 
 type AuthorBrief struct {
@@ -31,8 +30,6 @@ type ArticleSummary struct {
 	ID             uint        `json:"id"`
 	Title          string      `json:"title"`
 	Summary        string      `json:"summary"`
-	CategoryID     uint        `json:"category_id"`
-	CategoryName   string      `json:"category_name"`
 	Tags           []TagBrief  `json:"tags"`
 	Author         AuthorBrief `json:"author"`
 	Views          int         `json:"views"`
@@ -59,13 +56,12 @@ type ArticleDetail struct {
 }
 
 type ListQuery struct {
-	Page       int
-	PageSize   int
-	CategoryID *uint
-	TagID      *uint
-	Keyword    string
-	AuthorID   *uint
-	Sort       string
+	Page     int
+	PageSize int
+	TagID    *uint
+	Keyword  string
+	AuthorID *uint
+	Sort     string
 }
 
 type CommentItem struct {

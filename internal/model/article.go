@@ -16,7 +16,6 @@ const (
 type Article struct {
 	ID             uint          `gorm:"primaryKey"`
 	AuthorID       uint          `gorm:"not null;index"`
-	CategoryID     uint          `gorm:"not null;index"`
 	Title          string        `gorm:"size:200;not null"`
 	Summary        string        `gorm:"size:500"`
 	Content        string        `gorm:"type:mediumtext"`
@@ -32,8 +31,7 @@ type Article struct {
 	UpdatedAt      time.Time
 	DeletedAt      gorm.DeletedAt `gorm:"index"`
 
-	Author   *User     `gorm:"foreignKey:AuthorID"`
-	Category *Category `gorm:"foreignKey:CategoryID"`
+	Author *User `gorm:"foreignKey:AuthorID"`
 }
 
 type ArticleTag struct {

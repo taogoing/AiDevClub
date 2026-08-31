@@ -62,11 +62,28 @@ func (s *TagService) ListForMCP(ctx context.Context, keyword string, limit int) 
 	return s.tags.List(ctx, strings.TrimSpace(keyword), limit)
 }
 
+func (s *TagService) invalidateHotTagsCache(ctx context.Context) {
+	if s.rdb == nil {
+		return
+	}
+	keys, err := s.rdb.Keys(ctx, "hot:tags:*").Result()
+	if err != nil {
+		return
+	}
+	if len(keys) > 0 {
+		s.rdb.Del(ctx, keys...)
+	}
+}
+
 func (s *TagService) AdminCreate(ctx context.Context, name, description string) (*model.Tag, error) {
 	if name == "" {
 		return nil, errors.New("标签名称不能为空")
 	}
-	return s.tags.AdminCreate(ctx, name, description)
+	tag, err := s.tags.AdminCreate(ctx, name, description)
+	if err == nil {
+		s.invalidateHotTagsCache(ctx)
+	}
+	return tag, err
 }
 
 func (s *TagService) AdminUpdate(ctx context.Context, id uint, updates map[string]interface{}) error {
@@ -75,7 +92,11 @@ func (s *TagService) AdminUpdate(ctx context.Context, id uint, updates map[strin
 			return errors.New("标签名称不能为空")
 		}
 	}
-	return s.tags.AdminPatch(ctx, id, updates)
+	err := s.tags.AdminPatch(ctx, id, updates)
+	if err == nil {
+		s.invalidateHotTagsCache(ctx)
+	}
+	return err
 }
 
 func (s *TagService) AdminDelete(ctx context.Context, id uint) error {
@@ -86,7 +107,11 @@ func (s *TagService) AdminDelete(ctx context.Context, id uint) error {
 	if count > 0 {
 		return fmt.Errorf("该标签正在被 %d 个内容引用，无法删除", count)
 	}
-	return s.tags.AdminDelete(ctx, id)
+	if err := s.tags.AdminDelete(ctx, id); err != nil {
+		return err
+	}
+	s.invalidateHotTagsCache(ctx)
+	return nil
 }
 
 func (s *TagService) AdminList(ctx context.Context, keyword, status string, page, pageSize int) ([]model.Tag, int64, error) {

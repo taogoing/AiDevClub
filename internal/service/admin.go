@@ -182,7 +182,6 @@ type AdminArticleItem struct {
 	Title         string      `json:"title"`
 	Summary       string      `json:"summary"`
 	Author        AuthorBrief `json:"author"`
-	CategoryID    uint        `json:"category_id"`
 	Views         int         `json:"views"`
 	LikesCount    int         `json:"likes_count"`
 	CommentsCount int         `json:"comments_count"`
@@ -230,7 +229,6 @@ func (s *AdminService) ListArticles(ctx context.Context, q AdminArticleQuery) (*
 			Title:         a.Title,
 			Summary:       a.Summary,
 			Author:        AuthorBrief{ID: a.Author.ID, Nickname: a.Author.Nickname, AvatarURL: a.Author.AvatarURL},
-			CategoryID:    a.CategoryID,
 			Views:         a.Views,
 			LikesCount:    a.LikesCount,
 			CommentsCount: a.CommentsCount,
@@ -248,8 +246,6 @@ type AdminArticleDetail struct {
 	Summary        string      `json:"summary"`
 	Content        string      `json:"content"`
 	Author         AuthorBrief `json:"author"`
-	CategoryID     uint        `json:"category_id"`
-	CategoryName   string      `json:"category_name"`
 	Views          int         `json:"views"`
 	LikesCount     int         `json:"likes_count"`
 	FavoritesCount int         `json:"favorites_count"`
@@ -270,8 +266,6 @@ func (s *AdminService) GetArticle(ctx context.Context, id uint) (*AdminArticleDe
 		Summary:        a.Summary,
 		Content:        a.Content,
 		Author:         AuthorBrief{ID: a.Author.ID, Nickname: a.Author.Nickname, AvatarURL: a.Author.AvatarURL},
-		CategoryID:     a.CategoryID,
-		CategoryName:   a.Category.Name,
 		Views:          a.Views,
 		LikesCount:     a.LikesCount,
 		FavoritesCount: a.FavoritesCount,

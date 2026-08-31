@@ -45,7 +45,6 @@ func main() {
 			Skills:     services.Skills,
 			MCPServers: services.MCPServers,
 			Ranking:    services.Ranking,
-			Categories: services.Categories,
 			Tags:       services.Tags,
 		},
 		Account: mcpserver.AccountDependencies{

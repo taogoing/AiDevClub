@@ -16,7 +16,7 @@ func NewSearchRepo(db *gorm.DB) *SearchRepo {
 	return &SearchRepo{db: db}
 }
 
-func (r *SearchRepo) SearchArticles(ctx context.Context, keyword string, tagID, categoryID *uint, page, pageSize int) ([]model.Article, int64, error) {
+func (r *SearchRepo) SearchArticles(ctx context.Context, keyword string, tagID *uint, page, pageSize int) ([]model.Article, int64, error) {
 	query := r.db.WithContext(ctx).
 		Model(&model.Article{}).
 		Where("status = ?", "published").
@@ -26,10 +26,6 @@ func (r *SearchRepo) SearchArticles(ctx context.Context, keyword string, tagID, 
 	if tagID != nil {
 		query = query.Joins("JOIN article_tags ON article_tags.article_id = articles.id").
 			Where("article_tags.tag_id = ?", *tagID)
-	}
-
-	if categoryID != nil {
-		query = query.Where("category_id = ?", *categoryID)
 	}
 
 	var total int64

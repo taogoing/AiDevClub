@@ -41,7 +41,6 @@ services:
       AIDEVCLUB_PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://aidevclub.xyz}
       AIDEVCLUB_MCP_ADDR: ":8081"
       AIDEVCLUB_ADMIN_EMAILS: ${ADMIN_EMAILS:-}
-      AIDEVCLUB_SEED_CATEGORIES_FORCE: ${SEED_CATEGORIES_FORCE:-false}
     volumes:
       - storage_data:/app/storage
     depends_on:
