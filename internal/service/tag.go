@@ -23,13 +23,13 @@ func NewTagService(tags *repo.TagRepo, rdb *redis.Client) *TagService {
 	return &TagService{tags: tags, rdb: rdb}
 }
 
-func (s *TagService) List(ctx context.Context, prefix string, hot bool, limit int) ([]model.Tag, error) {
+func (s *TagService) List(ctx context.Context, prefix string, hot bool, limit int, contentType string) ([]model.Tag, error) {
 	if limit <= 0 {
 		limit = 50
 	}
 
 	if hot && prefix == "" && s.rdb != nil {
-		key := fmt.Sprintf("hot:tags:%d", limit)
+		key := fmt.Sprintf("hot:tags:%s:%d", contentType, limit)
 		if v, err := s.rdb.Get(ctx, key).Bytes(); err == nil {
 			var tags []model.Tag
 			if json.Unmarshal(v, &tags) == nil {
@@ -37,7 +37,13 @@ func (s *TagService) List(ctx context.Context, prefix string, hot bool, limit in
 			}
 		}
 
-		tags, err := s.tags.ListHot(ctx, limit)
+		var tags []model.Tag
+		var err error
+		if contentType != "" {
+			tags, err = s.tags.ListHotByType(ctx, contentType, limit)
+		} else {
+			tags, err = s.tags.ListHot(ctx, limit)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -50,6 +56,9 @@ func (s *TagService) List(ctx context.Context, prefix string, hot bool, limit in
 	}
 
 	if hot {
+		if contentType != "" {
+			return s.tags.ListHotByType(ctx, contentType, limit)
+		}
 		return s.tags.ListHot(ctx, limit)
 	}
 	return s.tags.List(ctx, prefix, limit)

@@ -74,7 +74,7 @@ const selectedTag = ref(0)
 
 onMounted(async () => {
   try {
-    const res = await getHotTags()
+    const res = await getHotTags(20, 'mcp')
     hotTags.value = res.data.data
   } catch { /* ignore */ }
   await fetchServers()

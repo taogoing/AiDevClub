@@ -2,7 +2,7 @@
   <div class="resource-sidebar">
     <div class="sidebar-section">
       <h3 class="section-title">
-        <el-icon><TrendCharts /></el-icon> 热门{{ type === 'skill' ? 'Skill' : 'MCP Server' }}
+        <el-icon><TrendCharts /></el-icon> 热门{{ type === 'skill' ? 'Skill' : 'MCP' }}
       </h3>
       <div class="hot-resources">
         <div
