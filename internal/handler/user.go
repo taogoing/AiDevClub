@@ -26,7 +26,7 @@ func (h *UserHandler) Me(c *gin.Context) {
 		platform.Fail(c, errStatus(err), errCode(err), err.Error())
 		return
 	}
-	platform.OK(c, gin.H{"id": u.ID, "email": u.Email, "nickname": u.Nickname, "avatar_url": u.AvatarURL, "bio": u.Bio})
+	platform.OK(c, gin.H{"id": u.ID, "email": u.Email, "nickname": u.Nickname, "avatar_url": u.AvatarURL, "bio": u.Bio, "role": u.Role})
 }
 
 func (h *UserHandler) Update(c *gin.Context) {
