@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -12,6 +13,7 @@ import (
 
 	"aidevclub/internal/app"
 	"aidevclub/internal/handler"
+	"aidevclub/internal/mcpserver"
 	"aidevclub/internal/model"
 	"aidevclub/internal/platform"
 	"aidevclub/internal/scheduler"
@@ -180,8 +182,42 @@ func main() {
 	rankingScheduler.Start(ctx)
 	defer rankingScheduler.Stop()
 
+	// Start MCP server in the same process
+	startMCPServer(ctx, cfg, services, infra, logger)
+
 	logger.Info("server starting", "addr", cfg.HTTPAddr)
 	if err := app.ServeHTTP(ctx, app.NewHTTPServer(cfg.HTTPAddr, r)); err != nil {
 		logger.Error("server exited", "err", err)
 	}
+}
+
+func startMCPServer(ctx context.Context, cfg *platform.Config, services *app.Services, infra *app.Infrastructure, logger *slog.Logger) {
+	mcpDeps := mcpserver.Dependencies{
+		Public: mcpserver.PublicDependencies{
+			Search:     services.Search,
+			Articles:   services.Articles,
+			Skills:     services.Skills,
+			MCPServers: services.MCPServers,
+			Ranking:    services.Ranking,
+			Tags:       services.Tags,
+		},
+		Account: mcpserver.AccountDependencies{
+			Profile:       services.Users,
+			Articles:      services.Articles,
+			Skills:        services.Skills,
+			MCPServers:    services.MCPServers,
+			Notifications: services.Notifications,
+		},
+	}
+
+	limiter := platform.NewRateLimiter(infra.Redis, cfg.MCPRateLimitPerMin, 60000000000)
+	mcpHandler := mcpserver.NewHandler(mcpDeps, cfg, limiter, infra, logger)
+
+	go func() {
+		mcpLogger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+		mcpLogger.Info("mcp server starting", "addr", cfg.MCPAddr)
+		if err := app.ServeHTTP(ctx, app.NewHTTPServer(cfg.MCPAddr, mcpHandler)); err != nil {
+			mcpLogger.Error("mcp server exited", "err", err)
+		}
+	}()
 }
