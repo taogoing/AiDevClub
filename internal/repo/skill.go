@@ -116,18 +116,46 @@ func (r *SkillRepo) Count(ctx context.Context, q SkillQuery) (int64, error) {
 }
 
 func (r *SkillRepo) List(ctx context.Context, q SkillQuery) ([]model.Skill, int64, error) {
-	d := r.baseQuery(ctx, q)
+	offset := (q.Page - 1) * q.PageSize
+
+	var ids []uint
+	idQ := r.db.WithContext(ctx).Model(&model.Skill{}).Select("id")
+	idQ = idQ.Where("status = ?", model.ResourceStatusPublished).Where("hidden = ?", false)
+	if q.AuthorID != nil {
+		idQ = idQ.Where("author_id = ?", *q.AuthorID)
+	}
+	if q.Keyword != "" {
+		idQ = idQ.Where("MATCH(name, description) AGAINST(? IN BOOLEAN MODE)", q.Keyword)
+	}
+	if q.TagID != nil {
+		idQ = idQ.Where("id IN (SELECT skill_id FROM skill_tags WHERE tag_id = ?)", *q.TagID)
+	}
 	switch q.Sort {
 	case "hot":
-		d = d.Order("(views + 3*likes_count + 5*favorites_count + 2*comments_count) desc, id desc")
+		idQ = idQ.Order("(views + 3*likes_count + 5*favorites_count + 2*comments_count) desc, id desc")
 	default:
-		d = d.Order("published_at desc, id desc")
+		idQ = idQ.Order("published_at desc, id desc")
 	}
-	var list []model.Skill
-	if err := d.Preload("Author").
-		Offset((q.Page - 1) * q.PageSize).Limit(q.PageSize).Find(&list).Error; err != nil {
+	if err := idQ.Offset(offset).Limit(q.PageSize).Pluck("id", &ids).Error; err != nil {
 		return nil, 0, err
 	}
+	if len(ids) == 0 {
+		total, err := r.Count(ctx, q)
+		return []model.Skill{}, total, err
+	}
+
+	var list []model.Skill
+	mainQ := r.db.WithContext(ctx).Model(&model.Skill{}).Where("id IN ?", ids)
+	switch q.Sort {
+	case "hot":
+		mainQ = mainQ.Order("(views + 3*likes_count + 5*favorites_count + 2*comments_count) desc, id desc")
+	default:
+		mainQ = mainQ.Order("published_at desc, id desc")
+	}
+	if err := mainQ.Preload("Author").Find(&list).Error; err != nil {
+		return nil, 0, err
+	}
+
 	total, err := r.Count(ctx, q)
 	return list, total, err
 }
