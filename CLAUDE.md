@@ -42,6 +42,21 @@ P0+P1+P2+P3+P4+P5+P6（基础设施 + 用户认证 + 技术社区 + AI 资源 + 
 
 标准命令：`go build ./...`、`go test ./...` 及 `go test ./<package>`（单测）。测试依赖真实 MySQL/Redis（先 `docker compose up -d`，Redis 宿主机端口为 16379）。前端标准命令：`cd frontend && npm run typecheck && npm run build`。
 
+## 部署与 CI/CD
+
+项目采用 **push to master → GitHub Actions 自动部署** 的流程：
+
+- **生产服务器**：`aidevclub.xyz`（47.76.151.183），部署目录 `/opt/aidevclub`
+- **CI/CD**：`.github/workflows/deploy.yml`，push 到 master 后自动触发
+- **部署方式**：GitHub Actions 通过 SSH 连接服务器，拉取最新代码后 `docker compose build` 重新构建镜像并重启服务
+- **提交规范**：使用 [Conventional Commits](https://www.conventionalcommits.org/)（`feat:` / `fix:` / `style:` / `refactor:` / `docs:` 等）
+- **注意事项**：每次修改后只需 `git push origin master`，CI/CD 会自动完成部署；不要提交 `.env`、`deploy_key` 等敏感文件
+
+Nginx 路由规则：
+- `/api/*` → backend:8080
+- `/mcp` → backend:8081（exact match）
+- `/static/*` → backend:8080（文章图片等静态资源）
+
 ---
 
 <!-- superpowers-zh:begin (do not edit between these markers) -->
