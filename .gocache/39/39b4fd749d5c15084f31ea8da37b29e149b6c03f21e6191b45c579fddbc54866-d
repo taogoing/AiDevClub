@@ -1,0 +1,10 @@
+./context.go
+./decode.go
+./encode.go
+./error.go
+./option.go
+./path.go
+./stdlib_quote.go
+./struct.go
+./validate.go
+./yaml.go

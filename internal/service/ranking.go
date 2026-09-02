@@ -224,8 +224,10 @@ func (s *RankingService) GetMcpServerHotRanking(ctx context.Context, page, pageS
 func (s *RankingService) ListArticleHot(ctx context.Context, page, pageSize int) ([]ArticleSummary, error) {
 	cacheKey := fmt.Sprintf("article:%d:%d", page, pageSize)
 	if cached, ok := s.cache.get(cacheKey); ok {
+		fmt.Printf("[CACHE HIT] key=%s\n", cacheKey)
 		return cached.([]ArticleSummary), nil
 	}
+	fmt.Printf("[CACHE MISS] key=%s\n", cacheKey)
 
 	ids, err := s.GetArticleHotRanking(ctx, page, pageSize)
 	if err != nil {
@@ -259,6 +261,7 @@ func (s *RankingService) ListArticleHot(ctx context.Context, page, pageSize int)
 	}
 
 	s.cache.set(cacheKey, result)
+	fmt.Printf("[CACHE SET] key=%s, ttl=%v\n", cacheKey, s.cache.ttl)
 	return result, nil
 }
 

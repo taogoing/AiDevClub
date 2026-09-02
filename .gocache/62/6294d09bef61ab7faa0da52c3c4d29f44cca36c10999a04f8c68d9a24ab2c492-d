@@ -1,0 +1,13 @@
+./associations.go
+./callbacks.go
+./callmethod.go
+./create.go
+./delete.go
+./helper.go
+./interfaces.go
+./preload.go
+./query.go
+./raw.go
+./row.go
+./transaction.go
+./update.go

@@ -1,0 +1,14 @@
+./admin_log.go
+./announcement.go
+./article.go
+./comment.go
+./interaction.go
+./mcp_server.go
+./notification.go
+./report.go
+./resource_comment.go
+./search.go
+./skill.go
+./tag.go
+./token.go
+./user.go
