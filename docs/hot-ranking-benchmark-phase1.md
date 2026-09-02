@@ -65,6 +65,104 @@
 
 ---
 
+## 深度分析：数据库连接池与 Socket 错误
+
+### 当前连接池配置
+
+```go
+// internal/platform/database.go
+func OpenMySQL(dsn string) (*gorm.DB, error) {
+    return gorm.Open(mysql.Open(dsn), &gorm.Config{})
+    // 未显式配置连接池，使用 GORM 默认值
+}
+```
+
+**GORM 默认连接池配置**（基于 `database/sql`）：
+- `MaxOpenConns`: 0（无限制，实际受 MySQL `max_connections` 限制）
+- `MaxIdleConns`: 2
+- `ConnMaxLifetime`: 0（永不过期）
+
+**MySQL 服务器配置**：
+- `max_connections`: 151
+- 实际连接数：2（空闲时）
+
+### 为什么 1000 并发会出现 Socket 错误？
+
+#### 1. 连接池耗尽
+
+```
+1000 并发 × 20% 写操作 = 200 个并发写请求
+每个写请求 = 1 个 MySQL 连接（事务期间独占）
+```
+
+当并发写请求超过连接池可用连接时：
+- 新请求排队等待连接
+- 等待超时 → 客户端断开 → Socket 错误
+
+#### 2. 行锁竞争
+
+写操作涉及行锁：
+```sql
+-- 点赞
+UPDATE articles SET likes_count = likes_count + 1 WHERE id = ?
+-- 收藏
+UPDATE articles SET favorites_count = favorites_count + 1 WHERE id = ?
+-- 评论
+UPDATE articles SET comments_count = comments_count + 1 WHERE id = ?
+```
+
+多个请求同时更新同一篇文章 → 行锁等待 → 事务变慢 → 连接占用时间变长
+
+#### 3. 热榜查询的全表扫描
+
+```sql
+-- 每次热榜查询都要扫描 20 万篇文章
+SELECT id FROM articles 
+WHERE status = 'published' AND hidden = false
+ORDER BY (复杂计算公式) DESC
+LIMIT 20
+```
+
+**问题**：
+- 无法使用索引（计算公式 + 时间衰减）
+- 每次查询都要全表扫描 + 文件排序
+- 占用连接时间长（约 50-100ms）
+
+### 面试讲解逻辑
+
+**面试官**：你提到 1000 并发时出现 Socket 错误，能分析一下原因吗？
+
+**回答框架**：
+
+1. **定位问题**
+   > "首先我查看了数据库连接池配置，发现 GORM 使用默认配置，MaxOpenConns 为 0（无限制）。MySQL 的 max_connections 是 151。"
+
+2. **分析瓶颈**
+   > "1000 并发下，20% 写操作意味着 200 个并发写请求。每个写事务独占一个连接约 10-50ms。同时热榜查询需要全表扫描 20 万篇文章，占用连接 50-100ms。"
+
+3. **计算连接需求**
+   > "理论峰值连接数 = 读连接 + 写连接 = 800×0.1s + 200×0.05s = 80 + 10 = 90 个连接。看起来没超过 151，但实际还有事务排队、锁等待等开销。"
+
+4. **根本原因**
+   > "真正的瓶颈不是连接数，而是**热榜查询的全表扫描**。每次查询都要计算 20 万篇文章的热度分数，导致连接占用时间过长，连接池周转率下降。"
+
+5. **优化思路**
+   > "我的解决方案是分阶段优化：
+   > - **Phase 2**：引入 Redis ZSet 缓存热榜 Top N，将热榜查询从 MySQL 全表扫描优化为 Redis O(log N) 查询
+   > - **Phase 3**：加入本地缓存（2-3 秒 TTL），进一步减少 Redis 读压力
+   > - **Phase 4**：快照表兜底，保证 Redis 故障时的高可用"
+
+### 下一步优化方向
+
+| 优化点 | 当前问题 | 解决方案 | 预期效果 |
+|--------|----------|----------|----------|
+| 热榜查询 | 全表扫描 20 万篇 | Redis ZSet 缓存 Top 1000 | 查询时间从 50ms → 1ms |
+| 连接池 | 未显式配置 | 设置 MaxOpenConns=50, MaxIdleConns=10 | 避免连接数失控 |
+| 写操作 | 行锁竞争 | 异步聚合更新（Phase 3） | 减少写冲突 |
+| 时间衰减 | 每次计算 | 定时任务批量更新 ZSet 分数 | 减少计算开销 |
+
+---
+
 ## 测试数据清理
 
 测试完成后执行：
