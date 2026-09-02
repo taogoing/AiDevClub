@@ -1,4 +1,0 @@
-./reader.go
-./redis_errors.go
-./scan.go
-./writer.go

@@ -1,6 +1,0 @@
-./color.go
-./context.go
-./node.go
-./option.go
-./parser.go
-./token.go

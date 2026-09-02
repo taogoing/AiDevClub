@@ -1,6 +1,0 @@
-./errors.go
-./handler.go
-./handler_context.go
-./processor.go
-./push.go
-./registry.go

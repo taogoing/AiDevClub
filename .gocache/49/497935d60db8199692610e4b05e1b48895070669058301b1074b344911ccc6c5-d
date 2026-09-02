@@ -1,6 +1,0 @@
-./atomic_max.go
-./atomic_min.go
-./convert.go
-./strconv.go
-./type.go
-./unsafe.go
