@@ -473,6 +473,21 @@ func (s *McpServerService) List(ctx context.Context, q McpServerListQuery) (*Mcp
 	default:
 		q.Sort = "latest"
 	}
+
+	if q.Sort == "hot" && q.TagID == nil && q.AuthorID == nil && q.Keyword == "" && s.rankingSvc != nil {
+		servers, err := s.rankingSvc.ListMcpServerHot(ctx, q.Page, q.PageSize)
+		if err != nil {
+			return nil, err
+		}
+		total, _ := s.servers.Count(ctx, repo.McpServerQuery{Sort: "hot"})
+		return &McpServerListResult{
+			List:     servers,
+			Total:    total,
+			Page:     q.Page,
+			PageSize: q.PageSize,
+		}, nil
+	}
+
 	rq := repo.McpServerQuery{
 		Page: q.Page, PageSize: q.PageSize,
 		TagID: q.TagID, Keyword: q.Keyword, AuthorID: q.AuthorID, Sort: q.Sort,

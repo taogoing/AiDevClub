@@ -419,6 +419,21 @@ func (s *SkillService) List(ctx context.Context, q SkillListQuery) (*SkillListRe
 	default:
 		q.Sort = "latest"
 	}
+
+	if q.Sort == "hot" && q.TagID == nil && q.AuthorID == nil && q.Keyword == "" && s.rankingSvc != nil {
+		skills, err := s.rankingSvc.ListSkillHot(ctx, q.Page, q.PageSize)
+		if err != nil {
+			return nil, err
+		}
+		total, _ := s.skills.Count(ctx, repo.SkillQuery{Sort: "hot"})
+		return &SkillListResult{
+			List:     skills,
+			Total:    total,
+			Page:     q.Page,
+			PageSize: q.PageSize,
+		}, nil
+	}
+
 	rq := repo.SkillQuery{
 		Page: q.Page, PageSize: q.PageSize,
 		TagID: q.TagID, Keyword: q.Keyword, AuthorID: q.AuthorID, Sort: q.Sort,
