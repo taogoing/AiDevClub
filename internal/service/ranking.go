@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"sync"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -19,6 +20,43 @@ const (
 	rankKeyMcp      = "rank:mcp_servers:hot"
 )
 
+type localCacheEntry struct {
+	data      interface{}
+	expiresAt time.Time
+}
+
+type localCache struct {
+	mu      sync.RWMutex
+	entries map[string]localCacheEntry
+	ttl     time.Duration
+}
+
+func newLocalCache(ttl time.Duration) *localCache {
+	return &localCache{
+		entries: make(map[string]localCacheEntry),
+		ttl:     ttl,
+	}
+}
+
+func (c *localCache) get(key string) (interface{}, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	entry, ok := c.entries[key]
+	if !ok || time.Now().After(entry.expiresAt) {
+		return nil, false
+	}
+	return entry.data, true
+}
+
+func (c *localCache) set(key string, data interface{}) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.entries[key] = localCacheEntry{
+		data:      data,
+		expiresAt: time.Now().Add(c.ttl),
+	}
+}
+
 type RankingService struct {
 	rdb         *redis.Client
 	articleRepo *repo.ArticleRepo
@@ -30,6 +68,7 @@ type RankingService struct {
 	minFavs     int
 	minComments int
 	minViews    int
+	cache       *localCache
 }
 
 func NewRankingService(
@@ -50,6 +89,7 @@ func NewRankingService(
 		minFavs:     cfg.RankingMinFavorites,
 		minComments: cfg.RankingMinComments,
 		minViews:    cfg.RankingMinViews,
+		cache:       newLocalCache(cfg.RankingLocalCacheTTL),
 	}
 }
 
@@ -182,6 +222,11 @@ func (s *RankingService) GetMcpServerHotRanking(ctx context.Context, page, pageS
 // --- Hydrated list (for MCP browse_content tool) ---
 
 func (s *RankingService) ListArticleHot(ctx context.Context, page, pageSize int) ([]ArticleSummary, error) {
+	cacheKey := fmt.Sprintf("article:%d:%d", page, pageSize)
+	if cached, ok := s.cache.get(cacheKey); ok {
+		return cached.([]ArticleSummary), nil
+	}
+
 	ids, err := s.GetArticleHotRanking(ctx, page, pageSize)
 	if err != nil {
 		return nil, err
@@ -212,10 +257,17 @@ func (s *RankingService) ListArticleHot(ctx context.Context, page, pageSize int)
 			result = append(result, summary)
 		}
 	}
+
+	s.cache.set(cacheKey, result)
 	return result, nil
 }
 
 func (s *RankingService) ListSkillHot(ctx context.Context, page, pageSize int) ([]SkillSummary, error) {
+	cacheKey := fmt.Sprintf("skill:%d:%d", page, pageSize)
+	if cached, ok := s.cache.get(cacheKey); ok {
+		return cached.([]SkillSummary), nil
+	}
+
 	ids, err := s.GetSkillHotRanking(ctx, page, pageSize)
 	if err != nil {
 		return nil, err
@@ -246,10 +298,17 @@ func (s *RankingService) ListSkillHot(ctx context.Context, page, pageSize int) (
 			result = append(result, summary)
 		}
 	}
+
+	s.cache.set(cacheKey, result)
 	return result, nil
 }
 
 func (s *RankingService) ListMcpServerHot(ctx context.Context, page, pageSize int) ([]McpServerSummary, error) {
+	cacheKey := fmt.Sprintf("mcp:%d:%d", page, pageSize)
+	if cached, ok := s.cache.get(cacheKey); ok {
+		return cached.([]McpServerSummary), nil
+	}
+
 	ids, err := s.GetMcpServerHotRanking(ctx, page, pageSize)
 	if err != nil {
 		return nil, err
@@ -280,6 +339,8 @@ func (s *RankingService) ListMcpServerHot(ctx context.Context, page, pageSize in
 			result = append(result, summary)
 		}
 	}
+
+	s.cache.set(cacheKey, result)
 	return result, nil
 }
 

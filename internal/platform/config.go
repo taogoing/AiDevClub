@@ -40,6 +40,7 @@ type Config struct {
 	RankingMinFavorites  int
 	RankingMinComments   int
 	RankingMinViews      int
+	RankingLocalCacheTTL time.Duration
 }
 
 func LoadConfig() (*Config, error) {
@@ -73,6 +74,7 @@ func LoadConfig() (*Config, error) {
 	v.SetDefault("ranking.min_favorites", 2)
 	v.SetDefault("ranking.min_comments", 2)
 	v.SetDefault("ranking.min_views", 50)
+	v.SetDefault("ranking.local_cache_ttl", "2s")
 
 	v.AutomaticEnv()
 	v.SetEnvPrefix("AIDEVCLUB")
@@ -91,6 +93,10 @@ func LoadConfig() (*Config, error) {
 		return nil, err
 	}
 	rankingGravity := v.GetFloat64("ranking.gravity")
+	rankingLocalCacheTTL, err := time.ParseDuration(v.GetString("ranking.local_cache_ttl"))
+	if err != nil {
+		return nil, err
+	}
 	publicBaseURL, err := validatePublicBaseURL(v.GetString("public.base_url"))
 	if err != nil {
 		return nil, err
@@ -139,6 +145,7 @@ func LoadConfig() (*Config, error) {
 		RankingMinFavorites:  v.GetInt("ranking.min_favorites"),
 		RankingMinComments:   v.GetInt("ranking.min_comments"),
 		RankingMinViews:      v.GetInt("ranking.min_views"),
+		RankingLocalCacheTTL: rankingLocalCacheTTL,
 	}
 
 	// 生产环境若忘记设置 AIDEVCLUB_JWT_SECRET，会使用众所周知的默认值，
