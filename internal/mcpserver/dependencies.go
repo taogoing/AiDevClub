@@ -31,9 +31,9 @@ type MCPServerReader interface {
 }
 
 type RankingReader interface {
-	ListArticleHot(context.Context, int, int) ([]service.ArticleSummary, error)
-	ListSkillHot(context.Context, int, int) ([]service.SkillSummary, error)
-	ListMcpServerHot(context.Context, int, int) ([]service.McpServerSummary, error)
+	ListArticleHot(context.Context, int, int) ([]service.ArticleSummary, int64, error)
+	ListSkillHot(context.Context, int, int) ([]service.SkillSummary, int64, error)
+	ListMcpServerHot(context.Context, int, int) ([]service.McpServerSummary, int64, error)
 }
 
 type TagReader interface {

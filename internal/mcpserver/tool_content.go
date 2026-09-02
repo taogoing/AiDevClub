@@ -361,21 +361,21 @@ func browseHot(ctx context.Context, deps PublicDependencies, publicBaseURL strin
 		return temporarilyUnavailable()
 	}
 	if output.ContentType == "article" || output.ContentType == "all" {
-		articles, err := deps.Ranking.ListArticleHot(ctx, output.Page, output.PageSize)
+		articles, _, err := deps.Ranking.ListArticleHot(ctx, output.Page, output.PageSize)
 		if err != nil {
 			return temporarilyUnavailable()
 		}
 		output.Articles = articleSummariesOutput(articles, publicBaseURL)
 	}
 	if output.ContentType == "skill" || output.ContentType == "all" {
-		skills, err := deps.Ranking.ListSkillHot(ctx, output.Page, output.PageSize)
+		skills, _, err := deps.Ranking.ListSkillHot(ctx, output.Page, output.PageSize)
 		if err != nil {
 			return temporarilyUnavailable()
 		}
 		output.Skills = skillSummariesOutput(skills, publicBaseURL)
 	}
 	if output.ContentType == "mcp_server" || output.ContentType == "all" {
-		servers, err := deps.Ranking.ListMcpServerHot(ctx, output.Page, output.PageSize)
+		servers, _, err := deps.Ranking.ListMcpServerHot(ctx, output.Page, output.PageSize)
 		if err != nil {
 			return temporarilyUnavailable()
 		}

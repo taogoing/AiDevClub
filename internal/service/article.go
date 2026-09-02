@@ -246,11 +246,10 @@ func (s *ArticleService) List(ctx context.Context, q ListQuery) (*ArticleListRes
 	}
 
 	if q.Sort == "hot" && q.TagID == nil && q.AuthorID == nil && q.Keyword == "" && s.rankingSvc != nil {
-		articles, err := s.rankingSvc.ListArticleHot(ctx, q.Page, q.PageSize)
+		articles, total, err := s.rankingSvc.ListArticleHot(ctx, q.Page, q.PageSize)
 		if err != nil {
 			return nil, err
 		}
-		total, _ := s.articles.Count(ctx, repo.ArticleQuery{Sort: "hot"})
 		return &ArticleListResult{
 			List:     articles,
 			Total:    total,

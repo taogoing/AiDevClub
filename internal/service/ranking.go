@@ -25,6 +25,21 @@ type localCacheEntry struct {
 	expiresAt time.Time
 }
 
+type articleCacheEntry struct {
+	articles []ArticleSummary
+	total    int64
+}
+
+type skillCacheEntry struct {
+	skills []SkillSummary
+	total  int64
+}
+
+type mcpCacheEntry struct {
+	servers []McpServerSummary
+	total   int64
+}
+
 type localCache struct {
 	mu      sync.RWMutex
 	entries map[string]localCacheEntry
@@ -221,20 +236,19 @@ func (s *RankingService) GetMcpServerHotRanking(ctx context.Context, page, pageS
 
 // --- Hydrated list (for MCP browse_content tool) ---
 
-func (s *RankingService) ListArticleHot(ctx context.Context, page, pageSize int) ([]ArticleSummary, error) {
+func (s *RankingService) ListArticleHot(ctx context.Context, page, pageSize int) ([]ArticleSummary, int64, error) {
 	cacheKey := fmt.Sprintf("article:%d:%d", page, pageSize)
 	if cached, ok := s.cache.get(cacheKey); ok {
-		fmt.Printf("[CACHE HIT] key=%s\n", cacheKey)
-		return cached.([]ArticleSummary), nil
+		entry := cached.(articleCacheEntry)
+		return entry.articles, entry.total, nil
 	}
-	fmt.Printf("[CACHE MISS] key=%s\n", cacheKey)
 
 	ids, err := s.GetArticleHotRanking(ctx, page, pageSize)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	if len(ids) == 0 {
-		return []ArticleSummary{}, nil
+		return []ArticleSummary{}, 0, nil
 	}
 
 	var articles []model.Article
@@ -243,11 +257,11 @@ func (s *RankingService) ListArticleHot(ctx context.Context, page, pageSize int)
 		Where("status = ?", model.ArticleStatusPublished).
 		Where("hidden = ?", false).
 		Preload("Author").Find(&articles).Error; err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	tagMap, err := s.articleRepo.TagsForArticles(ctx, ids)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	byID := make(map[uint]ArticleSummary, len(articles))
 	for _, a := range articles {
@@ -260,23 +274,25 @@ func (s *RankingService) ListArticleHot(ctx context.Context, page, pageSize int)
 		}
 	}
 
-	s.cache.set(cacheKey, result)
-	fmt.Printf("[CACHE SET] key=%s, ttl=%v\n", cacheKey, s.cache.ttl)
-	return result, nil
+	total, _ := s.articleRepo.Count(ctx, repo.ArticleQuery{Sort: "hot"})
+
+	s.cache.set(cacheKey, articleCacheEntry{articles: result, total: total})
+	return result, total, nil
 }
 
-func (s *RankingService) ListSkillHot(ctx context.Context, page, pageSize int) ([]SkillSummary, error) {
+func (s *RankingService) ListSkillHot(ctx context.Context, page, pageSize int) ([]SkillSummary, int64, error) {
 	cacheKey := fmt.Sprintf("skill:%d:%d", page, pageSize)
 	if cached, ok := s.cache.get(cacheKey); ok {
-		return cached.([]SkillSummary), nil
+		entry := cached.(skillCacheEntry)
+		return entry.skills, entry.total, nil
 	}
 
 	ids, err := s.GetSkillHotRanking(ctx, page, pageSize)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	if len(ids) == 0 {
-		return []SkillSummary{}, nil
+		return []SkillSummary{}, 0, nil
 	}
 
 	var skills []model.Skill
@@ -285,11 +301,11 @@ func (s *RankingService) ListSkillHot(ctx context.Context, page, pageSize int) (
 		Where("status = ?", model.ResourceStatusPublished).
 		Where("hidden = ?", false).
 		Preload("Author").Find(&skills).Error; err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	tagMap, err := s.skillRepo.TagsForSkills(ctx, ids)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	byID := make(map[uint]SkillSummary, len(skills))
 	for _, sk := range skills {
@@ -302,22 +318,25 @@ func (s *RankingService) ListSkillHot(ctx context.Context, page, pageSize int) (
 		}
 	}
 
-	s.cache.set(cacheKey, result)
-	return result, nil
+	total, _ := s.skillRepo.Count(ctx, repo.SkillQuery{Sort: "hot"})
+
+	s.cache.set(cacheKey, skillCacheEntry{skills: result, total: total})
+	return result, total, nil
 }
 
-func (s *RankingService) ListMcpServerHot(ctx context.Context, page, pageSize int) ([]McpServerSummary, error) {
+func (s *RankingService) ListMcpServerHot(ctx context.Context, page, pageSize int) ([]McpServerSummary, int64, error) {
 	cacheKey := fmt.Sprintf("mcp:%d:%d", page, pageSize)
 	if cached, ok := s.cache.get(cacheKey); ok {
-		return cached.([]McpServerSummary), nil
+		entry := cached.(mcpCacheEntry)
+		return entry.servers, entry.total, nil
 	}
 
 	ids, err := s.GetMcpServerHotRanking(ctx, page, pageSize)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	if len(ids) == 0 {
-		return []McpServerSummary{}, nil
+		return []McpServerSummary{}, 0, nil
 	}
 
 	var servers []model.McpServer
@@ -326,11 +345,11 @@ func (s *RankingService) ListMcpServerHot(ctx context.Context, page, pageSize in
 		Where("status = ?", model.ResourceStatusPublished).
 		Where("hidden = ?", false).
 		Preload("Author").Find(&servers).Error; err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	tagMap, err := s.mcpRepo.TagsForMcpServers(ctx, ids)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	byID := make(map[uint]McpServerSummary, len(servers))
 	for _, sv := range servers {
@@ -343,8 +362,10 @@ func (s *RankingService) ListMcpServerHot(ctx context.Context, page, pageSize in
 		}
 	}
 
-	s.cache.set(cacheKey, result)
-	return result, nil
+	total, _ := s.mcpRepo.Count(ctx, repo.McpServerQuery{Sort: "hot"})
+
+	s.cache.set(cacheKey, mcpCacheEntry{servers: result, total: total})
+	return result, total, nil
 }
 
 // --- Scheduler: recalculate candidate set ---

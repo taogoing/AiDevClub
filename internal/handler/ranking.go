@@ -27,13 +27,14 @@ func (h *RankingHandler) GetArticleRanking(c *gin.Context) {
 
 	switch rankType {
 	case "hot":
-		articles, err := h.rankingSvc.ListArticleHot(c.Request.Context(), page, pageSize)
+		articles, total, err := h.rankingSvc.ListArticleHot(c.Request.Context(), page, pageSize)
 		if err != nil {
 			platform.Fail(c, http.StatusInternalServerError, platform.CodeInternalError, err.Error())
 			return
 		}
 		platform.OK(c, gin.H{
 			"articles":  articles,
+			"total":     total,
 			"page":      page,
 			"page_size": pageSize,
 		})
@@ -49,13 +50,14 @@ func (h *RankingHandler) GetSkillRanking(c *gin.Context) {
 
 	switch rankType {
 	case "hot":
-		skills, err := h.rankingSvc.ListSkillHot(c.Request.Context(), page, pageSize)
+		skills, total, err := h.rankingSvc.ListSkillHot(c.Request.Context(), page, pageSize)
 		if err != nil {
 			platform.Fail(c, http.StatusInternalServerError, platform.CodeInternalError, err.Error())
 			return
 		}
 		platform.OK(c, gin.H{
 			"skills":    skills,
+			"total":     total,
 			"page":      page,
 			"page_size": pageSize,
 		})
@@ -71,13 +73,14 @@ func (h *RankingHandler) GetMcpServerRanking(c *gin.Context) {
 
 	switch rankType {
 	case "hot":
-		servers, err := h.rankingSvc.ListMcpServerHot(c.Request.Context(), page, pageSize)
+		servers, total, err := h.rankingSvc.ListMcpServerHot(c.Request.Context(), page, pageSize)
 		if err != nil {
 			platform.Fail(c, http.StatusInternalServerError, platform.CodeInternalError, err.Error())
 			return
 		}
 		platform.OK(c, gin.H{
 			"servers":   servers,
+			"total":     total,
 			"page":      page,
 			"page_size": pageSize,
 		})
