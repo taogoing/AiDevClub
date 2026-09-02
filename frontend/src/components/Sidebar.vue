@@ -43,7 +43,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Star, TrendCharts } from '@element-plus/icons-vue'
 import { getHotTags } from '@/api/tag'
-import { getArticles } from '@/api/article'
+import { getArticleRanking } from '@/api/article'
 import type { Tag, ArticleSummary } from '@/types'
 
 const router = useRouter()
@@ -52,12 +52,12 @@ const hotArticles = ref<ArticleSummary[]>([])
 
 onMounted(async () => {
   try {
-    const [tagRes, articleRes] = await Promise.all([
+    const [tagRes, rankingRes] = await Promise.all([
       getHotTags(5),
-      getArticles({ page: 1, page_size: 5, sort: 'hot' }),
+      getArticleRanking(1, 5),
     ])
     hotTags.value = tagRes.data.data
-    hotArticles.value = articleRes.data.data.list
+    hotArticles.value = rankingRes.data.data.articles
   } catch { /* ignore */ }
 })
 

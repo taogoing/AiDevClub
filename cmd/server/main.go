@@ -173,8 +173,6 @@ func main() {
 
 	rankingH := handler.NewRankingHandler(services.Ranking)
 	r.GET("/api/v1/articles/ranking", rankingH.GetArticleRanking)
-	r.GET("/api/v1/skills/ranking", rankingH.GetSkillRanking)
-	r.GET("/api/v1/mcp-servers/ranking", rankingH.GetMcpServerRanking)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

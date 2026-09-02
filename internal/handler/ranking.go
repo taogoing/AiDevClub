@@ -21,70 +21,18 @@ func NewRankingHandler(rankingSvc *service.RankingService) *RankingHandler {
 }
 
 func (h *RankingHandler) GetArticleRanking(c *gin.Context) {
-	rankType := c.DefaultQuery("type", "hot")
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "5"))
 
-	switch rankType {
-	case "hot":
-		articles, total, err := h.rankingSvc.ListArticleHot(c.Request.Context(), page, pageSize)
-		if err != nil {
-			platform.Fail(c, http.StatusInternalServerError, platform.CodeInternalError, err.Error())
-			return
-		}
-		platform.OK(c, gin.H{
-			"articles":  articles,
-			"total":     total,
-			"page":      page,
-			"page_size": pageSize,
-		})
-	default:
-		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "不支持的排行类型")
+	articles, total, err := h.rankingSvc.ListArticleHot(c.Request.Context(), page, pageSize)
+	if err != nil {
+		platform.Fail(c, http.StatusInternalServerError, platform.CodeInternalError, err.Error())
+		return
 	}
-}
-
-func (h *RankingHandler) GetSkillRanking(c *gin.Context) {
-	rankType := c.DefaultQuery("type", "hot")
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
-
-	switch rankType {
-	case "hot":
-		skills, total, err := h.rankingSvc.ListSkillHot(c.Request.Context(), page, pageSize)
-		if err != nil {
-			platform.Fail(c, http.StatusInternalServerError, platform.CodeInternalError, err.Error())
-			return
-		}
-		platform.OK(c, gin.H{
-			"skills":    skills,
-			"total":     total,
-			"page":      page,
-			"page_size": pageSize,
-		})
-	default:
-		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "不支持的排行类型")
-	}
-}
-
-func (h *RankingHandler) GetMcpServerRanking(c *gin.Context) {
-	rankType := c.DefaultQuery("type", "hot")
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
-
-	switch rankType {
-	case "hot":
-		servers, total, err := h.rankingSvc.ListMcpServerHot(c.Request.Context(), page, pageSize)
-		if err != nil {
-			platform.Fail(c, http.StatusInternalServerError, platform.CodeInternalError, err.Error())
-			return
-		}
-		platform.OK(c, gin.H{
-			"servers":   servers,
-			"total":     total,
-			"page":      page,
-			"page_size": pageSize,
-		})
-	default:
-		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "不支持的排行类型")
-	}
+	platform.OK(c, gin.H{
+		"articles":  articles,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
+	})
 }
