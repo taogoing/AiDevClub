@@ -14,7 +14,7 @@ func TestTagServiceList(t *testing.T) {
 	ctx := context.Background()
 	_, _ = tagRepo.Create(ctx, "gin")
 	_, _ = tagRepo.Create(ctx, "gorm")
-	svc := NewTagService(tagRepo, nil)
+	svc := NewTagService(tagRepo)
 
 	hot, err := svc.List(ctx, "", true, 10)
 	if err != nil || len(hot) != 2 {

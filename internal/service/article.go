@@ -2,21 +2,16 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"time"
 
-	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 
 	"aidevclub/internal/model"
 	"aidevclub/internal/platform"
 	"aidevclub/internal/repo"
 )
-
-var _ = redis.Z{}
 
 var (
 	ErrArticleNotFound = platform.NewBizError(http.StatusNotFound, platform.CodeArticleNotFound, "文章不存在或不可见")
@@ -30,31 +25,16 @@ type ArticleService struct {
 	articles *repo.ArticleRepo
 	tags     *repo.TagRepo
 	inter    *repo.InteractionRepo
-	rdb      *redis.Client
 	cfg      *platform.Config
 	notifSvc *NotificationService
 }
 
-func NewArticleService(articles *repo.ArticleRepo, tags *repo.TagRepo, inter *repo.InteractionRepo, rdb *redis.Client, cfg *platform.Config, notifSvc *NotificationService) *ArticleService {
-	return &ArticleService{articles: articles, tags: tags, inter: inter, rdb: rdb, cfg: cfg, notifSvc: notifSvc}
+func NewArticleService(articles *repo.ArticleRepo, tags *repo.TagRepo, inter *repo.InteractionRepo, cfg *platform.Config, notifSvc *NotificationService) *ArticleService {
+	return &ArticleService{articles: articles, tags: tags, inter: inter, cfg: cfg, notifSvc: notifSvc}
 }
 
 func (s *ArticleService) ImageDir() string     { return s.cfg.ArticleImageDir }
 func (s *ArticleService) MaxImageBytes() int64 { return s.cfg.MaxArticleImageBytes }
-
-func (s *ArticleService) invalidateHotCaches(ctx context.Context) {
-	if s.rdb == nil {
-		return
-	}
-	keys, err := s.rdb.Keys(ctx, "hot:articles:*").Result()
-	if err == nil && len(keys) > 0 {
-		_ = s.rdb.Del(ctx, keys...).Err()
-	}
-	keys, err = s.rdb.Keys(ctx, "hot:tags:*").Result()
-	if err == nil && len(keys) > 0 {
-		_ = s.rdb.Del(ctx, keys...).Err()
-	}
-}
 
 func (s *ArticleService) validateStatus(st model.ArticleStatus) error {
 	switch st {
@@ -152,11 +132,7 @@ func (s *ArticleService) Create(ctx context.Context, userID uint, in CreateArtic
 		}
 		return nil
 	})
-	if err != nil {
-		return nil, err
-	}
-	s.invalidateHotCaches(ctx)
-	return a, nil
+	return a, err
 }
 
 func (s *ArticleService) Update(ctx context.Context, userID, articleID uint, in CreateArticleInput) (*model.Article, error) {
@@ -224,11 +200,7 @@ func (s *ArticleService) Update(ctx context.Context, userID, articleID uint, in 
 		}
 		return s.articles.SetArticleTags(tx, articleID, newTags)
 	})
-	if err != nil {
-		return nil, err
-	}
-	s.invalidateHotCaches(ctx)
-	return a, nil
+	return a, err
 }
 
 func (s *ArticleService) Delete(ctx context.Context, userID, articleID uint) error {
@@ -239,7 +211,7 @@ func (s *ArticleService) Delete(ctx context.Context, userID, articleID uint) err
 	if a.AuthorID != userID {
 		return ErrForbidden
 	}
-	err = s.articles.DB().Transaction(func(tx *gorm.DB) error {
+	return s.articles.DB().Transaction(func(tx *gorm.DB) error {
 		tagIDs, err := s.articles.FindArticleTags(tx, articleID)
 		if err != nil {
 			return err
@@ -254,10 +226,6 @@ func (s *ArticleService) Delete(ctx context.Context, userID, articleID uint) err
 		}
 		return s.articles.SetArticleTags(tx, articleID, nil)
 	})
-	if err == nil {
-		s.invalidateHotCaches(ctx)
-	}
-	return err
 }
 
 func (s *ArticleService) List(ctx context.Context, q ListQuery) (*ArticleListResult, error) {
@@ -281,17 +249,6 @@ func (s *ArticleService) List(ctx context.Context, q ListQuery) (*ArticleListRes
 		Keyword: q.Keyword, AuthorID: q.AuthorID, Sort: q.Sort,
 	}
 
-	var key string
-	if q.Sort == "hot" && q.TagID == nil && q.AuthorID == nil && q.Keyword == "" {
-		key = fmt.Sprintf("hot:articles:%d:%d", q.Page, q.PageSize)
-		if v, err := s.rdb.Get(ctx, key).Bytes(); err == nil {
-			var res ArticleListResult
-			if json.Unmarshal(v, &res) == nil {
-				return &res, nil
-			}
-		}
-	}
-
 	list, total, err := s.articles.List(ctx, rq)
 	if err != nil {
 		return nil, err
@@ -310,12 +267,6 @@ func (s *ArticleService) List(ctx context.Context, q ListQuery) (*ArticleListRes
 	}
 	for _, a := range list {
 		out.List = append(out.List, s.summaryOf(a, tagMap[a.ID]))
-	}
-
-	if key != "" {
-		if b, err := json.Marshal(out); err == nil {
-			_ = s.rdb.Set(ctx, key, b, s.cfg.HotCacheTTL).Err()
-		}
 	}
 	return out, nil
 }
@@ -362,8 +313,6 @@ func (s *ArticleService) ToggleLike(ctx context.Context, userID, articleID uint)
 		return nil
 	})
 	if err == nil {
-		s.invalidateHotCaches(ctx)
-		go s.updateHotScoreAsync(articleID)
 		if liked {
 			go func() {
 				_ = s.notifSvc.Create(context.Background(), a.AuthorID, model.NotifTypeLikeArticle, "点赞", "有人赞了你的文章", "article", articleID, userID)
@@ -396,28 +345,7 @@ func (s *ArticleService) ToggleFavorite(ctx context.Context, userID, articleID u
 		newCount = a.FavoritesCount + delta
 		return nil
 	})
-	if err == nil {
-		s.invalidateHotCaches(ctx)
-		go s.updateHotScoreAsync(articleID)
-	}
 	return favorited, newCount, err
-}
-
-func (s *ArticleService) updateHotScoreAsync(articleID uint) {
-	a, err := s.articles.FindByID(nil, articleID)
-	if err != nil {
-		return
-	}
-	publishedAt := a.PublishedAt
-	if publishedAt == nil {
-		publishedAt = &a.CreatedAt
-	}
-	score := CalculateHotScore(a.Views, a.LikesCount, a.FavoritesCount, a.CommentsCount, *publishedAt, 1.5)
-	_ = s.rdb.ZAdd(context.Background(), "rank:articles:hot", redis.Z{
-		Score:  score,
-		Member: articleID,
-	}).Err()
-	s.invalidateHotCaches(context.Background())
 }
 
 func (s *ArticleService) Get(ctx context.Context, userID, articleID uint) (*ArticleDetail, error) {

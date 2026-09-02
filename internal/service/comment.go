@@ -4,8 +4,6 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/redis/go-redis/v9"
-
 	"gorm.io/gorm"
 
 	"aidevclub/internal/model"
@@ -21,25 +19,10 @@ type CommentService struct {
 	inter    *repo.InteractionRepo
 	users    *repo.UserRepo
 	notifSvc *NotificationService
-	rdb      *redis.Client
 }
 
-func NewCommentService(comments *repo.CommentRepo, articles *repo.ArticleRepo, inter *repo.InteractionRepo, users *repo.UserRepo, notifSvc *NotificationService, rdb ...*redis.Client) *CommentService {
-	var client *redis.Client
-	if len(rdb) > 0 {
-		client = rdb[0]
-	}
-	return &CommentService{comments: comments, articles: articles, inter: inter, users: users, notifSvc: notifSvc, rdb: client}
-}
-
-func (s *CommentService) invalidateHotArticles(ctx context.Context) {
-	if s.rdb == nil {
-		return
-	}
-	keys, err := s.rdb.Keys(ctx, "hot:articles:*").Result()
-	if err == nil && len(keys) > 0 {
-		_ = s.rdb.Del(ctx, keys...).Err()
-	}
+func NewCommentService(comments *repo.CommentRepo, articles *repo.ArticleRepo, inter *repo.InteractionRepo, users *repo.UserRepo, notifSvc *NotificationService) *CommentService {
+	return &CommentService{comments: comments, articles: articles, inter: inter, users: users, notifSvc: notifSvc}
 }
 
 func (s *CommentService) Create(ctx context.Context, userID, articleID uint, content string, parentID *uint) (*model.Comment, error) {
@@ -71,7 +54,6 @@ func (s *CommentService) Create(ctx context.Context, userID, articleID uint, con
 		return s.articles.IncrCount(tx, articleID, "comments_count", 1)
 	})
 	if err == nil {
-		s.invalidateHotArticles(ctx)
 		go s.sendCommentNotification(context.Background(), a.AuthorID, userID, articleID, replyToID, content)
 	}
 	return c, err
@@ -185,16 +167,12 @@ func (s *CommentService) Delete(ctx context.Context, userID, commentID uint) err
 	if c.AuthorID != userID && a.AuthorID != userID {
 		return ErrForbidden
 	}
-	err = s.articles.DB().Transaction(func(tx *gorm.DB) error {
+	return s.articles.DB().Transaction(func(tx *gorm.DB) error {
 		if err := s.comments.Delete(tx, commentID); err != nil {
 			return err
 		}
 		return s.articles.IncrCount(tx, c.ArticleID, "comments_count", -1)
 	})
-	if err == nil {
-		s.invalidateHotArticles(ctx)
-	}
-	return err
 }
 
 func (s *CommentService) ToggleLike(ctx context.Context, userID, commentID uint) (bool, int, error) {

@@ -31,7 +31,6 @@ type Config struct {
 	MaxAvatarBytes       int64
 	DefaultPageSize      int
 	MaxPageSize          int
-	HotCacheTTL          time.Duration
 	ArticleImageDir      string
 	MaxArticleImageBytes int64
 	AdminEmails          []string
@@ -57,7 +56,6 @@ func LoadConfig() (*Config, error) {
 	v.SetDefault("avatar.dir", "storage/avatars")
 	v.SetDefault("avatar.default_url", "/static/avatars/default.png")
 	v.SetDefault("avatar.max_bytes", int64(2<<20))
-	v.SetDefault("article.hot_cache_ttl", "60s")
 	v.SetDefault("article.page_size_default", 20)
 	v.SetDefault("article.page_size_max", 50)
 	v.SetDefault("article_image.dir", "storage/articles")
@@ -73,10 +71,6 @@ func LoadConfig() (*Config, error) {
 		return nil, err
 	}
 	refreshTTL, err := time.ParseDuration(v.GetString("token.refresh_ttl"))
-	if err != nil {
-		return nil, err
-	}
-	hotCacheTTL, err := time.ParseDuration(v.GetString("article.hot_cache_ttl"))
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +117,6 @@ func LoadConfig() (*Config, error) {
 		MaxAvatarBytes:       v.GetInt64("avatar.max_bytes"),
 		DefaultPageSize:      v.GetInt("article.page_size_default"),
 		MaxPageSize:          v.GetInt("article.page_size_max"),
-		HotCacheTTL:          hotCacheTTL,
 		ArticleImageDir:      v.GetString("article_image.dir"),
 		MaxArticleImageBytes: v.GetInt64("article_image.max_bytes"),
 		AdminEmails:          adminEmails,

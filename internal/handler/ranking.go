@@ -12,17 +12,11 @@ import (
 
 type RankingHandler struct {
 	rankingSvc *service.RankingService
-	articleSvc *service.ArticleService
-	skillSvc   *service.SkillService
-	mcpSvc     *service.McpServerService
 }
 
-func NewRankingHandler(rankingSvc *service.RankingService, articleSvc *service.ArticleService, skillSvc *service.SkillService, mcpSvc *service.McpServerService) *RankingHandler {
+func NewRankingHandler(rankingSvc *service.RankingService) *RankingHandler {
 	return &RankingHandler{
 		rankingSvc: rankingSvc,
-		articleSvc: articleSvc,
-		skillSvc:   skillSvc,
-		mcpSvc:     mcpSvc,
 	}
 }
 
@@ -33,18 +27,16 @@ func (h *RankingHandler) GetArticleRanking(c *gin.Context) {
 
 	switch rankType {
 	case "hot":
-		ids, err := h.rankingSvc.GetArticleHotRanking(c.Request.Context(), page, pageSize)
+		articles, err := h.rankingSvc.ListArticleHot(c.Request.Context(), page, pageSize)
 		if err != nil {
 			platform.Fail(c, http.StatusInternalServerError, platform.CodeInternalError, err.Error())
 			return
 		}
-
 		platform.OK(c, gin.H{
-			"ids":       ids,
+			"articles":  articles,
 			"page":      page,
 			"page_size": pageSize,
 		})
-
 	default:
 		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "不支持的排行类型")
 	}
@@ -55,27 +47,21 @@ func (h *RankingHandler) GetSkillRanking(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
 
-	var ids []uint
-	var err error
-
 	switch rankType {
 	case "hot":
-		ids, err = h.rankingSvc.GetSkillHotRanking(c.Request.Context(), page, pageSize)
+		skills, err := h.rankingSvc.ListSkillHot(c.Request.Context(), page, pageSize)
+		if err != nil {
+			platform.Fail(c, http.StatusInternalServerError, platform.CodeInternalError, err.Error())
+			return
+		}
+		platform.OK(c, gin.H{
+			"skills":    skills,
+			"page":      page,
+			"page_size": pageSize,
+		})
 	default:
 		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "不支持的排行类型")
-		return
 	}
-
-	if err != nil {
-		platform.Fail(c, http.StatusInternalServerError, platform.CodeInternalError, err.Error())
-		return
-	}
-
-	platform.OK(c, gin.H{
-		"ids":       ids,
-		"page":      page,
-		"page_size": pageSize,
-	})
 }
 
 func (h *RankingHandler) GetMcpServerRanking(c *gin.Context) {
@@ -83,25 +69,19 @@ func (h *RankingHandler) GetMcpServerRanking(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
 
-	var ids []uint
-	var err error
-
 	switch rankType {
 	case "hot":
-		ids, err = h.rankingSvc.GetMcpServerHotRanking(c.Request.Context(), page, pageSize)
+		servers, err := h.rankingSvc.ListMcpServerHot(c.Request.Context(), page, pageSize)
+		if err != nil {
+			platform.Fail(c, http.StatusInternalServerError, platform.CodeInternalError, err.Error())
+			return
+		}
+		platform.OK(c, gin.H{
+			"servers":   servers,
+			"page":      page,
+			"page_size": pageSize,
+		})
 	default:
 		platform.Fail(c, http.StatusBadRequest, platform.CodeParamError, "不支持的排行类型")
-		return
 	}
-
-	if err != nil {
-		platform.Fail(c, http.StatusInternalServerError, platform.CodeInternalError, err.Error())
-		return
-	}
-
-	platform.OK(c, gin.H{
-		"ids":       ids,
-		"page":      page,
-		"page_size": pageSize,
-	})
 }

@@ -21,7 +21,7 @@ func TestTagEndpoint(t *testing.T) {
 	ctx := context.Background()
 	_, _ = tagRepo.Create(ctx, "gin")
 	_, _ = tagRepo.Create(ctx, "gorm")
-	h := NewTagHandler(service.NewTagService(tagRepo, nil))
+	h := NewTagHandler(service.NewTagService(tagRepo))
 	r := gin.New()
 	r.GET("/api/v1/tags", h.List)
 

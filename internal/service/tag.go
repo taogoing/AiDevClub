@@ -2,13 +2,9 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
-	"time"
-
-	"github.com/redis/go-redis/v9"
 
 	"aidevclub/internal/model"
 	"aidevclub/internal/repo"
@@ -16,39 +12,16 @@ import (
 
 type TagService struct {
 	tags *repo.TagRepo
-	rdb  *redis.Client
 }
 
-func NewTagService(tags *repo.TagRepo, rdb *redis.Client) *TagService {
-	return &TagService{tags: tags, rdb: rdb}
+func NewTagService(tags *repo.TagRepo) *TagService {
+	return &TagService{tags: tags}
 }
 
 func (s *TagService) List(ctx context.Context, prefix string, hot bool, limit int) ([]model.Tag, error) {
 	if limit <= 0 {
 		limit = 50
 	}
-
-	if hot && prefix == "" && s.rdb != nil {
-		key := fmt.Sprintf("hot:tags:%d", limit)
-		if v, err := s.rdb.Get(ctx, key).Bytes(); err == nil {
-			var tags []model.Tag
-			if json.Unmarshal(v, &tags) == nil {
-				return tags, nil
-			}
-		}
-
-		tags, err := s.tags.ListHot(ctx, limit)
-		if err != nil {
-			return nil, err
-		}
-
-		if b, err := json.Marshal(tags); err == nil {
-			_ = s.rdb.Set(ctx, key, b, 300*time.Second).Err()
-		}
-
-		return tags, nil
-	}
-
 	if hot {
 		return s.tags.ListHot(ctx, limit)
 	}
@@ -62,28 +35,11 @@ func (s *TagService) ListForMCP(ctx context.Context, keyword string, limit int) 
 	return s.tags.List(ctx, strings.TrimSpace(keyword), limit)
 }
 
-func (s *TagService) invalidateHotTagsCache(ctx context.Context) {
-	if s.rdb == nil {
-		return
-	}
-	keys, err := s.rdb.Keys(ctx, "hot:tags:*").Result()
-	if err != nil {
-		return
-	}
-	if len(keys) > 0 {
-		s.rdb.Del(ctx, keys...)
-	}
-}
-
 func (s *TagService) AdminCreate(ctx context.Context, name, description string) (*model.Tag, error) {
 	if name == "" {
 		return nil, errors.New("标签名称不能为空")
 	}
-	tag, err := s.tags.AdminCreate(ctx, name, description)
-	if err == nil {
-		s.invalidateHotTagsCache(ctx)
-	}
-	return tag, err
+	return s.tags.AdminCreate(ctx, name, description)
 }
 
 func (s *TagService) AdminUpdate(ctx context.Context, id uint, updates map[string]interface{}) error {
@@ -92,11 +48,7 @@ func (s *TagService) AdminUpdate(ctx context.Context, id uint, updates map[strin
 			return errors.New("标签名称不能为空")
 		}
 	}
-	err := s.tags.AdminPatch(ctx, id, updates)
-	if err == nil {
-		s.invalidateHotTagsCache(ctx)
-	}
-	return err
+	return s.tags.AdminPatch(ctx, id, updates)
 }
 
 func (s *TagService) AdminDelete(ctx context.Context, id uint) error {
@@ -107,11 +59,7 @@ func (s *TagService) AdminDelete(ctx context.Context, id uint) error {
 	if count > 0 {
 		return fmt.Errorf("该标签正在被 %d 个内容引用，无法删除", count)
 	}
-	if err := s.tags.AdminDelete(ctx, id); err != nil {
-		return err
-	}
-	s.invalidateHotTagsCache(ctx)
-	return nil
+	return s.tags.AdminDelete(ctx, id)
 }
 
 func (s *TagService) AdminList(ctx context.Context, keyword, status string, page, pageSize int) ([]model.Tag, int64, error) {

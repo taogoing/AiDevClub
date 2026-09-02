@@ -2,13 +2,10 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 
-	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 
 	"aidevclub/internal/model"
@@ -25,13 +22,12 @@ type SkillService struct {
 	skills   *repo.SkillRepo
 	tags     *repo.TagRepo
 	inter    *repo.InteractionRepo
-	rdb      *redis.Client
 	cfg      *platform.Config
 	notifSvc *NotificationService
 }
 
-func NewSkillService(skills *repo.SkillRepo, tags *repo.TagRepo, inter *repo.InteractionRepo, rdb *redis.Client, cfg *platform.Config, notifSvc *NotificationService) *SkillService {
-	return &SkillService{skills: skills, tags: tags, inter: inter, rdb: rdb, cfg: cfg, notifSvc: notifSvc}
+func NewSkillService(skills *repo.SkillRepo, tags *repo.TagRepo, inter *repo.InteractionRepo, cfg *platform.Config, notifSvc *NotificationService) *SkillService {
+	return &SkillService{skills: skills, tags: tags, inter: inter, cfg: cfg, notifSvc: notifSvc}
 }
 
 func (s *SkillService) ResolveTagSet(ctx context.Context, tx *gorm.DB, tagIDs []uint, tagNames []string) ([]uint, error) {
@@ -354,7 +350,6 @@ func (s *SkillService) ToggleLike(ctx context.Context, userID, skillID uint) (bo
 		return nil
 	})
 	if err == nil {
-		go s.updateHotScoreAsync(skillID)
 		if liked {
 			go func() {
 				_ = s.notifSvc.Create(context.Background(), sk.AuthorID, model.NotifTypeLikeSkill, "点赞", "有人赞了你的 Skill", "skill", skillID, userID)
@@ -387,22 +382,7 @@ func (s *SkillService) ToggleFavorite(ctx context.Context, userID, skillID uint)
 		newCount = sk.FavoritesCount + delta
 		return nil
 	})
-	if err == nil {
-		go s.updateHotScoreAsync(skillID)
-	}
 	return favorited, newCount, err
-}
-
-func (s *SkillService) updateHotScoreAsync(skillID uint) {
-	sk, err := s.skills.FindByID(nil, skillID)
-	if err != nil {
-		return
-	}
-	score := CalculateHotScore(sk.Views, sk.LikesCount, sk.FavoritesCount, sk.CommentsCount, sk.CreatedAt, 1.5)
-	_ = s.rdb.ZAdd(context.Background(), "rank:skills:hot", redis.Z{
-		Score:  score,
-		Member: skillID,
-	}).Err()
 }
 
 func (s *SkillService) List(ctx context.Context, q SkillListQuery) (*SkillListResult, error) {
@@ -425,17 +405,6 @@ func (s *SkillService) List(ctx context.Context, q SkillListQuery) (*SkillListRe
 		TagID: q.TagID, Keyword: q.Keyword, AuthorID: q.AuthorID, Sort: q.Sort,
 	}
 
-	var key string
-	if q.Sort == "hot" && q.TagID == nil && q.AuthorID == nil && q.Keyword == "" {
-		key = fmt.Sprintf("hot:skills:%d:%d", q.Page, q.PageSize)
-		if v, err := s.rdb.Get(ctx, key).Bytes(); err == nil {
-			var res SkillListResult
-			if json.Unmarshal(v, &res) == nil {
-				return &res, nil
-			}
-		}
-	}
-
 	list, total, err := s.skills.List(ctx, rq)
 	if err != nil {
 		return nil, err
@@ -454,12 +423,6 @@ func (s *SkillService) List(ctx context.Context, q SkillListQuery) (*SkillListRe
 	}
 	for _, sk := range list {
 		out.List = append(out.List, s.summaryOf(sk, tagMap[sk.ID]))
-	}
-
-	if key != "" {
-		if b, err := json.Marshal(out); err == nil {
-			_ = s.rdb.Set(ctx, key, b, s.cfg.HotCacheTTL).Err()
-		}
 	}
 	return out, nil
 }

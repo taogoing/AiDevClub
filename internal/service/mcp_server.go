@@ -4,11 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 
-	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 
 	"aidevclub/internal/model"
@@ -25,13 +23,12 @@ type McpServerService struct {
 	servers  *repo.McpServerRepo
 	tags     *repo.TagRepo
 	inter    *repo.InteractionRepo
-	rdb      *redis.Client
 	cfg      *platform.Config
 	notifSvc *NotificationService
 }
 
-func NewMcpServerService(servers *repo.McpServerRepo, tags *repo.TagRepo, inter *repo.InteractionRepo, rdb *redis.Client, cfg *platform.Config, notifSvc *NotificationService) *McpServerService {
-	return &McpServerService{servers: servers, tags: tags, inter: inter, rdb: rdb, cfg: cfg, notifSvc: notifSvc}
+func NewMcpServerService(servers *repo.McpServerRepo, tags *repo.TagRepo, inter *repo.InteractionRepo, cfg *platform.Config, notifSvc *NotificationService) *McpServerService {
+	return &McpServerService{servers: servers, tags: tags, inter: inter, cfg: cfg, notifSvc: notifSvc}
 }
 
 var supportedMcpClients = map[string]bool{
@@ -407,7 +404,6 @@ func (s *McpServerService) ToggleLike(ctx context.Context, userID, serverID uint
 		return nil
 	})
 	if err == nil {
-		go s.updateHotScoreAsync(serverID)
 		if liked {
 			go func() {
 				_ = s.notifSvc.Create(context.Background(), sv.AuthorID, model.NotifTypeLikeMcpServer, "点赞", "有人赞了你的 MCP Server", "mcp_server", serverID, userID)
@@ -440,22 +436,7 @@ func (s *McpServerService) ToggleFavorite(ctx context.Context, userID, serverID 
 		newCount = sv.FavoritesCount + delta
 		return nil
 	})
-	if err == nil {
-		go s.updateHotScoreAsync(serverID)
-	}
 	return favorited, newCount, err
-}
-
-func (s *McpServerService) updateHotScoreAsync(serverID uint) {
-	sv, err := s.servers.FindByID(nil, serverID)
-	if err != nil {
-		return
-	}
-	score := CalculateHotScore(sv.Views, sv.LikesCount, sv.FavoritesCount, sv.CommentsCount, sv.CreatedAt, 1.5)
-	_ = s.rdb.ZAdd(context.Background(), "rank:mcp_servers:hot", redis.Z{
-		Score:  score,
-		Member: serverID,
-	}).Err()
 }
 
 func (s *McpServerService) List(ctx context.Context, q McpServerListQuery) (*McpServerListResult, error) {
@@ -478,17 +459,6 @@ func (s *McpServerService) List(ctx context.Context, q McpServerListQuery) (*Mcp
 		TagID: q.TagID, Keyword: q.Keyword, AuthorID: q.AuthorID, Sort: q.Sort,
 	}
 
-	var key string
-	if q.Sort == "hot" && q.TagID == nil && q.AuthorID == nil && q.Keyword == "" {
-		key = fmt.Sprintf("hot:mcp_servers:%d:%d", q.Page, q.PageSize)
-		if v, err := s.rdb.Get(ctx, key).Bytes(); err == nil {
-			var res McpServerListResult
-			if json.Unmarshal(v, &res) == nil {
-				return &res, nil
-			}
-		}
-	}
-
 	list, total, err := s.servers.List(ctx, rq)
 	if err != nil {
 		return nil, err
@@ -507,12 +477,6 @@ func (s *McpServerService) List(ctx context.Context, q McpServerListQuery) (*Mcp
 	}
 	for _, sv := range list {
 		out.List = append(out.List, s.summaryOf(sv, tagMap[sv.ID]))
-	}
-
-	if key != "" {
-		if b, err := json.Marshal(out); err == nil {
-			_ = s.rdb.Set(ctx, key, b, s.cfg.HotCacheTTL).Err()
-		}
 	}
 	return out, nil
 }

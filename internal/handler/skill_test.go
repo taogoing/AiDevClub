@@ -23,17 +23,15 @@ func skillRouter(t *testing.T) (*gin.Engine, *repo.UserRepo, *repo.SkillRepo) {
 	gin.SetMode(gin.TestMode)
 	db := testutil.NewTestDB(t)
 	users := repo.NewUserRepo(db)
-	rdb := testutil.NewTestRedis(t)
 	cfg := &platform.Config{
 		DefaultPageSize: 20,
 		MaxPageSize:     50,
-		HotCacheTTL:     60e9,
 	}
 	skillRepo := repo.NewSkillRepo(db)
 	notifSvc := service.NewNotificationService(repo.NewNotificationRepo(db), users)
 	svc := service.NewSkillService(
 		skillRepo, repo.NewTagRepo(db),
-		repo.NewInteractionRepo(db), rdb, cfg, notifSvc,
+		repo.NewInteractionRepo(db), cfg, notifSvc,
 	)
 	h := NewSkillHandler(svc)
 	auth := platform.AuthMiddleware("s")

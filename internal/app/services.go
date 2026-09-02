@@ -37,9 +37,9 @@ func NewServices(infra *Infrastructure, cfg *platform.Config) *Services {
 	notificationRepo := repo.NewNotificationRepo(infra.DB)
 	notifications := service.NewNotificationService(notificationRepo, users)
 
-	tagService := service.NewTagService(tags, infra.Redis)
-	articleService := service.NewArticleService(articles, tags, interactions, infra.Redis, cfg, notifications)
-	commentService := service.NewCommentService(comments, articles, interactions, users, notifications, infra.Redis)
+	tagService := service.NewTagService(tags)
+	articleService := service.NewArticleService(articles, tags, interactions, cfg, notifications)
+	commentService := service.NewCommentService(comments, articles, interactions, users, notifications)
 
 	searchRepo := repo.NewSearchRepo(infra.DB)
 	search := service.NewSearchService(searchRepo)
@@ -47,8 +47,8 @@ func NewServices(infra *Infrastructure, cfg *platform.Config) *Services {
 	skills := repo.NewSkillRepo(infra.DB)
 	mcpServers := repo.NewMcpServerRepo(infra.DB)
 	resourceComments := repo.NewResourceCommentRepo(infra.DB)
-	skillService := service.NewSkillService(skills, tags, interactions, infra.Redis, cfg, notifications)
-	mcpServerService := service.NewMcpServerService(mcpServers, tags, interactions, infra.Redis, cfg, notifications)
+	skillService := service.NewSkillService(skills, tags, interactions, cfg, notifications)
+	mcpServerService := service.NewMcpServerService(mcpServers, tags, interactions, cfg, notifications)
 	resourceCommentService := service.NewResourceCommentService(resourceComments, skills, mcpServers, interactions, users, notifications)
 
 	adminLogRepo := repo.NewAdminLogRepo(infra.DB)
@@ -62,7 +62,7 @@ func NewServices(infra *Infrastructure, cfg *platform.Config) *Services {
 	reports := service.NewReportService(
 		reportsRepo, articles, skills, mcpServers, comments, resourceComments, admin, adminLogs, notifications,
 	)
-	ranking := service.NewRankingService(infra.Redis, articles, skills, mcpServers, 1.5)
+	ranking := service.NewRankingService(articles, skills, mcpServers)
 
 	return &Services{
 		UserRepo:         users,
