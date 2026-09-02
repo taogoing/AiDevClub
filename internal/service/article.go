@@ -22,15 +22,16 @@ var (
 )
 
 type ArticleService struct {
-	articles *repo.ArticleRepo
-	tags     *repo.TagRepo
-	inter    *repo.InteractionRepo
-	cfg      *platform.Config
-	notifSvc *NotificationService
+	articles   *repo.ArticleRepo
+	tags       *repo.TagRepo
+	inter      *repo.InteractionRepo
+	cfg        *platform.Config
+	notifSvc   *NotificationService
+	rankingSvc *RankingService
 }
 
-func NewArticleService(articles *repo.ArticleRepo, tags *repo.TagRepo, inter *repo.InteractionRepo, cfg *platform.Config, notifSvc *NotificationService) *ArticleService {
-	return &ArticleService{articles: articles, tags: tags, inter: inter, cfg: cfg, notifSvc: notifSvc}
+func NewArticleService(articles *repo.ArticleRepo, tags *repo.TagRepo, inter *repo.InteractionRepo, cfg *platform.Config, notifSvc *NotificationService, rankingSvc *RankingService) *ArticleService {
+	return &ArticleService{articles: articles, tags: tags, inter: inter, cfg: cfg, notifSvc: notifSvc, rankingSvc: rankingSvc}
 }
 
 func (s *ArticleService) ImageDir() string     { return s.cfg.ArticleImageDir }
@@ -313,6 +314,14 @@ func (s *ArticleService) ToggleLike(ctx context.Context, userID, articleID uint)
 		return nil
 	})
 	if err == nil {
+		if s.rankingSvc != nil {
+			go func() {
+				updated, _ := s.articles.FindByID(nil, articleID)
+				if updated != nil {
+					_ = s.rankingSvc.UpdateArticleHotScore(context.Background(), updated)
+				}
+			}()
+		}
 		if liked {
 			go func() {
 				_ = s.notifSvc.Create(context.Background(), a.AuthorID, model.NotifTypeLikeArticle, "点赞", "有人赞了你的文章", "article", articleID, userID)
@@ -345,6 +354,16 @@ func (s *ArticleService) ToggleFavorite(ctx context.Context, userID, articleID u
 		newCount = a.FavoritesCount + delta
 		return nil
 	})
+	if err == nil {
+		if s.rankingSvc != nil {
+			go func() {
+				updated, _ := s.articles.FindByID(nil, articleID)
+				if updated != nil {
+					_ = s.rankingSvc.UpdateArticleHotScore(context.Background(), updated)
+				}
+			}()
+		}
+	}
 	return favorited, newCount, err
 }
 

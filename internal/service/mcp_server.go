@@ -20,15 +20,16 @@ var (
 )
 
 type McpServerService struct {
-	servers  *repo.McpServerRepo
-	tags     *repo.TagRepo
-	inter    *repo.InteractionRepo
-	cfg      *platform.Config
-	notifSvc *NotificationService
+	servers    *repo.McpServerRepo
+	tags       *repo.TagRepo
+	inter      *repo.InteractionRepo
+	cfg        *platform.Config
+	notifSvc   *NotificationService
+	rankingSvc *RankingService
 }
 
-func NewMcpServerService(servers *repo.McpServerRepo, tags *repo.TagRepo, inter *repo.InteractionRepo, cfg *platform.Config, notifSvc *NotificationService) *McpServerService {
-	return &McpServerService{servers: servers, tags: tags, inter: inter, cfg: cfg, notifSvc: notifSvc}
+func NewMcpServerService(servers *repo.McpServerRepo, tags *repo.TagRepo, inter *repo.InteractionRepo, cfg *platform.Config, notifSvc *NotificationService, rankingSvc *RankingService) *McpServerService {
+	return &McpServerService{servers: servers, tags: tags, inter: inter, cfg: cfg, notifSvc: notifSvc, rankingSvc: rankingSvc}
 }
 
 var supportedMcpClients = map[string]bool{
@@ -404,6 +405,14 @@ func (s *McpServerService) ToggleLike(ctx context.Context, userID, serverID uint
 		return nil
 	})
 	if err == nil {
+		if s.rankingSvc != nil {
+			go func() {
+				updated, _ := s.servers.FindByID(nil, serverID)
+				if updated != nil {
+					_ = s.rankingSvc.UpdateMcpServerHotScore(context.Background(), updated)
+				}
+			}()
+		}
 		if liked {
 			go func() {
 				_ = s.notifSvc.Create(context.Background(), sv.AuthorID, model.NotifTypeLikeMcpServer, "点赞", "有人赞了你的 MCP Server", "mcp_server", serverID, userID)
@@ -436,6 +445,16 @@ func (s *McpServerService) ToggleFavorite(ctx context.Context, userID, serverID 
 		newCount = sv.FavoritesCount + delta
 		return nil
 	})
+	if err == nil {
+		if s.rankingSvc != nil {
+			go func() {
+				updated, _ := s.servers.FindByID(nil, serverID)
+				if updated != nil {
+					_ = s.rankingSvc.UpdateMcpServerHotScore(context.Background(), updated)
+				}
+			}()
+		}
+	}
 	return favorited, newCount, err
 }
 

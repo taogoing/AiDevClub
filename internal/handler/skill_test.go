@@ -31,7 +31,7 @@ func skillRouter(t *testing.T) (*gin.Engine, *repo.UserRepo, *repo.SkillRepo) {
 	notifSvc := service.NewNotificationService(repo.NewNotificationRepo(db), users)
 	svc := service.NewSkillService(
 		skillRepo, repo.NewTagRepo(db),
-		repo.NewInteractionRepo(db), cfg, notifSvc,
+		repo.NewInteractionRepo(db), cfg, notifSvc, nil,
 	)
 	h := NewSkillHandler(svc)
 	auth := platform.AuthMiddleware("s")

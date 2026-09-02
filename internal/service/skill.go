@@ -19,15 +19,16 @@ var (
 )
 
 type SkillService struct {
-	skills   *repo.SkillRepo
-	tags     *repo.TagRepo
-	inter    *repo.InteractionRepo
-	cfg      *platform.Config
-	notifSvc *NotificationService
+	skills     *repo.SkillRepo
+	tags       *repo.TagRepo
+	inter      *repo.InteractionRepo
+	cfg        *platform.Config
+	notifSvc   *NotificationService
+	rankingSvc *RankingService
 }
 
-func NewSkillService(skills *repo.SkillRepo, tags *repo.TagRepo, inter *repo.InteractionRepo, cfg *platform.Config, notifSvc *NotificationService) *SkillService {
-	return &SkillService{skills: skills, tags: tags, inter: inter, cfg: cfg, notifSvc: notifSvc}
+func NewSkillService(skills *repo.SkillRepo, tags *repo.TagRepo, inter *repo.InteractionRepo, cfg *platform.Config, notifSvc *NotificationService, rankingSvc *RankingService) *SkillService {
+	return &SkillService{skills: skills, tags: tags, inter: inter, cfg: cfg, notifSvc: notifSvc, rankingSvc: rankingSvc}
 }
 
 func (s *SkillService) ResolveTagSet(ctx context.Context, tx *gorm.DB, tagIDs []uint, tagNames []string) ([]uint, error) {
@@ -350,6 +351,14 @@ func (s *SkillService) ToggleLike(ctx context.Context, userID, skillID uint) (bo
 		return nil
 	})
 	if err == nil {
+		if s.rankingSvc != nil {
+			go func() {
+				updated, _ := s.skills.FindByID(nil, skillID)
+				if updated != nil {
+					_ = s.rankingSvc.UpdateSkillHotScore(context.Background(), updated)
+				}
+			}()
+		}
 		if liked {
 			go func() {
 				_ = s.notifSvc.Create(context.Background(), sk.AuthorID, model.NotifTypeLikeSkill, "点赞", "有人赞了你的 Skill", "skill", skillID, userID)
@@ -382,6 +391,16 @@ func (s *SkillService) ToggleFavorite(ctx context.Context, userID, skillID uint)
 		newCount = sk.FavoritesCount + delta
 		return nil
 	})
+	if err == nil {
+		if s.rankingSvc != nil {
+			go func() {
+				updated, _ := s.skills.FindByID(nil, skillID)
+				if updated != nil {
+					_ = s.rankingSvc.UpdateSkillHotScore(context.Background(), updated)
+				}
+			}()
+		}
+	}
 	return favorited, newCount, err
 }
 

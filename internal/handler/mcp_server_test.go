@@ -31,7 +31,7 @@ func mcpServerRouter(t *testing.T) (*gin.Engine, *repo.UserRepo, *repo.McpServer
 	notifSvc := service.NewNotificationService(repo.NewNotificationRepo(db), users)
 	svc := service.NewMcpServerService(
 		mcpRepo, repo.NewTagRepo(db),
-		repo.NewInteractionRepo(db), cfg, notifSvc,
+		repo.NewInteractionRepo(db), cfg, notifSvc, nil,
 	)
 	h := NewMcpServerHandler(svc)
 	auth := platform.AuthMiddleware("s")

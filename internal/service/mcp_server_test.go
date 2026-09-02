@@ -29,6 +29,7 @@ func newMcpServerTestEnv(t *testing.T) (*McpServerService, *model.User) {
 		repo.NewInteractionRepo(db),
 		cfg,
 		notifSvc,
+		nil,
 	)
 	return svc, u
 }

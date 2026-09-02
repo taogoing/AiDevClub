@@ -29,6 +29,7 @@ func newSkillTestEnv(t *testing.T) (*SkillService, *model.User) {
 		repo.NewInteractionRepo(db),
 		cfg,
 		notifSvc,
+		nil,
 	)
 	return svc, u
 }

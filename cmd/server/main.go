@@ -16,6 +16,7 @@ import (
 	"aidevclub/internal/mcpserver"
 	"aidevclub/internal/model"
 	"aidevclub/internal/platform"
+	"aidevclub/internal/scheduler"
 )
 
 func main() {
@@ -177,6 +178,9 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	rankingScheduler := scheduler.NewRankingScheduler(services.Ranking, 2*time.Minute)
+	rankingScheduler.Start(ctx)
+	defer rankingScheduler.Stop()
 
 	// Start MCP server in the same process
 	startMCPServer(ctx, cfg, services, infra, logger)
