@@ -132,7 +132,7 @@ func (r *SkillRepo) List(ctx context.Context, q SkillQuery) ([]model.Skill, int6
 	}
 	switch q.Sort {
 	case "hot":
-		idQ = idQ.Order("(views + 3*likes_count + 5*favorites_count + 2*comments_count + 1) / POW(TIMESTAMPDIFF(HOUR, COALESCE(published_at, created_at), NOW()) + 2, 1.5) DESC, id DESC")
+		idQ = idQ.Order("(views + 3*likes_count + 5*favorites_count + 2*comments_count + 1) / POW(GREATEST(TIMESTAMPDIFF(HOUR, COALESCE(published_at, created_at), NOW()), 0) + 2, 1.5) DESC, id DESC")
 	default:
 		idQ = idQ.Order("published_at desc, id desc")
 	}
@@ -148,7 +148,7 @@ func (r *SkillRepo) List(ctx context.Context, q SkillQuery) ([]model.Skill, int6
 	mainQ := r.db.WithContext(ctx).Model(&model.Skill{}).Where("id IN ?", ids)
 	switch q.Sort {
 	case "hot":
-		mainQ = mainQ.Order("(views + 3*likes_count + 5*favorites_count + 2*comments_count + 1) / POW(TIMESTAMPDIFF(HOUR, COALESCE(published_at, created_at), NOW()) + 2, 1.5) DESC, id DESC")
+		mainQ = mainQ.Order("(views + 3*likes_count + 5*favorites_count + 2*comments_count + 1) / POW(GREATEST(TIMESTAMPDIFF(HOUR, COALESCE(published_at, created_at), NOW()), 0) + 2, 1.5) DESC, id DESC")
 	default:
 		mainQ = mainQ.Order("published_at desc, id desc")
 	}
