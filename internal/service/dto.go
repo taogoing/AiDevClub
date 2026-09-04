@@ -58,6 +58,19 @@ type ArticleDetail struct {
 type HotArticleBrief struct {
 	ID    uint   `json:"id"`
 	Title string `json:"title"`
+	Score int64  `json:"score"`
+}
+
+type HotSkillBrief struct {
+	ID    uint   `json:"id"`
+	Name  string `json:"name"`
+	Score int64  `json:"score"`
+}
+
+type HotMcpServerBrief struct {
+	ID    uint   `json:"id"`
+	Name  string `json:"name"`
+	Score int64  `json:"score"`
 }
 
 type ListQuery struct {

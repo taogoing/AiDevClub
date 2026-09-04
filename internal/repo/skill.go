@@ -38,6 +38,21 @@ func (r *SkillRepo) FindByIDWithContext(ctx context.Context, id uint) (*model.Sk
 	return r.FindByID(r.db.WithContext(ctx), id)
 }
 
+// ListNamesByIDs 批量查询已发布且未隐藏 Skill 的最小展示字段（日榜用）。
+func (r *SkillRepo) ListNamesByIDs(ctx context.Context, ids []uint) ([]model.Skill, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	var list []model.Skill
+	err := r.db.WithContext(ctx).Model(&model.Skill{}).
+		Select("id", "name").
+		Where("id IN ?", ids).
+		Where("status = ?", model.ResourceStatusPublished).
+		Where("hidden = ?", false).
+		Find(&list).Error
+	return list, err
+}
+
 func (r *SkillRepo) Update(db *gorm.DB, s *model.Skill) error {
 	return r.exec(db).Save(s).Error
 }

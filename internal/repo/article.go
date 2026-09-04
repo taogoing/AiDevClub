@@ -38,6 +38,21 @@ func (r *ArticleRepo) FindByIDWithContext(ctx context.Context, id uint) (*model.
 	return r.FindByID(r.db.WithContext(ctx), id)
 }
 
+// ListTitlesByIDs 批量查询已发布且未隐藏文章的最小展示字段（日榜用）。
+func (r *ArticleRepo) ListTitlesByIDs(ctx context.Context, ids []uint) ([]model.Article, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	var list []model.Article
+	err := r.db.WithContext(ctx).Model(&model.Article{}).
+		Select("id", "title").
+		Where("id IN ?", ids).
+		Where("status = ?", model.ArticleStatusPublished).
+		Where("hidden = ?", false).
+		Find(&list).Error
+	return list, err
+}
+
 func (r *ArticleRepo) Update(db *gorm.DB, a *model.Article) error {
 	return r.exec(db).Save(a).Error
 }

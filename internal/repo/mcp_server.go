@@ -40,6 +40,21 @@ func (r *McpServerRepo) FindByIDWithContext(ctx context.Context, id uint) (*mode
 	return r.FindByID(r.db.WithContext(ctx), id)
 }
 
+// ListNamesByIDs 批量查询已发布且未隐藏 MCP Server 的最小展示字段（日榜用）。
+func (r *McpServerRepo) ListNamesByIDs(ctx context.Context, ids []uint) ([]model.McpServer, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	var list []model.McpServer
+	err := r.db.WithContext(ctx).Model(&model.McpServer{}).
+		Select("id", "name").
+		Where("id IN ?", ids).
+		Where("status = ?", model.ResourceStatusPublished).
+		Where("hidden = ?", false).
+		Find(&list).Error
+	return list, err
+}
+
 func (r *McpServerRepo) Update(db *gorm.DB, s *model.McpServer) error {
 	normalizeMcpServerInstallations(s)
 	return r.exec(db).Save(s).Error

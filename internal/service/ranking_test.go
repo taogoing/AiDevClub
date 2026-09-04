@@ -37,7 +37,7 @@ func newRankingTestEnv(t *testing.T) (*RankingService, *gorm.DB, *redis.Client, 
 	return svc, db, rdb, u
 }
 
-func seedArticle(t *testing.T, db *gorm.DB, authorID uint, title string, views int) *model.Article {
+func seedRankingArticle(t *testing.T, db *gorm.DB, authorID uint, title string, views int) *model.Article {
 	t.Helper()
 	publishedAt := time.Now().Add(-2 * time.Hour)
 	a := &model.Article{
@@ -59,9 +59,9 @@ func titleKey(id uint) string {
 func TestGetArticleHotBriefsOrdersByScoreAndReturnsTotal(t *testing.T) {
 	svc, db, _, u := newRankingTestEnv(t)
 	ctx := context.Background()
-	a1 := seedArticle(t, db, u.ID, "first", 100)
-	a2 := seedArticle(t, db, u.ID, "second", 300)
-	a3 := seedArticle(t, db, u.ID, "third", 200)
+	a1 := seedRankingArticle(t, db, u.ID, "first", 100)
+	a2 := seedRankingArticle(t, db, u.ID, "second", 300)
+	a3 := seedRankingArticle(t, db, u.ID, "third", 200)
 	for _, a := range []*model.Article{a1, a2, a3} {
 		if err := svc.UpdateArticleHotScore(ctx, a); err != nil {
 			t.Fatal(err)
@@ -89,7 +89,7 @@ func TestGetArticleHotBriefsOrdersByScoreAndReturnsTotal(t *testing.T) {
 func TestGetArticleHotBriefsServesLocalCacheUntilTTL(t *testing.T) {
 	svc, db, rdb, u := newRankingTestEnv(t)
 	ctx := context.Background()
-	a1 := seedArticle(t, db, u.ID, "only", 100)
+	a1 := seedRankingArticle(t, db, u.ID, "only", 100)
 	if err := svc.UpdateArticleHotScore(ctx, a1); err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +118,7 @@ func TestGetArticleHotBriefsServesLocalCacheUntilTTL(t *testing.T) {
 func TestGetArticleHotBriefsBackfillsMissingTitlesToRedis(t *testing.T) {
 	svc, db, rdb, u := newRankingTestEnv(t)
 	ctx := context.Background()
-	a1 := seedArticle(t, db, u.ID, "backfill-me", 100)
+	a1 := seedRankingArticle(t, db, u.ID, "backfill-me", 100)
 	// 直接 ZAdd（未经预热），标题字典 miss → 走 MySQL 补全
 	if err := rdb.ZAdd(ctx, rankKeyArticles, redis.Z{Score: 10, Member: a1.ID}).Err(); err != nil {
 		t.Fatal(err)
@@ -143,7 +143,7 @@ func TestGetArticleHotBriefsBackfillsMissingTitlesToRedis(t *testing.T) {
 func TestGetArticleHotBriefsPrefersCachedTitleOverMySQL(t *testing.T) {
 	svc, db, rdb, u := newRankingTestEnv(t)
 	ctx := context.Background()
-	a1 := seedArticle(t, db, u.ID, "real-title", 100)
+	a1 := seedRankingArticle(t, db, u.ID, "real-title", 100)
 	if err := rdb.ZAdd(ctx, rankKeyArticles, redis.Z{Score: 10, Member: a1.ID}).Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -163,8 +163,8 @@ func TestGetArticleHotBriefsPrefersCachedTitleOverMySQL(t *testing.T) {
 func TestGetArticleHotBriefsSkipsHiddenArticlesOnBackfill(t *testing.T) {
 	svc, db, rdb, u := newRankingTestEnv(t)
 	ctx := context.Background()
-	visible := seedArticle(t, db, u.ID, "visible", 100)
-	hidden := seedArticle(t, db, u.ID, "hidden-one", 200)
+	visible := seedRankingArticle(t, db, u.ID, "visible", 100)
+	hidden := seedRankingArticle(t, db, u.ID, "hidden-one", 200)
 	hidden.Hidden = true
 	if err := db.Save(hidden).Error; err != nil {
 		t.Fatal(err)
@@ -192,9 +192,9 @@ func TestGetArticleHotBriefsSkipsHiddenArticlesOnBackfill(t *testing.T) {
 func TestRecalculateArticleHotRankingPrewarmsAndCleansTitles(t *testing.T) {
 	svc, db, rdb, u := newRankingTestEnv(t)
 	ctx := context.Background()
-	hot := seedArticle(t, db, u.ID, "hot-one", 100)
-	cold := seedArticle(t, db, u.ID, "cold-one", 1)
-	hidden := seedArticle(t, db, u.ID, "hidden-one", 200)
+	hot := seedRankingArticle(t, db, u.ID, "hot-one", 100)
+	cold := seedRankingArticle(t, db, u.ID, "cold-one", 1)
+	hidden := seedRankingArticle(t, db, u.ID, "hidden-one", 200)
 	hidden.Hidden = true
 	if err := db.Save(hidden).Error; err != nil {
 		t.Fatal(err)
@@ -232,9 +232,9 @@ func TestRecalculateArticleHotRankingPrewarmsAndCleansTitles(t *testing.T) {
 func TestGetArticleHotBriefsFallsBackToMySQLWhenRedisUnavailable(t *testing.T) {
 	svc, db, rdb, u := newRankingTestEnv(t)
 	ctx := context.Background()
-	seedArticle(t, db, u.ID, "low", 100)
-	a2 := seedArticle(t, db, u.ID, "high", 300)
-	a3 := seedArticle(t, db, u.ID, "mid", 200)
+	seedRankingArticle(t, db, u.ID, "low", 100)
+	a2 := seedRankingArticle(t, db, u.ID, "high", 300)
+	a3 := seedRankingArticle(t, db, u.ID, "mid", 200)
 	_ = a2
 	_ = a3
 
