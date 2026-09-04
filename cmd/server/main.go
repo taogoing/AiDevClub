@@ -171,8 +171,10 @@ func main() {
 	adminH := handler.NewAdminHandler(services.Admin, services.Reports, services.AdminLogs)
 	adminH.RegisterRoutes(adminAuth)
 
-	rankingH := handler.NewRankingHandler(services.Ranking)
+	rankingH := handler.NewRankingHandler(services.ContentRanking)
 	r.GET("/api/v1/articles/ranking", rankingH.GetArticleRanking)
+	r.GET("/api/v1/skills/ranking", rankingH.GetSkillRanking)
+	r.GET("/api/v1/mcp-servers/ranking", rankingH.GetMcpServerRanking)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

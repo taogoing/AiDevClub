@@ -1,5 +1,5 @@
 import http from './http'
-import type { ApiResponse, SkillListResult, SkillDetail, LikeResult, FavoriteResult } from '@/types'
+import type { ApiResponse, SkillListResult, SkillDetail, LikeResult, FavoriteResult, HotSkillBrief } from '@/types'
 
 export function getSkills(params: Record<string, unknown>) {
   return http.get<ApiResponse<SkillListResult>>('/api/v1/skills', { params })
@@ -43,4 +43,10 @@ export function likeSkill(id: number) {
 
 export function favoriteSkill(id: number) {
   return http.post<ApiResponse<FavoriteResult>>(`/api/v1/skills/${id}/favorite`)
+}
+
+export function getSkillRanking(page = 1, pageSize = 5) {
+  return http.get<ApiResponse<{ skills: HotSkillBrief[]; total: number }>>('/api/v1/skills/ranking', {
+    params: { page, page_size: pageSize },
+  })
 }

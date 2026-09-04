@@ -51,6 +51,19 @@ export interface ArticleDetail extends ArticleSummary {
 export interface HotArticleBrief {
   id: number
   title: string
+  score: number
+}
+
+export interface HotSkillBrief {
+  id: number
+  name: string
+  score: number
+}
+
+export interface HotMcpServerBrief {
+  id: number
+  name: string
+  score: number
 }
 
 export interface CommentItem {

@@ -25,16 +25,16 @@
 import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { TrendCharts } from '@element-plus/icons-vue'
-import { getSkills } from '@/api/skill'
-import { getMcpServers } from '@/api/mcpServer'
-import type { SkillSummary, McpServerSummary } from '@/types'
+import { getSkillRanking } from '@/api/skill'
+import { getMcpServerRanking } from '@/api/mcpServer'
+import type { HotSkillBrief, HotMcpServerBrief } from '@/types'
 
 const props = defineProps<{
   type: 'skill' | 'mcp'
 }>()
 
 const router = useRouter()
-const hotResources = ref<(SkillSummary | McpServerSummary)[]>([])
+const hotResources = ref<(HotSkillBrief | HotMcpServerBrief)[]>([])
 
 onMounted(async () => {
   await fetchData()
@@ -46,9 +46,13 @@ watch(() => props.type, () => {
 
 async function fetchData() {
   try {
-    const getList = props.type === 'skill' ? getSkills : getMcpServers
-    const hotListRes = await getList({ page: 1, page_size: 5, sort: 'hot' })
-    hotResources.value = hotListRes.data.data.list
+    if (props.type === 'skill') {
+      const res = await getSkillRanking(1, 5)
+      hotResources.value = res.data.data.skills ?? []
+    } else {
+      const res = await getMcpServerRanking(1, 5)
+      hotResources.value = res.data.data.mcp_servers ?? []
+    }
   } catch {
     hotResources.value = []
   }

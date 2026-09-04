@@ -1,5 +1,5 @@
 import http from './http'
-import type { ApiResponse, McpServerListResult, McpServerDetail, LikeResult, FavoriteResult } from '@/types'
+import type { ApiResponse, McpServerListResult, McpServerDetail, LikeResult, FavoriteResult, HotMcpServerBrief } from '@/types'
 
 export function getMcpServers(params: Record<string, unknown>) {
   return http.get<ApiResponse<McpServerListResult>>('/api/v1/mcp-servers', { params })
@@ -43,4 +43,10 @@ export function likeMcpServer(id: number) {
 
 export function favoriteMcpServer(id: number) {
   return http.post<ApiResponse<FavoriteResult>>(`/api/v1/mcp-servers/${id}/favorite`)
+}
+
+export function getMcpServerRanking(page = 1, pageSize = 5) {
+  return http.get<ApiResponse<{ mcp_servers: HotMcpServerBrief[]; total: number }>>('/api/v1/mcp-servers/ranking', {
+    params: { page, page_size: pageSize },
+  })
 }
