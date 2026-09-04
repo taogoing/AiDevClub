@@ -30,12 +30,6 @@ type MCPServerReader interface {
 	List(context.Context, service.McpServerListQuery) (*service.McpServerListResult, error)
 }
 
-type RankingReader interface {
-	ListArticleHot(context.Context, int, int) ([]service.ArticleSummary, int64, error)
-	ListSkillHot(context.Context, int, int) ([]service.SkillSummary, int64, error)
-	ListMcpServerHot(context.Context, int, int) ([]service.McpServerSummary, int64, error)
-}
-
 type TagReader interface {
 	ListForMCP(context.Context, string, int) ([]model.Tag, error)
 }
@@ -65,8 +59,7 @@ type PublicDependencies struct {
 	Articles   ArticleReader
 	Skills     SkillReader
 	MCPServers MCPServerReader
-	Ranking    RankingReader
-	Tags       TagReader
+	Tags        TagReader
 }
 
 type AccountDependencies struct {

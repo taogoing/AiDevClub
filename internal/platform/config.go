@@ -34,13 +34,6 @@ type Config struct {
 	ArticleImageDir      string
 	MaxArticleImageBytes int64
 	AdminEmails          []string
-	RankingGravity       float64
-	RankingMaxCandidates int
-	RankingMinLikes      int
-	RankingMinFavorites  int
-	RankingMinComments   int
-	RankingMinViews      int
-	RankingLocalCacheTTL time.Duration
 }
 
 func LoadConfig() (*Config, error) {
@@ -68,13 +61,6 @@ func LoadConfig() (*Config, error) {
 	v.SetDefault("article_image.dir", "storage/articles")
 	v.SetDefault("article_image.max_bytes", int64(5<<20))
 	v.SetDefault("admin.emails", "")
-	v.SetDefault("ranking.gravity", 1.5)
-	v.SetDefault("ranking.max_candidates", 1000)
-	v.SetDefault("ranking.min_likes", 3)
-	v.SetDefault("ranking.min_favorites", 2)
-	v.SetDefault("ranking.min_comments", 2)
-	v.SetDefault("ranking.min_views", 50)
-	v.SetDefault("ranking.local_cache_ttl", "30s")
 
 	v.AutomaticEnv()
 	v.SetEnvPrefix("AIDEVCLUB")
@@ -89,11 +75,6 @@ func LoadConfig() (*Config, error) {
 		return nil, err
 	}
 	mcpRequestTimeout, err := time.ParseDuration(v.GetString("mcp.request_timeout"))
-	if err != nil {
-		return nil, err
-	}
-	rankingGravity := v.GetFloat64("ranking.gravity")
-	rankingLocalCacheTTL, err := time.ParseDuration(v.GetString("ranking.local_cache_ttl"))
 	if err != nil {
 		return nil, err
 	}
@@ -139,13 +120,6 @@ func LoadConfig() (*Config, error) {
 		ArticleImageDir:      v.GetString("article_image.dir"),
 		MaxArticleImageBytes: v.GetInt64("article_image.max_bytes"),
 		AdminEmails:          adminEmails,
-		RankingGravity:       rankingGravity,
-		RankingMaxCandidates: v.GetInt("ranking.max_candidates"),
-		RankingMinLikes:      v.GetInt("ranking.min_likes"),
-		RankingMinFavorites:  v.GetInt("ranking.min_favorites"),
-		RankingMinComments:   v.GetInt("ranking.min_comments"),
-		RankingMinViews:      v.GetInt("ranking.min_views"),
-		RankingLocalCacheTTL: rankingLocalCacheTTL,
 	}
 
 	// 生产环境若忘记设置 AIDEVCLUB_JWT_SECRET，会使用众所周知的默认值，

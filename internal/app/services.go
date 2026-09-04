@@ -16,7 +16,6 @@ type Services struct {
 	MCPServers       *service.McpServerService
 	ResourceComments *service.ResourceCommentService
 	Search           *service.SearchService
-	Ranking          *service.RankingService
 	ContentRanking   *service.ContentRankingService
 	Tags             *service.TagService
 	Notifications    *service.NotificationService
@@ -47,7 +46,6 @@ func NewServices(infra *Infrastructure, cfg *platform.Config) *Services {
 	mcpServers := repo.NewMcpServerRepo(infra.DB)
 	resourceComments := repo.NewResourceCommentRepo(infra.DB)
 
-	ranking := service.NewRankingService(infra.Redis, articles, skills, mcpServers, cfg)
 	contentRanking := service.NewContentRankingService(infra.Redis, articles, skills, mcpServers)
 
 	articleService := service.NewArticleService(articles, tags, interactions, cfg, notifications, contentRanking)
@@ -78,7 +76,6 @@ func NewServices(infra *Infrastructure, cfg *platform.Config) *Services {
 		MCPServers:       mcpServerService,
 		ResourceComments: resourceCommentService,
 		Search:           search,
-		Ranking:          ranking,
 		ContentRanking:   contentRanking,
 		Tags:             tagService,
 		Notifications:    notifications,

@@ -13,7 +13,6 @@ const (
 	errorCodeInvalidArgument        = "invalid_argument"
 	errorCodeContentNotFound        = "content_not_found"
 	errorCodeResultTooLarge         = "result_too_large"
-	errorCodeTemporarilyUnavailable = "temporarily_unavailable"
 	errorCodeInternal               = "internal_error"
 	errorCodeNotAuthenticated       = "not_authenticated"
 	errorCodeNotFound               = "not_found"
@@ -35,10 +34,6 @@ func invalidArgument(message string) error {
 
 func internalError() error {
 	return &toolError{Code: errorCodeInternal, Message: "The request could not be completed."}
-}
-
-func temporarilyUnavailable() error {
-	return &toolError{Code: errorCodeTemporarilyUnavailable, Message: "Content is temporarily unavailable."}
 }
 
 func notAuthenticated() error {
