@@ -19,16 +19,16 @@ var (
 )
 
 type SkillService struct {
-	skills     *repo.SkillRepo
-	tags       *repo.TagRepo
-	inter      *repo.InteractionRepo
-	cfg        *platform.Config
-	notifSvc   *NotificationService
-	rankingSvc *RankingService
+	skills         *repo.SkillRepo
+	tags           *repo.TagRepo
+	inter          *repo.InteractionRepo
+	cfg            *platform.Config
+	notifSvc       *NotificationService
+	contentRanking *ContentRankingService
 }
 
-func NewSkillService(skills *repo.SkillRepo, tags *repo.TagRepo, inter *repo.InteractionRepo, cfg *platform.Config, notifSvc *NotificationService, rankingSvc *RankingService) *SkillService {
-	return &SkillService{skills: skills, tags: tags, inter: inter, cfg: cfg, notifSvc: notifSvc, rankingSvc: rankingSvc}
+func NewSkillService(skills *repo.SkillRepo, tags *repo.TagRepo, inter *repo.InteractionRepo, cfg *platform.Config, notifSvc *NotificationService, contentRanking *ContentRankingService) *SkillService {
+	return &SkillService{skills: skills, tags: tags, inter: inter, cfg: cfg, notifSvc: notifSvc, contentRanking: contentRanking}
 }
 
 func (s *SkillService) ResolveTagSet(ctx context.Context, tx *gorm.DB, tagIDs []uint, tagNames []string) ([]uint, error) {
@@ -188,7 +188,7 @@ func (s *SkillService) Delete(ctx context.Context, userID, skillID uint) error {
 	if sk.AuthorID != userID {
 		return ErrForbidden
 	}
-	return s.skills.DB().Transaction(func(tx *gorm.DB) error {
+	err = s.skills.DB().Transaction(func(tx *gorm.DB) error {
 		tagIDs, err := s.skills.FindSkillTags(tx, skillID)
 		if err != nil {
 			return err
@@ -203,6 +203,10 @@ func (s *SkillService) Delete(ctx context.Context, userID, skillID uint) error {
 		}
 		return s.skills.SetSkillTags(tx, skillID, nil)
 	})
+	if err == nil && s.contentRanking != nil {
+		_ = s.contentRanking.Remove(ctx, RankedContentSkill, skillID)
+	}
+	return err
 }
 
 func (s *SkillService) Submit(ctx context.Context, userID, skillID uint) (*model.Skill, error) {
@@ -240,6 +244,9 @@ func (s *SkillService) Withdraw(ctx context.Context, userID, skillID uint) (*mod
 	if err := s.skills.Update(nil, sk); err != nil {
 		return nil, err
 	}
+	if s.contentRanking != nil {
+		_ = s.contentRanking.Remove(ctx, RankedContentSkill, skillID)
+	}
 	return sk, nil
 }
 
@@ -257,6 +264,9 @@ func (s *SkillService) Archive(ctx context.Context, userID, skillID uint) (*mode
 	sk.Status = model.ResourceStatusArchived
 	if err := s.skills.Update(nil, sk); err != nil {
 		return nil, err
+	}
+	if s.contentRanking != nil {
+		_ = s.contentRanking.Remove(ctx, RankedContentSkill, skillID)
 	}
 	return sk, nil
 }
@@ -306,6 +316,9 @@ func (s *SkillService) detail(ctx context.Context, userID, skillID uint, trackVi
 	if trackView && sk.Status == model.ResourceStatusPublished {
 		_ = s.skills.IncrViews(ctx, skillID)
 		sk.Views++
+		if userID > 0 && userID != sk.AuthorID && s.contentRanking != nil {
+			_, _ = s.contentRanking.RecordView(ctx, RankedContentSkill, skillID, userID)
+		}
 	}
 	tagMap, err := s.skills.TagsForSkills(ctx, []uint{skillID})
 	if err != nil {
@@ -351,13 +364,12 @@ func (s *SkillService) ToggleLike(ctx context.Context, userID, skillID uint) (bo
 		return nil
 	})
 	if err == nil {
-		if s.rankingSvc != nil {
-			go func() {
-				updated, _ := s.skills.FindByID(nil, skillID)
-				if updated != nil {
-					_ = s.rankingSvc.UpdateSkillHotScore(context.Background(), updated)
-				}
-			}()
+		if s.contentRanking != nil {
+			delta := int64(2)
+			if !liked {
+				delta = -2
+			}
+			_ = s.contentRanking.AddScore(ctx, RankedContentSkill, skillID, delta)
 		}
 		if liked {
 			go func() {
@@ -391,15 +403,12 @@ func (s *SkillService) ToggleFavorite(ctx context.Context, userID, skillID uint)
 		newCount = sk.FavoritesCount + delta
 		return nil
 	})
-	if err == nil {
-		if s.rankingSvc != nil {
-			go func() {
-				updated, _ := s.skills.FindByID(nil, skillID)
-				if updated != nil {
-					_ = s.rankingSvc.UpdateSkillHotScore(context.Background(), updated)
-				}
-			}()
+	if err == nil && s.contentRanking != nil {
+		delta := int64(2)
+		if !favorited {
+			delta = -2
 		}
+		_ = s.contentRanking.AddScore(ctx, RankedContentSkill, skillID, delta)
 	}
 	return favorited, newCount, err
 }
@@ -418,19 +427,6 @@ func (s *SkillService) List(ctx context.Context, q SkillListQuery) (*SkillListRe
 	case "hot":
 	default:
 		q.Sort = "latest"
-	}
-
-	if q.Sort == "hot" && q.TagID == nil && q.AuthorID == nil && q.Keyword == "" && s.rankingSvc != nil {
-		skills, total, err := s.rankingSvc.ListSkillHot(ctx, q.Page, q.PageSize)
-		if err != nil {
-			return nil, err
-		}
-		return &SkillListResult{
-			List:     skills,
-			Total:    total,
-			Page:     q.Page,
-			PageSize: q.PageSize,
-		}, nil
 	}
 
 	rq := repo.SkillQuery{

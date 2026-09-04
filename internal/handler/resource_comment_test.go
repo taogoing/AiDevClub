@@ -33,6 +33,7 @@ func resCommentRouter(t *testing.T) (*gin.Engine, *repo.UserRepo, *repo.SkillRep
 		repo.NewInteractionRepo(db),
 		users,
 		notifSvc,
+		nil,
 	)
 	h := NewResourceCommentHandler(rcSvc)
 	auth := platform.AuthMiddleware("s")

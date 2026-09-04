@@ -19,16 +19,17 @@ var (
 )
 
 type ResourceCommentService struct {
-	comments  *repo.ResourceCommentRepo
-	skills    *repo.SkillRepo
-	mcpServers *repo.McpServerRepo
-	inter     *repo.InteractionRepo
-	users     *repo.UserRepo
-	notifSvc  *NotificationService
+	comments       *repo.ResourceCommentRepo
+	skills         *repo.SkillRepo
+	mcpServers     *repo.McpServerRepo
+	inter          *repo.InteractionRepo
+	users          *repo.UserRepo
+	notifSvc       *NotificationService
+	contentRanking *ContentRankingService
 }
 
-func NewResourceCommentService(comments *repo.ResourceCommentRepo, skills *repo.SkillRepo, mcpServers *repo.McpServerRepo, inter *repo.InteractionRepo, users *repo.UserRepo, notifSvc *NotificationService) *ResourceCommentService {
-	return &ResourceCommentService{comments: comments, skills: skills, mcpServers: mcpServers, inter: inter, users: users, notifSvc: notifSvc}
+func NewResourceCommentService(comments *repo.ResourceCommentRepo, skills *repo.SkillRepo, mcpServers *repo.McpServerRepo, inter *repo.InteractionRepo, users *repo.UserRepo, notifSvc *NotificationService, contentRanking *ContentRankingService) *ResourceCommentService {
+	return &ResourceCommentService{comments: comments, skills: skills, mcpServers: mcpServers, inter: inter, users: users, notifSvc: notifSvc, contentRanking: contentRanking}
 }
 
 func (s *ResourceCommentService) getDB() *gorm.DB {
@@ -98,6 +99,11 @@ func (s *ResourceCommentService) Create(ctx context.Context, userID uint, resour
 		return s.incrCommentsCount(resourceType, resourceID, 1)
 	})
 	if err == nil {
+		if s.contentRanking != nil {
+			if ct, ok := rankedResourceType(resourceType); ok {
+				_ = s.contentRanking.AddScore(ctx, ct, resourceID, 3)
+			}
+		}
 		go s.sendResCommentNotification(context.Background(), userID, resourceType, resourceID, replyToID, content)
 	}
 	return c, err
@@ -214,12 +220,18 @@ func (s *ResourceCommentService) Delete(ctx context.Context, userID, commentID u
 	if c.AuthorID != userID && resourceAuthorID != userID {
 		return ErrResCommentForbidden
 	}
-	return s.getDB().Transaction(func(tx *gorm.DB) error {
+	err = s.getDB().Transaction(func(tx *gorm.DB) error {
 		if err := s.comments.Delete(tx, commentID); err != nil {
 			return err
 		}
 		return s.incrCommentsCount(c.ResourceType, c.ResourceID, -1)
 	})
+	if err == nil && s.contentRanking != nil {
+		if ct, ok := rankedResourceType(c.ResourceType); ok {
+			_ = s.contentRanking.AddScore(ctx, ct, c.ResourceID, -3)
+		}
+	}
+	return err
 }
 
 func (s *ResourceCommentService) ToggleLike(ctx context.Context, userID, commentID uint) (bool, int, error) {

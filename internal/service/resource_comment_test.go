@@ -36,6 +36,7 @@ func newResCommentTestEnv(t *testing.T) (*ResourceCommentService, *model.User, *
 		repo.NewInteractionRepo(db),
 		users,
 		notifSvc,
+		nil,
 	)
 	return svc, u, sk
 }

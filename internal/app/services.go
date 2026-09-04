@@ -52,9 +52,9 @@ func NewServices(infra *Infrastructure, cfg *platform.Config) *Services {
 
 	articleService := service.NewArticleService(articles, tags, interactions, cfg, notifications, contentRanking)
 	commentService := service.NewCommentService(comments, articles, interactions, users, notifications, contentRanking)
-	skillService := service.NewSkillService(skills, tags, interactions, cfg, notifications, ranking)
-	mcpServerService := service.NewMcpServerService(mcpServers, tags, interactions, cfg, notifications, ranking)
-	resourceCommentService := service.NewResourceCommentService(resourceComments, skills, mcpServers, interactions, users, notifications)
+	skillService := service.NewSkillService(skills, tags, interactions, cfg, notifications, contentRanking)
+	mcpServerService := service.NewMcpServerService(mcpServers, tags, interactions, cfg, notifications, contentRanking)
+	resourceCommentService := service.NewResourceCommentService(resourceComments, skills, mcpServers, interactions, users, notifications, contentRanking)
 
 	adminLogRepo := repo.NewAdminLogRepo(infra.DB)
 	announcementRepo := repo.NewAnnouncementRepo(infra.DB)

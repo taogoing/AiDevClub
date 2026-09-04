@@ -298,3 +298,30 @@ func TestContentSkillAndMcpDailyRanking(t *testing.T) {
 		t.Fatalf("servers=%+v err=%v", servers, err)
 	}
 }
+
+// --- 任务 3/4 共享 env：resourceDailyEnv 供 Skill/MCP/Admin 接入测试使用 ---
+
+type resourceEnv struct {
+	db     *gorm.DB
+	author *model.User
+	viewer *model.User
+}
+
+var resourceDailyEnv resourceEnv
+
+func newResourceDailyDeps(t *testing.T) (*gorm.DB, *ContentRankingService, *repo.UserRepo) {
+	t.Helper()
+	db := testutil.NewTestDB(t)
+	rdb := testutil.NewTestRedis(t)
+	if err := rdb.FlushDB(context.Background()).Err(); err != nil {
+		t.Fatal(err)
+	}
+	users := repo.NewUserRepo(db)
+	resourceDailyEnv = resourceEnv{
+		db:     db,
+		author: seedUser(t, db, "res-author@t.com"),
+		viewer: seedUser(t, db, "res-viewer@t.com"),
+	}
+	rankSvc := NewContentRankingService(rdb, repo.NewArticleRepo(db), repo.NewSkillRepo(db), repo.NewMcpServerRepo(db))
+	return db, rankSvc, users
+}

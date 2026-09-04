@@ -20,16 +20,16 @@ var (
 )
 
 type McpServerService struct {
-	servers    *repo.McpServerRepo
-	tags       *repo.TagRepo
-	inter      *repo.InteractionRepo
-	cfg        *platform.Config
-	notifSvc   *NotificationService
-	rankingSvc *RankingService
+	servers        *repo.McpServerRepo
+	tags           *repo.TagRepo
+	inter          *repo.InteractionRepo
+	cfg            *platform.Config
+	notifSvc       *NotificationService
+	contentRanking *ContentRankingService
 }
 
-func NewMcpServerService(servers *repo.McpServerRepo, tags *repo.TagRepo, inter *repo.InteractionRepo, cfg *platform.Config, notifSvc *NotificationService, rankingSvc *RankingService) *McpServerService {
-	return &McpServerService{servers: servers, tags: tags, inter: inter, cfg: cfg, notifSvc: notifSvc, rankingSvc: rankingSvc}
+func NewMcpServerService(servers *repo.McpServerRepo, tags *repo.TagRepo, inter *repo.InteractionRepo, cfg *platform.Config, notifSvc *NotificationService, contentRanking *ContentRankingService) *McpServerService {
+	return &McpServerService{servers: servers, tags: tags, inter: inter, cfg: cfg, notifSvc: notifSvc, contentRanking: contentRanking}
 }
 
 var supportedMcpClients = map[string]bool{
@@ -232,7 +232,7 @@ func (s *McpServerService) Delete(ctx context.Context, userID, serverID uint) er
 	if sv.AuthorID != userID {
 		return ErrForbidden
 	}
-	return s.servers.DB().Transaction(func(tx *gorm.DB) error {
+	err = s.servers.DB().Transaction(func(tx *gorm.DB) error {
 		tagIDs, err := s.servers.FindMcpServerTags(tx, serverID)
 		if err != nil {
 			return err
@@ -247,6 +247,10 @@ func (s *McpServerService) Delete(ctx context.Context, userID, serverID uint) er
 		}
 		return s.servers.SetMcpServerTags(tx, serverID, nil)
 	})
+	if err == nil && s.contentRanking != nil {
+		_ = s.contentRanking.Remove(ctx, RankedContentMcpServer, serverID)
+	}
+	return err
 }
 
 func (s *McpServerService) Submit(ctx context.Context, userID, serverID uint) (*model.McpServer, error) {
@@ -288,6 +292,9 @@ func (s *McpServerService) Withdraw(ctx context.Context, userID, serverID uint) 
 	if err := s.servers.Update(nil, sv); err != nil {
 		return nil, err
 	}
+	if s.contentRanking != nil {
+		_ = s.contentRanking.Remove(ctx, RankedContentMcpServer, serverID)
+	}
 	return sv, nil
 }
 
@@ -305,6 +312,9 @@ func (s *McpServerService) Archive(ctx context.Context, userID, serverID uint) (
 	sv.Status = model.ResourceStatusArchived
 	if err := s.servers.Update(nil, sv); err != nil {
 		return nil, err
+	}
+	if s.contentRanking != nil {
+		_ = s.contentRanking.Remove(ctx, RankedContentMcpServer, serverID)
 	}
 	return sv, nil
 }
@@ -354,6 +364,9 @@ func (s *McpServerService) detail(ctx context.Context, userID, serverID uint, tr
 	if trackView && sv.Status == model.ResourceStatusPublished {
 		_ = s.servers.IncrViews(ctx, serverID)
 		sv.Views++
+		if userID > 0 && userID != sv.AuthorID && s.contentRanking != nil {
+			_, _ = s.contentRanking.RecordView(ctx, RankedContentMcpServer, serverID, userID)
+		}
 	}
 	tagMap, err := s.servers.TagsForMcpServers(ctx, []uint{serverID})
 	if err != nil {
@@ -405,13 +418,12 @@ func (s *McpServerService) ToggleLike(ctx context.Context, userID, serverID uint
 		return nil
 	})
 	if err == nil {
-		if s.rankingSvc != nil {
-			go func() {
-				updated, _ := s.servers.FindByID(nil, serverID)
-				if updated != nil {
-					_ = s.rankingSvc.UpdateMcpServerHotScore(context.Background(), updated)
-				}
-			}()
+		if s.contentRanking != nil {
+			delta := int64(2)
+			if !liked {
+				delta = -2
+			}
+			_ = s.contentRanking.AddScore(ctx, RankedContentMcpServer, serverID, delta)
 		}
 		if liked {
 			go func() {
@@ -445,15 +457,12 @@ func (s *McpServerService) ToggleFavorite(ctx context.Context, userID, serverID 
 		newCount = sv.FavoritesCount + delta
 		return nil
 	})
-	if err == nil {
-		if s.rankingSvc != nil {
-			go func() {
-				updated, _ := s.servers.FindByID(nil, serverID)
-				if updated != nil {
-					_ = s.rankingSvc.UpdateMcpServerHotScore(context.Background(), updated)
-				}
-			}()
+	if err == nil && s.contentRanking != nil {
+		delta := int64(2)
+		if !favorited {
+			delta = -2
 		}
+		_ = s.contentRanking.AddScore(ctx, RankedContentMcpServer, serverID, delta)
 	}
 	return favorited, newCount, err
 }
@@ -472,19 +481,6 @@ func (s *McpServerService) List(ctx context.Context, q McpServerListQuery) (*Mcp
 	case "hot":
 	default:
 		q.Sort = "latest"
-	}
-
-	if q.Sort == "hot" && q.TagID == nil && q.AuthorID == nil && q.Keyword == "" && s.rankingSvc != nil {
-		servers, total, err := s.rankingSvc.ListMcpServerHot(ctx, q.Page, q.PageSize)
-		if err != nil {
-			return nil, err
-		}
-		return &McpServerListResult{
-			List:     servers,
-			Total:    total,
-			Page:     q.Page,
-			PageSize: q.PageSize,
-		}, nil
 	}
 
 	rq := repo.McpServerQuery{
