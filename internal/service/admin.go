@@ -24,6 +24,7 @@ type AdminService struct {
 	announcementRepo *repo.AnnouncementRepo
 	adminLogSvc      *AdminLogService
 	notifSvc         *NotificationService
+	contentRanking   *ContentRankingService
 }
 
 func NewAdminService(
@@ -37,12 +38,13 @@ func NewAdminService(
 	announcementRepo *repo.AnnouncementRepo,
 	adminLogSvc *AdminLogService,
 	notifSvc *NotificationService,
+	contentRanking *ContentRankingService,
 ) *AdminService {
 	return &AdminService{
 		users: users, articles: articles, skills: skills, mcpServers: mcpServers,
 		comments: comments, resourceComments: resourceComments,
 		reportRepo: reportRepo, announcementRepo: announcementRepo,
-		adminLogSvc: adminLogSvc, notifSvc: notifSvc,
+		adminLogSvc: adminLogSvc, notifSvc: notifSvc, contentRanking: contentRanking,
 	}
 }
 
@@ -346,6 +348,11 @@ func (s *AdminService) HideComment(ctx context.Context, adminID, id uint) error 
 		return err
 	}
 	_ = s.comments.DB().Model(&model.Comment{}).Where("parent_id = ?", id).Update("hidden", true).Error
+	if s.contentRanking != nil {
+		if c, err := s.comments.FindByID(nil, id); err == nil {
+			_ = s.contentRanking.AddScore(ctx, RankedContentArticle, c.ArticleID, -3)
+		}
+	}
 	return s.adminLogSvc.Log(ctx, adminID, model.AdminLogActionHideContent, "comment", id, nil)
 }
 
@@ -429,6 +436,13 @@ func (s *AdminService) HideResourceComment(ctx context.Context, adminID, id uint
 		return err
 	}
 	_ = s.resourceComments.DB().Model(&model.ResourceComment{}).Where("parent_id = ?", id).Update("hidden", true).Error
+	if s.contentRanking != nil {
+		if c, err := s.resourceComments.FindByID(nil, id); err == nil {
+			if ct, ok := rankedResourceType(c.ResourceType); ok {
+				_ = s.contentRanking.AddScore(ctx, ct, c.ResourceID, -3)
+			}
+		}
+	}
 	return s.adminLogSvc.Log(ctx, adminID, model.AdminLogActionHideContent, "resource_comment", id, nil)
 }
 
@@ -639,11 +653,29 @@ type AdminResourceQuery struct {
 func (s *AdminService) HideContent(targetType string, targetID uint) error {
 	switch targetType {
 	case "article":
-		return s.articles.DB().Model(&model.Article{}).Where("id = ?", targetID).Update("hidden", true).Error
+		if err := s.articles.DB().Model(&model.Article{}).Where("id = ?", targetID).Update("hidden", true).Error; err != nil {
+			return err
+		}
+		if s.contentRanking != nil {
+			_ = s.contentRanking.Remove(context.Background(), RankedContentArticle, targetID)
+		}
+		return nil
 	case "skill":
-		return s.skills.DB().Model(&model.Skill{}).Where("id = ?", targetID).Update("hidden", true).Error
+		if err := s.skills.DB().Model(&model.Skill{}).Where("id = ?", targetID).Update("hidden", true).Error; err != nil {
+			return err
+		}
+		if s.contentRanking != nil {
+			_ = s.contentRanking.Remove(context.Background(), RankedContentSkill, targetID)
+		}
+		return nil
 	case "mcp_server":
-		return s.mcpServers.DB().Model(&model.McpServer{}).Where("id = ?", targetID).Update("hidden", true).Error
+		if err := s.mcpServers.DB().Model(&model.McpServer{}).Where("id = ?", targetID).Update("hidden", true).Error; err != nil {
+			return err
+		}
+		if s.contentRanking != nil {
+			_ = s.contentRanking.Remove(context.Background(), RankedContentMcpServer, targetID)
+		}
+		return nil
 	case "comment":
 		if err := s.comments.DB().Model(&model.Comment{}).Where("id = ?", targetID).Update("hidden", true).Error; err != nil {
 			return err
@@ -716,6 +748,9 @@ func (s *AdminService) HideArticle(ctx context.Context, adminID, articleID uint)
 	if err := s.articles.DB().Model(&model.Article{}).Where("id = ?", articleID).Update("hidden", true).Error; err != nil {
 		return err
 	}
+	if s.contentRanking != nil {
+		_ = s.contentRanking.Remove(ctx, RankedContentArticle, articleID)
+	}
 	return s.adminLogSvc.Log(ctx, adminID, model.AdminLogActionHideContent, "article", articleID, nil)
 }
 
@@ -730,6 +765,9 @@ func (s *AdminService) HideSkill(ctx context.Context, adminID, skillID uint) err
 	if err := s.skills.DB().Model(&model.Skill{}).Where("id = ?", skillID).Update("hidden", true).Error; err != nil {
 		return err
 	}
+	if s.contentRanking != nil {
+		_ = s.contentRanking.Remove(ctx, RankedContentSkill, skillID)
+	}
 	return s.adminLogSvc.Log(ctx, adminID, model.AdminLogActionHideContent, "skill", skillID, nil)
 }
 
@@ -743,6 +781,9 @@ func (s *AdminService) UnhideSkill(ctx context.Context, adminID, skillID uint) e
 func (s *AdminService) HideMcpServer(ctx context.Context, adminID, mcpServerID uint) error {
 	if err := s.mcpServers.DB().Model(&model.McpServer{}).Where("id = ?", mcpServerID).Update("hidden", true).Error; err != nil {
 		return err
+	}
+	if s.contentRanking != nil {
+		_ = s.contentRanking.Remove(ctx, RankedContentMcpServer, mcpServerID)
 	}
 	return s.adminLogSvc.Log(ctx, adminID, model.AdminLogActionHideContent, "mcp_server", mcpServerID, nil)
 }

@@ -25,6 +25,7 @@ type ReportService struct {
 	adminSvc         *AdminService
 	adminLogSvc      *AdminLogService
 	notifSvc         *NotificationService
+	contentRanking   *ContentRankingService
 }
 
 func NewReportService(
@@ -37,11 +38,12 @@ func NewReportService(
 	adminSvc *AdminService,
 	adminLogSvc *AdminLogService,
 	notifSvc *NotificationService,
+	contentRanking *ContentRankingService,
 ) *ReportService {
 	return &ReportService{
 		repo: reportRepo, articles: articles, skills: skills, mcpServers: mcpServers,
 		comments: comments, resourceComments: resourceComments,
-		adminSvc: adminSvc, adminLogSvc: adminLogSvc, notifSvc: notifSvc,
+		adminSvc: adminSvc, adminLogSvc: adminLogSvc, notifSvc: notifSvc, contentRanking: contentRanking,
 	}
 }
 
@@ -153,6 +155,17 @@ func (s *ReportService) Resolve(ctx context.Context, adminID, reportID uint, act
 	})
 	if err != nil {
 		return err
+	}
+
+	if action == "hide" && s.contentRanking != nil {
+		switch adminTargetType {
+		case "article":
+			_ = s.contentRanking.Remove(ctx, RankedContentArticle, report.TargetID)
+		case "skill":
+			_ = s.contentRanking.Remove(ctx, RankedContentSkill, report.TargetID)
+		case "mcp_server":
+			_ = s.contentRanking.Remove(ctx, RankedContentMcpServer, report.TargetID)
+		}
 	}
 
 	s.sendResolveNotifications(ctx, report, adminID, action)
