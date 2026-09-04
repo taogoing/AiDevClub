@@ -274,6 +274,83 @@ wrk 使用独立 HTTP 连接，每次请求都是新的连接，**本地缓存�
 
 ---
 
+## 缓存击穿修复（singleflight）
+
+> 日期：2026-09-04
+> 工具：k6（从 Windows 压测线上环境）
+> 测试数据：50,000 篇文章
+
+### 问题发现
+
+Phase 3 本地缓存（10s TTL）存在**缓存击穿**问题：
+
+- 本地缓存过期瞬间，200 个并发请求**同时穿透**到 Redis + MySQL
+- 导致 P95 延迟从 ~100ms 飙升到数秒甚至超时
+- QPS 被慢请求拖慢，实际只有 154 req/s
+
+### 修复方案
+
+引入 `golang.org/x/sync/singleflight`，相同 cacheKey 的并发请求只允许一个穿透到后端，其余等待结果：
+
+```go
+// internal/service/ranking.go
+type RankingService struct {
+    // ...
+    sfGroup singleflight.Group
+}
+
+func (s *RankingService) ListArticleHot(ctx context.Context, page, pageSize int) ([]ArticleSummary, int64, error) {
+    cacheKey := fmt.Sprintf("article:%d:%d", page, pageSize)
+    
+    // 1. 先查本地缓存
+    if cached, ok := s.cache.get(cacheKey); ok {
+        return cached.articles, cached.total, nil
+    }
+    
+    // 2. singleflight 合并并发请求
+    result, err, _ := s.sfGroup.Do(cacheKey, func() (interface{}, error) {
+        // 双重检查（可能在等待期间被其他请求填充）
+        if cached, ok := s.cache.get(cacheKey); ok {
+            return cached, nil
+        }
+        // 查 Redis + MySQL，写入本地缓存
+        // ...
+        s.cache.set(cacheKey, entry)
+        return entry, nil
+    })
+    // ...
+}
+```
+
+### 修复前后对比（200 并发，k6 压测）
+
+| 指标 | 修复前 | 修复后 | 提升 |
+|------|--------|--------|------|
+| **QPS** | 154 | **1,649** | **10.7x** |
+| **总请求** | 28,393 | **296,815** | **10.5x** |
+| **成功率** | 98.58% | **100%** | - |
+| **错误率** | 4.21% | **0%** | - |
+| **P50** | 93ms | **97ms** | 持平 |
+| **P95** | 162ms | **129ms** | 1.25x |
+| **最大响应** | 1m (超时) | **401ms** | 无超时 |
+| **超时请求** | 1,197 | **0** | - |
+
+### 分析
+
+1. **QPS 提升 10 倍**：singleflight 消除了缓存击穿，200 并发中只有 1 个请求穿透到后端
+2. **零超时**：最大响应时间从 1m 降到 401ms
+3. **P95 降低**：从 162ms 降到 129ms，长尾延迟显著改善
+4. **P50 持平**：缓存命中时延迟本身就很低，singleflight 不影响正常路径
+
+### 适用场景
+
+singleflight 适合解决以下问题：
+- 缓存击穿（热点 key 过期瞬间大量请求穿透）
+- 重复计算（相同参数的并发请求只计算一次）
+- 数据库连接池耗尽（合并请求减少连接占用）
+
+---
+
 ## 测试数据清理
 
 测试完成后执行：
