@@ -14,15 +14,16 @@ import (
 var ErrBadParent = platform.NewBizError(http.StatusBadRequest, platform.CodeBizError, "父评论不合法")
 
 type CommentService struct {
-	comments *repo.CommentRepo
-	articles *repo.ArticleRepo
-	inter    *repo.InteractionRepo
-	users    *repo.UserRepo
-	notifSvc *NotificationService
+	comments       *repo.CommentRepo
+	articles       *repo.ArticleRepo
+	inter          *repo.InteractionRepo
+	users          *repo.UserRepo
+	notifSvc       *NotificationService
+	contentRanking *ContentRankingService
 }
 
-func NewCommentService(comments *repo.CommentRepo, articles *repo.ArticleRepo, inter *repo.InteractionRepo, users *repo.UserRepo, notifSvc *NotificationService) *CommentService {
-	return &CommentService{comments: comments, articles: articles, inter: inter, users: users, notifSvc: notifSvc}
+func NewCommentService(comments *repo.CommentRepo, articles *repo.ArticleRepo, inter *repo.InteractionRepo, users *repo.UserRepo, notifSvc *NotificationService, contentRanking *ContentRankingService) *CommentService {
+	return &CommentService{comments: comments, articles: articles, inter: inter, users: users, notifSvc: notifSvc, contentRanking: contentRanking}
 }
 
 func (s *CommentService) Create(ctx context.Context, userID, articleID uint, content string, parentID *uint) (*model.Comment, error) {
@@ -54,6 +55,9 @@ func (s *CommentService) Create(ctx context.Context, userID, articleID uint, con
 		return s.articles.IncrCount(tx, articleID, "comments_count", 1)
 	})
 	if err == nil {
+		if s.contentRanking != nil {
+			_ = s.contentRanking.AddScore(ctx, RankedContentArticle, articleID, 3)
+		}
 		go s.sendCommentNotification(context.Background(), a.AuthorID, userID, articleID, replyToID, content)
 	}
 	return c, err
@@ -167,12 +171,16 @@ func (s *CommentService) Delete(ctx context.Context, userID, commentID uint) err
 	if c.AuthorID != userID && a.AuthorID != userID {
 		return ErrForbidden
 	}
-	return s.articles.DB().Transaction(func(tx *gorm.DB) error {
+	err = s.articles.DB().Transaction(func(tx *gorm.DB) error {
 		if err := s.comments.Delete(tx, commentID); err != nil {
 			return err
 		}
 		return s.articles.IncrCount(tx, c.ArticleID, "comments_count", -1)
 	})
+	if err == nil && s.contentRanking != nil {
+		_ = s.contentRanking.AddScore(ctx, RankedContentArticle, c.ArticleID, -3)
+	}
+	return err
 }
 
 func (s *CommentService) ToggleLike(ctx context.Context, userID, commentID uint) (bool, int, error) {

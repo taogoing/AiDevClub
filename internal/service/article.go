@@ -22,16 +22,16 @@ var (
 )
 
 type ArticleService struct {
-	articles   *repo.ArticleRepo
-	tags       *repo.TagRepo
-	inter      *repo.InteractionRepo
-	cfg        *platform.Config
-	notifSvc   *NotificationService
-	rankingSvc *RankingService
+	articles       *repo.ArticleRepo
+	tags           *repo.TagRepo
+	inter          *repo.InteractionRepo
+	cfg            *platform.Config
+	notifSvc       *NotificationService
+	contentRanking *ContentRankingService
 }
 
-func NewArticleService(articles *repo.ArticleRepo, tags *repo.TagRepo, inter *repo.InteractionRepo, cfg *platform.Config, notifSvc *NotificationService, rankingSvc *RankingService) *ArticleService {
-	return &ArticleService{articles: articles, tags: tags, inter: inter, cfg: cfg, notifSvc: notifSvc, rankingSvc: rankingSvc}
+func NewArticleService(articles *repo.ArticleRepo, tags *repo.TagRepo, inter *repo.InteractionRepo, cfg *platform.Config, notifSvc *NotificationService, contentRanking *ContentRankingService) *ArticleService {
+	return &ArticleService{articles: articles, tags: tags, inter: inter, cfg: cfg, notifSvc: notifSvc, contentRanking: contentRanking}
 }
 
 func (s *ArticleService) ImageDir() string     { return s.cfg.ArticleImageDir }
@@ -161,6 +161,7 @@ func (s *ArticleService) Update(ctx context.Context, userID, articleID uint, in 
 	a.Title = in.Title
 	a.Summary = in.Summary
 	a.Content = in.Content
+	wasPublished := a.Status == model.ArticleStatusPublished
 	if a.Status != in.Status {
 		a.Status = in.Status
 		if in.Status == model.ArticleStatusPublished && a.PublishedAt == nil {
@@ -201,6 +202,9 @@ func (s *ArticleService) Update(ctx context.Context, userID, articleID uint, in 
 		}
 		return s.articles.SetArticleTags(tx, articleID, newTags)
 	})
+	if err == nil && wasPublished && a.Status == model.ArticleStatusDraft && s.contentRanking != nil {
+		_ = s.contentRanking.Remove(ctx, RankedContentArticle, articleID)
+	}
 	return a, err
 }
 
@@ -212,7 +216,7 @@ func (s *ArticleService) Delete(ctx context.Context, userID, articleID uint) err
 	if a.AuthorID != userID {
 		return ErrForbidden
 	}
-	return s.articles.DB().Transaction(func(tx *gorm.DB) error {
+	err = s.articles.DB().Transaction(func(tx *gorm.DB) error {
 		tagIDs, err := s.articles.FindArticleTags(tx, articleID)
 		if err != nil {
 			return err
@@ -227,6 +231,10 @@ func (s *ArticleService) Delete(ctx context.Context, userID, articleID uint) err
 		}
 		return s.articles.SetArticleTags(tx, articleID, nil)
 	})
+	if err == nil && s.contentRanking != nil {
+		_ = s.contentRanking.Remove(ctx, RankedContentArticle, articleID)
+	}
+	return err
 }
 
 func (s *ArticleService) List(ctx context.Context, q ListQuery) (*ArticleListResult, error) {
@@ -317,13 +325,12 @@ func (s *ArticleService) ToggleLike(ctx context.Context, userID, articleID uint)
 		return nil
 	})
 	if err == nil {
-		if s.rankingSvc != nil {
-			go func() {
-				updated, _ := s.articles.FindByID(nil, articleID)
-				if updated != nil {
-					_ = s.rankingSvc.UpdateArticleHotScore(context.Background(), updated)
-				}
-			}()
+		if s.contentRanking != nil {
+			delta := int64(2)
+			if !liked {
+				delta = -2
+			}
+			_ = s.contentRanking.AddScore(ctx, RankedContentArticle, articleID, delta)
 		}
 		if liked {
 			go func() {
@@ -357,15 +364,12 @@ func (s *ArticleService) ToggleFavorite(ctx context.Context, userID, articleID u
 		newCount = a.FavoritesCount + delta
 		return nil
 	})
-	if err == nil {
-		if s.rankingSvc != nil {
-			go func() {
-				updated, _ := s.articles.FindByID(nil, articleID)
-				if updated != nil {
-					_ = s.rankingSvc.UpdateArticleHotScore(context.Background(), updated)
-				}
-			}()
+	if err == nil && s.contentRanking != nil {
+		delta := int64(2)
+		if !favorited {
+			delta = -2
 		}
+		_ = s.contentRanking.AddScore(ctx, RankedContentArticle, articleID, delta)
 	}
 	return favorited, newCount, err
 }
@@ -396,6 +400,9 @@ func (s *ArticleService) detail(ctx context.Context, userID, articleID uint, tra
 	if trackView && a.Status == model.ArticleStatusPublished {
 		_ = s.articles.IncrViews(ctx, articleID)
 		a.Views++
+		if userID > 0 && userID != a.AuthorID && s.contentRanking != nil {
+			_, _ = s.contentRanking.RecordView(ctx, RankedContentArticle, articleID, userID)
+		}
 	}
 	tagMap, err := s.articles.TagsForArticles(ctx, []uint{articleID})
 	if err != nil {
