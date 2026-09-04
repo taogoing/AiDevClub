@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"golang.org/x/sync/singleflight"
 
 	"aidevclub/internal/model"
 	"aidevclub/internal/platform"
@@ -84,6 +85,7 @@ type RankingService struct {
 	minComments int
 	minViews    int
 	cache       *localCache
+	sfGroup     singleflight.Group
 }
 
 func NewRankingService(
@@ -243,41 +245,53 @@ func (s *RankingService) ListArticleHot(ctx context.Context, page, pageSize int)
 		return entry.articles, entry.total, nil
 	}
 
-	ids, err := s.GetArticleHotRanking(ctx, page, pageSize)
-	if err != nil {
-		return nil, 0, err
-	}
-	if len(ids) == 0 {
-		return []ArticleSummary{}, 0, nil
-	}
-
-	var articles []model.Article
-	if err := s.articleRepo.DB().WithContext(ctx).
-		Where("id IN ?", ids).
-		Where("status = ?", model.ArticleStatusPublished).
-		Where("hidden = ?", false).
-		Preload("Author").Find(&articles).Error; err != nil {
-		return nil, 0, err
-	}
-	tagMap, err := s.articleRepo.TagsForArticles(ctx, ids)
-	if err != nil {
-		return nil, 0, err
-	}
-	byID := make(map[uint]ArticleSummary, len(articles))
-	for _, a := range articles {
-		byID[a.ID] = rankingArticleSummary(a, tagMap[a.ID])
-	}
-	result := make([]ArticleSummary, 0, len(ids))
-	for _, id := range ids {
-		if summary, ok := byID[id]; ok {
-			result = append(result, summary)
+	result, err, _ := s.sfGroup.Do(cacheKey, func() (interface{}, error) {
+		if cached, ok := s.cache.get(cacheKey); ok {
+			entry := cached.(articleCacheEntry)
+			return articleCacheEntry{articles: entry.articles, total: entry.total}, nil
 		}
+
+		ids, err := s.GetArticleHotRanking(ctx, page, pageSize)
+		if err != nil {
+			return nil, err
+		}
+		if len(ids) == 0 {
+			return articleCacheEntry{articles: []ArticleSummary{}, total: 0}, nil
+		}
+
+		var articles []model.Article
+		if err := s.articleRepo.DB().WithContext(ctx).
+			Where("id IN ?", ids).
+			Where("status = ?", model.ArticleStatusPublished).
+			Where("hidden = ?", false).
+			Preload("Author").Find(&articles).Error; err != nil {
+			return nil, err
+		}
+		tagMap, err := s.articleRepo.TagsForArticles(ctx, ids)
+		if err != nil {
+			return nil, err
+		}
+		byID := make(map[uint]ArticleSummary, len(articles))
+		for _, a := range articles {
+			byID[a.ID] = rankingArticleSummary(a, tagMap[a.ID])
+		}
+		result := make([]ArticleSummary, 0, len(ids))
+		for _, id := range ids {
+			if summary, ok := byID[id]; ok {
+				result = append(result, summary)
+			}
+		}
+
+		total, _ := s.articleRepo.Count(ctx, repo.ArticleQuery{Sort: "hot"})
+
+		s.cache.set(cacheKey, articleCacheEntry{articles: result, total: total})
+		return articleCacheEntry{articles: result, total: total}, nil
+	})
+	if err != nil {
+		return nil, 0, err
 	}
-
-	total, _ := s.articleRepo.Count(ctx, repo.ArticleQuery{Sort: "hot"})
-
-	s.cache.set(cacheKey, articleCacheEntry{articles: result, total: total})
-	return result, total, nil
+	entry := result.(articleCacheEntry)
+	return entry.articles, entry.total, nil
 }
 
 func (s *RankingService) ListSkillHot(ctx context.Context, page, pageSize int) ([]SkillSummary, int64, error) {
@@ -287,41 +301,53 @@ func (s *RankingService) ListSkillHot(ctx context.Context, page, pageSize int) (
 		return entry.skills, entry.total, nil
 	}
 
-	ids, err := s.GetSkillHotRanking(ctx, page, pageSize)
-	if err != nil {
-		return nil, 0, err
-	}
-	if len(ids) == 0 {
-		return []SkillSummary{}, 0, nil
-	}
-
-	var skills []model.Skill
-	if err := s.skillRepo.DB().WithContext(ctx).
-		Where("id IN ?", ids).
-		Where("status = ?", model.ResourceStatusPublished).
-		Where("hidden = ?", false).
-		Preload("Author").Find(&skills).Error; err != nil {
-		return nil, 0, err
-	}
-	tagMap, err := s.skillRepo.TagsForSkills(ctx, ids)
-	if err != nil {
-		return nil, 0, err
-	}
-	byID := make(map[uint]SkillSummary, len(skills))
-	for _, sk := range skills {
-		byID[sk.ID] = rankingSkillSummary(sk, tagMap[sk.ID])
-	}
-	result := make([]SkillSummary, 0, len(ids))
-	for _, id := range ids {
-		if summary, ok := byID[id]; ok {
-			result = append(result, summary)
+	result, err, _ := s.sfGroup.Do(cacheKey, func() (interface{}, error) {
+		if cached, ok := s.cache.get(cacheKey); ok {
+			entry := cached.(skillCacheEntry)
+			return skillCacheEntry{skills: entry.skills, total: entry.total}, nil
 		}
+
+		ids, err := s.GetSkillHotRanking(ctx, page, pageSize)
+		if err != nil {
+			return nil, err
+		}
+		if len(ids) == 0 {
+			return skillCacheEntry{skills: []SkillSummary{}, total: 0}, nil
+		}
+
+		var skills []model.Skill
+		if err := s.skillRepo.DB().WithContext(ctx).
+			Where("id IN ?", ids).
+			Where("status = ?", model.ResourceStatusPublished).
+			Where("hidden = ?", false).
+			Preload("Author").Find(&skills).Error; err != nil {
+			return nil, err
+		}
+		tagMap, err := s.skillRepo.TagsForSkills(ctx, ids)
+		if err != nil {
+			return nil, err
+		}
+		byID := make(map[uint]SkillSummary, len(skills))
+		for _, sk := range skills {
+			byID[sk.ID] = rankingSkillSummary(sk, tagMap[sk.ID])
+		}
+		result := make([]SkillSummary, 0, len(ids))
+		for _, id := range ids {
+			if summary, ok := byID[id]; ok {
+				result = append(result, summary)
+			}
+		}
+
+		total, _ := s.skillRepo.Count(ctx, repo.SkillQuery{Sort: "hot"})
+
+		s.cache.set(cacheKey, skillCacheEntry{skills: result, total: total})
+		return skillCacheEntry{skills: result, total: total}, nil
+	})
+	if err != nil {
+		return nil, 0, err
 	}
-
-	total, _ := s.skillRepo.Count(ctx, repo.SkillQuery{Sort: "hot"})
-
-	s.cache.set(cacheKey, skillCacheEntry{skills: result, total: total})
-	return result, total, nil
+	entry := result.(skillCacheEntry)
+	return entry.skills, entry.total, nil
 }
 
 func (s *RankingService) ListMcpServerHot(ctx context.Context, page, pageSize int) ([]McpServerSummary, int64, error) {
@@ -331,41 +357,53 @@ func (s *RankingService) ListMcpServerHot(ctx context.Context, page, pageSize in
 		return entry.servers, entry.total, nil
 	}
 
-	ids, err := s.GetMcpServerHotRanking(ctx, page, pageSize)
-	if err != nil {
-		return nil, 0, err
-	}
-	if len(ids) == 0 {
-		return []McpServerSummary{}, 0, nil
-	}
-
-	var servers []model.McpServer
-	if err := s.mcpRepo.DB().WithContext(ctx).
-		Where("id IN ?", ids).
-		Where("status = ?", model.ResourceStatusPublished).
-		Where("hidden = ?", false).
-		Preload("Author").Find(&servers).Error; err != nil {
-		return nil, 0, err
-	}
-	tagMap, err := s.mcpRepo.TagsForMcpServers(ctx, ids)
-	if err != nil {
-		return nil, 0, err
-	}
-	byID := make(map[uint]McpServerSummary, len(servers))
-	for _, sv := range servers {
-		byID[sv.ID] = rankingMcpServerSummary(sv, tagMap[sv.ID])
-	}
-	result := make([]McpServerSummary, 0, len(ids))
-	for _, id := range ids {
-		if summary, ok := byID[id]; ok {
-			result = append(result, summary)
+	result, err, _ := s.sfGroup.Do(cacheKey, func() (interface{}, error) {
+		if cached, ok := s.cache.get(cacheKey); ok {
+			entry := cached.(mcpCacheEntry)
+			return mcpCacheEntry{servers: entry.servers, total: entry.total}, nil
 		}
+
+		ids, err := s.GetMcpServerHotRanking(ctx, page, pageSize)
+		if err != nil {
+			return nil, err
+		}
+		if len(ids) == 0 {
+			return mcpCacheEntry{servers: []McpServerSummary{}, total: 0}, nil
+		}
+
+		var servers []model.McpServer
+		if err := s.mcpRepo.DB().WithContext(ctx).
+			Where("id IN ?", ids).
+			Where("status = ?", model.ResourceStatusPublished).
+			Where("hidden = ?", false).
+			Preload("Author").Find(&servers).Error; err != nil {
+			return nil, err
+		}
+		tagMap, err := s.mcpRepo.TagsForMcpServers(ctx, ids)
+		if err != nil {
+			return nil, err
+		}
+		byID := make(map[uint]McpServerSummary, len(servers))
+		for _, sv := range servers {
+			byID[sv.ID] = rankingMcpServerSummary(sv, tagMap[sv.ID])
+		}
+		result := make([]McpServerSummary, 0, len(ids))
+		for _, id := range ids {
+			if summary, ok := byID[id]; ok {
+				result = append(result, summary)
+			}
+		}
+
+		total, _ := s.mcpRepo.Count(ctx, repo.McpServerQuery{Sort: "hot"})
+
+		s.cache.set(cacheKey, mcpCacheEntry{servers: result, total: total})
+		return mcpCacheEntry{servers: result, total: total}, nil
+	})
+	if err != nil {
+		return nil, 0, err
 	}
-
-	total, _ := s.mcpRepo.Count(ctx, repo.McpServerQuery{Sort: "hot"})
-
-	s.cache.set(cacheKey, mcpCacheEntry{servers: result, total: total})
-	return result, total, nil
+	entry := result.(mcpCacheEntry)
+	return entry.servers, entry.total, nil
 }
 
 // --- Scheduler: recalculate candidate set ---
