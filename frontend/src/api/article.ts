@@ -1,5 +1,5 @@
 import http from './http'
-import type { ApiResponse, ArticleListResult, ArticleDetail, ArticleForm, LikeResult, FavoriteResult, ArticleSummary } from '@/types'
+import type { ApiResponse, ArticleListResult, ArticleDetail, ArticleForm, LikeResult, FavoriteResult, HotArticleBrief } from '@/types'
 
 export function getArticles(params: Record<string, unknown>) {
   return http.get<ApiResponse<ArticleListResult>>('/api/v1/articles', { params })
@@ -42,7 +42,7 @@ export function favoriteArticle(id: number) {
 }
 
 export function getArticleRanking(page = 1, pageSize = 5) {
-  return http.get<ApiResponse<{ articles: ArticleSummary[]; total: number }>>('/api/v1/articles/ranking', {
+  return http.get<ApiResponse<{ articles: HotArticleBrief[]; total: number }>>('/api/v1/articles/ranking', {
     params: { page, page_size: pageSize },
   })
 }

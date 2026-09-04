@@ -48,6 +48,11 @@ export interface ArticleDetail extends ArticleSummary {
   favorited: boolean
 }
 
+export interface HotArticleBrief {
+  id: number
+  title: string
+}
+
 export interface CommentItem {
   id: number
   article_id: number

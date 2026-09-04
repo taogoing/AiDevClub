@@ -74,7 +74,7 @@ func LoadConfig() (*Config, error) {
 	v.SetDefault("ranking.min_favorites", 2)
 	v.SetDefault("ranking.min_comments", 2)
 	v.SetDefault("ranking.min_views", 50)
-	v.SetDefault("ranking.local_cache_ttl", "10s")
+	v.SetDefault("ranking.local_cache_ttl", "30s")
 
 	v.AutomaticEnv()
 	v.SetEnvPrefix("AIDEVCLUB")

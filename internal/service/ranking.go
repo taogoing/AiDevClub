@@ -19,6 +19,9 @@ const (
 	rankKeyArticles = "rank:articles:hot"
 	rankKeySkills   = "rank:skills:hot"
 	rankKeyMcp      = "rank:mcp_servers:hot"
+
+	rankKeyArticleTitle = "rank:articles:hot:title:%d"
+	rankTitleTTL        = 5 * time.Minute
 )
 
 type localCacheEntry struct {
@@ -282,9 +285,9 @@ func (s *RankingService) ListArticleHot(ctx context.Context, page, pageSize int)
 			}
 		}
 
-		total, _ := s.articleRepo.Count(ctx, repo.ArticleQuery{Sort: "hot"})
+	total, _ := s.rdb.ZCard(ctx, rankKeyArticles).Result()
 
-		s.cache.set(cacheKey, articleCacheEntry{articles: result, total: total})
+	s.cache.set(cacheKey, articleCacheEntry{articles: result, total: total})
 		return articleCacheEntry{articles: result, total: total}, nil
 	})
 	if err != nil {
@@ -292,6 +295,121 @@ func (s *RankingService) ListArticleHot(ctx context.Context, page, pageSize int)
 	}
 	entry := result.(articleCacheEntry)
 	return entry.articles, entry.total, nil
+}
+
+// --- REST 热榜摘要（本地缓存 + Redis 标题字典，不查 MySQL） ---
+
+type articleBriefCacheEntry struct {
+	briefs []HotArticleBrief
+	total  int64
+}
+
+// GetArticleHotBriefs 返回热榜当前页的 {id, title} 摘要，排名即数组顺序。
+// 本地缓存 → singleflight → ZREVRANGE + 标题字典 MGET → MySQL 补全兜底。
+// ListArticleHot 保留给 MCP browse_content（需要完整 summary），两者互不影响。
+func (s *RankingService) GetArticleHotBriefs(ctx context.Context, page, pageSize int) ([]HotArticleBrief, int64, error) {
+	cacheKey := fmt.Sprintf("article-brief:%d:%d", page, pageSize)
+	if cached, ok := s.cache.get(cacheKey); ok {
+		entry := cached.(articleBriefCacheEntry)
+		return entry.briefs, entry.total, nil
+	}
+
+	result, err, _ := s.sfGroup.Do(cacheKey, func() (interface{}, error) {
+		if cached, ok := s.cache.get(cacheKey); ok {
+			entry := cached.(articleBriefCacheEntry)
+			return articleBriefCacheEntry{briefs: entry.briefs, total: entry.total}, nil
+		}
+		briefs, total, err := s.buildArticleHotBriefs(ctx, page, pageSize)
+		if err != nil {
+			return nil, err
+		}
+		s.cache.set(cacheKey, articleBriefCacheEntry{briefs: briefs, total: total})
+		return articleBriefCacheEntry{briefs: briefs, total: total}, nil
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+	entry := result.(articleBriefCacheEntry)
+	return entry.briefs, entry.total, nil
+}
+
+func (s *RankingService) buildArticleHotBriefs(ctx context.Context, page, pageSize int) ([]HotArticleBrief, int64, error) {
+	ids, err := s.GetArticleHotRanking(ctx, page, pageSize)
+	if err != nil {
+		// Redis 不可用：降级 MySQL 热度排序
+		return s.articleHotBriefsFromMySQL(ctx, page, pageSize)
+	}
+	if len(ids) == 0 {
+		return []HotArticleBrief{}, 0, nil
+	}
+	titles, err := s.articleTitles(ctx, ids)
+	if err != nil {
+		return s.articleHotBriefsFromMySQL(ctx, page, pageSize)
+	}
+	briefs := make([]HotArticleBrief, 0, len(ids))
+	for _, id := range ids {
+		if title, ok := titles[id]; ok {
+			briefs = append(briefs, HotArticleBrief{ID: id, Title: title})
+		}
+	}
+	total, _ := s.rdb.ZCard(ctx, rankKeyArticles).Result()
+	if total < int64(len(briefs)) {
+		total = int64(len(briefs))
+	}
+	return briefs, total, nil
+}
+
+// articleTitles 用 MGET 从标题字典批量取标题，miss 的从 MySQL 补全（过滤
+// 非 published / hidden）并 best-effort 回写 Redis。
+func (s *RankingService) articleTitles(ctx context.Context, ids []uint) (map[uint]string, error) {
+	keys := make([]string, len(ids))
+	for i, id := range ids {
+		keys[i] = fmt.Sprintf(rankKeyArticleTitle, id)
+	}
+	values, err := s.rdb.MGet(ctx, keys...).Result()
+	if err != nil {
+		return nil, err
+	}
+	titles := make(map[uint]string, len(ids))
+	var missIDs []uint
+	for i, v := range values {
+		if str, ok := v.(string); ok {
+			titles[ids[i]] = str
+		} else {
+			missIDs = append(missIDs, ids[i])
+		}
+	}
+	if len(missIDs) == 0 {
+		return titles, nil
+	}
+	var articles []model.Article
+	if err := s.articleRepo.DB().WithContext(ctx).
+		Where("id IN ?", missIDs).
+		Where("status = ?", model.ArticleStatusPublished).
+		Where("hidden = ?", false).
+		Select("id, title").
+		Find(&articles).Error; err != nil {
+		return nil, err
+	}
+	pipe := s.rdb.Pipeline()
+	for _, a := range articles {
+		titles[a.ID] = a.Title
+		pipe.Set(ctx, fmt.Sprintf(rankKeyArticleTitle, a.ID), a.Title, rankTitleTTL)
+	}
+	_, _ = pipe.Exec(ctx)
+	return titles, nil
+}
+
+func (s *RankingService) articleHotBriefsFromMySQL(ctx context.Context, page, pageSize int) ([]HotArticleBrief, int64, error) {
+	list, total, err := s.articleRepo.List(ctx, repo.ArticleQuery{Page: page, PageSize: pageSize, Sort: "hot"})
+	if err != nil {
+		return nil, 0, err
+	}
+	briefs := make([]HotArticleBrief, 0, len(list))
+	for _, a := range list {
+		briefs = append(briefs, HotArticleBrief{ID: a.ID, Title: a.Title})
+	}
+	return briefs, total, nil
 }
 
 func (s *RankingService) ListSkillHot(ctx context.Context, page, pageSize int) ([]SkillSummary, int64, error) {
@@ -338,9 +456,9 @@ func (s *RankingService) ListSkillHot(ctx context.Context, page, pageSize int) (
 			}
 		}
 
-		total, _ := s.skillRepo.Count(ctx, repo.SkillQuery{Sort: "hot"})
+	total, _ := s.rdb.ZCard(ctx, rankKeySkills).Result()
 
-		s.cache.set(cacheKey, skillCacheEntry{skills: result, total: total})
+	s.cache.set(cacheKey, skillCacheEntry{skills: result, total: total})
 		return skillCacheEntry{skills: result, total: total}, nil
 	})
 	if err != nil {
@@ -394,9 +512,9 @@ func (s *RankingService) ListMcpServerHot(ctx context.Context, page, pageSize in
 			}
 		}
 
-		total, _ := s.mcpRepo.Count(ctx, repo.McpServerQuery{Sort: "hot"})
+	total, _ := s.rdb.ZCard(ctx, rankKeyMcp).Result()
 
-		s.cache.set(cacheKey, mcpCacheEntry{servers: result, total: total})
+	s.cache.set(cacheKey, mcpCacheEntry{servers: result, total: total})
 		return mcpCacheEntry{servers: result, total: total}, nil
 	})
 	if err != nil {
@@ -430,10 +548,12 @@ func (s *RankingService) RecalculateArticleHotRanking(ctx context.Context) error
 		if err != nil {
 			// Article may have been deleted; remove from ZSet
 			pipe.ZRem(ctx, rankKeyArticles, id)
+			pipe.Del(ctx, fmt.Sprintf(rankKeyArticleTitle, id))
 			continue
 		}
 		if a.Status != model.ArticleStatusPublished || a.Hidden {
 			pipe.ZRem(ctx, rankKeyArticles, id)
+			pipe.Del(ctx, fmt.Sprintf(rankKeyArticleTitle, id))
 			continue
 		}
 		publishedAt := a.PublishedAt
@@ -442,10 +562,13 @@ func (s *RankingService) RecalculateArticleHotRanking(ctx context.Context) error
 		}
 		if !s.meetsThreshold(a) {
 			pipe.ZRem(ctx, rankKeyArticles, id)
+			pipe.Del(ctx, fmt.Sprintf(rankKeyArticleTitle, id))
 			continue
 		}
 		score := CalculateHotScore(a.Views, a.LikesCount, a.FavoritesCount, a.CommentsCount, *publishedAt, s.gravity)
 		pipe.ZAdd(ctx, rankKeyArticles, redis.Z{Score: score, Member: id})
+		// 预热标题字典（TTL 随每次重算续期）
+		pipe.Set(ctx, fmt.Sprintf(rankKeyArticleTitle, a.ID), a.Title, rankTitleTTL)
 	}
 
 	// 3. Scan for new candidates: recently updated articles that meet threshold but aren't in ZSet
@@ -468,6 +591,7 @@ func (s *RankingService) RecalculateArticleHotRanking(ctx context.Context) error
 				}
 				score := CalculateHotScore(a.Views, a.LikesCount, a.FavoritesCount, a.CommentsCount, *publishedAt, s.gravity)
 				pipe.ZAdd(ctx, rankKeyArticles, redis.Z{Score: score, Member: a.ID})
+				pipe.Set(ctx, fmt.Sprintf(rankKeyArticleTitle, a.ID), a.Title, rankTitleTTL)
 			}
 		}
 	}

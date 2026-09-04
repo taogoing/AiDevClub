@@ -55,6 +55,11 @@ type ArticleDetail struct {
 	Favorited bool   `json:"favorited"`
 }
 
+type HotArticleBrief struct {
+	ID    uint   `json:"id"`
+	Title string `json:"title"`
+}
+
 type ListQuery struct {
 	Page     int
 	PageSize int

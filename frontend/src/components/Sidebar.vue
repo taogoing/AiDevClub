@@ -44,11 +44,11 @@ import { useRouter } from 'vue-router'
 import { Star, TrendCharts } from '@element-plus/icons-vue'
 import { getHotTags } from '@/api/tag'
 import { getArticleRanking } from '@/api/article'
-import type { Tag, ArticleSummary } from '@/types'
+import type { Tag, HotArticleBrief } from '@/types'
 
 const router = useRouter()
 const hotTags = ref<Tag[]>([])
-const hotArticles = ref<ArticleSummary[]>([])
+const hotArticles = ref<HotArticleBrief[]>([])
 
 onMounted(async () => {
   try {
