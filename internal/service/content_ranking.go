@@ -24,7 +24,7 @@ const (
 
 const (
 	dailyRankTTL     = 31 * 24 * time.Hour
-	dailyTopCacheTTL = 3 * time.Second
+	dailyTopCacheTTL = 10 * time.Second
 	dailyTopPageSize = 5
 )
 
