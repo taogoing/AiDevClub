@@ -302,6 +302,13 @@ func TestContentTop5RefreshCoalescesConcurrentMisses(t *testing.T) {
 	if got := refreshes.Load(); got != 1 {
 		t.Fatalf("refreshes=%d want 1", got)
 	}
+	metrics := svc.RankingMetrics()
+	if metrics.RefreshTotal != 1 || metrics.RefreshShared != callers-1 {
+		t.Fatalf("metrics=%+v want one refresh and %d shared", metrics, callers-1)
+	}
+	if metrics.RefreshInFlight != 0 || metrics.RefreshDurationCount != 1 || metrics.RefreshDurationP95Ms <= 0 {
+		t.Fatalf("metrics=%+v want completed duration and no inflight refresh", metrics)
+	}
 }
 
 func TestContentNonTop5BypassesSnapshot(t *testing.T) {

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -44,8 +45,69 @@ type ContentRankingService struct {
 	skillTop            topSnapshot[HotSkillBrief]
 	mcpTop              topSnapshot[HotMcpServerBrief]
 	topRefresh          singleflight.Group
+	topRefreshStateMu   sync.Mutex
+	topRefreshActive    bool
 	topRefreshHook      func()
 	singleflightEnabled bool
+	refreshTotal        atomic.Uint64
+	refreshShared       atomic.Uint64
+	refreshInFlight     atomic.Int64
+	refreshDurationNs   atomic.Uint64
+	refreshDurationCnt  atomic.Uint64
+	refreshBuckets      [7]atomic.Uint64
+}
+
+type RankingMetricsSnapshot struct {
+	RefreshTotal         uint64  `json:"refresh_total"`
+	RefreshShared        uint64  `json:"refresh_shared"`
+	RefreshInFlight      int64   `json:"refresh_inflight"`
+	RefreshDurationCount uint64  `json:"refresh_duration_count"`
+	RefreshAvgMs         float64 `json:"refresh_avg_ms"`
+	RefreshDurationP95Ms int     `json:"refresh_duration_p95_ms"`
+}
+
+var refreshDurationBounds = [...]time.Duration{50 * time.Millisecond, 100 * time.Millisecond, 250 * time.Millisecond, 500 * time.Millisecond, 1 * time.Second, 2 * time.Second}
+
+func (s *ContentRankingService) recordRefreshDuration(d time.Duration) {
+	s.refreshDurationNs.Add(uint64(d))
+	s.refreshDurationCnt.Add(1)
+	idx := len(refreshDurationBounds)
+	for i, bound := range refreshDurationBounds {
+		if d <= bound {
+			idx = i
+			break
+		}
+	}
+	s.refreshBuckets[idx].Add(1)
+}
+
+func (s *ContentRankingService) RankingMetrics() RankingMetricsSnapshot {
+	total := s.refreshDurationCnt.Load()
+	avg := float64(0)
+	if total > 0 {
+		avg = float64(s.refreshDurationNs.Load()) / float64(total) / float64(time.Millisecond)
+	}
+	p95 := 0
+	if total > 0 {
+		target := (total*95 + 99) / 100
+		var cumulative uint64
+		for i := range s.refreshBuckets {
+			cumulative += s.refreshBuckets[i].Load()
+			if cumulative >= target {
+				if i < len(refreshDurationBounds) {
+					p95 = int(refreshDurationBounds[i] / time.Millisecond)
+				} else {
+					p95 = int(2 * time.Second / time.Millisecond)
+				}
+				break
+			}
+		}
+	}
+	return RankingMetricsSnapshot{
+		RefreshTotal: s.refreshTotal.Load(), RefreshShared: s.refreshShared.Load(),
+		RefreshInFlight: s.refreshInFlight.Load(), RefreshDurationCount: total,
+		RefreshAvgMs: avg, RefreshDurationP95Ms: p95,
+	}
 }
 
 type topSnapshot[T any] struct {
@@ -247,6 +309,13 @@ func (s *ContentRankingService) ListArticles(ctx context.Context, page, pageSize
 			if s.topRefreshHook != nil {
 				s.topRefreshHook()
 			}
+			s.refreshTotal.Add(1)
+			s.refreshInFlight.Add(1)
+			started := time.Now()
+			defer func() {
+				s.refreshInFlight.Add(-1)
+				s.recordRefreshDuration(time.Since(started))
+			}()
 			items, total, err := s.listArticlesUncached(ctx, page, pageSize)
 			return articleTopResult{items: items, total: total}, err
 		}
@@ -256,6 +325,21 @@ func (s *ContentRankingService) ListArticles(ctx context.Context, page, pageSize
 				return []HotArticleBrief{}, 0, nil
 			}
 			return result.items, result.total, nil
+		}
+		s.topRefreshStateMu.Lock()
+		leader := !s.topRefreshActive
+		if leader {
+			s.topRefreshActive = true
+		} else {
+			s.refreshShared.Add(1)
+		}
+		s.topRefreshStateMu.Unlock()
+		if leader {
+			defer func() {
+				s.topRefreshStateMu.Lock()
+				s.topRefreshActive = false
+				s.topRefreshStateMu.Unlock()
+			}()
 		}
 		value, err, _ := s.topRefresh.Do("article", func() (any, error) { return refresh() })
 		if err != nil {

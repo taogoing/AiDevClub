@@ -53,6 +53,9 @@ func main() {
 	r.GET("/healthz", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
+	r.GET("/metrics/ranking", func(c *gin.Context) {
+		c.JSON(200, services.ContentRanking.RankingMetrics())
+	})
 
 	ah := handler.NewAuthHandler(services.Auth)
 	rl := platform.RateLimitMiddleware(infra.Redis, cfg.RateLimitPerMin, time.Minute)
