@@ -28,6 +28,14 @@ func TestLoadConfigMCPDefaults(t *testing.T) {
 	assert.Equal(t, 60, cfg.MCPRateLimitPerMin)
 	assert.Equal(t, int64(1<<20), cfg.MCPMaxBodyBytes)
 	assert.Equal(t, 30*time.Second, cfg.MCPRequestTimeout)
+	assert.True(t, cfg.RankingSingleflight)
+}
+
+func TestLoadConfigRankingSingleflightEnvironment(t *testing.T) {
+	t.Setenv("AIDEVCLUB_RANKING_SINGLEFLIGHT", "false")
+	cfg, err := LoadConfig()
+	require.NoError(t, err)
+	assert.False(t, cfg.RankingSingleflight)
 }
 
 func TestLoadConfigMCPEnvironment(t *testing.T) {

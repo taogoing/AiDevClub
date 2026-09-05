@@ -20,6 +20,7 @@ type Config struct {
 	AccessTokenTTL       time.Duration
 	RefreshTokenTTL      time.Duration
 	RateLimitPerMin      int
+	RankingSingleflight  bool
 	MCPAddr              string
 	PublicBaseURL        string
 	MCPAllowedOrigins    []string
@@ -47,6 +48,7 @@ func LoadConfig() (*Config, error) {
 	v.SetDefault("token.access_ttl", "15m")
 	v.SetDefault("token.refresh_ttl", "720h")
 	v.SetDefault("ratelimit.per_minute", 10)
+	v.SetDefault("ranking.singleflight", true)
 	v.SetDefault("mcp.addr", ":8081")
 	v.SetDefault("public.base_url", "http://localhost:5173")
 	v.SetDefault("mcp.allowed_origins", "")
@@ -106,6 +108,7 @@ func LoadConfig() (*Config, error) {
 		AccessTokenTTL:       accessTTL,
 		RefreshTokenTTL:      refreshTTL,
 		RateLimitPerMin:      v.GetInt("ratelimit.per_minute"),
+		RankingSingleflight:  v.GetBool("ranking.singleflight"),
 		MCPAddr:              v.GetString("mcp.addr"),
 		PublicBaseURL:        publicBaseURL,
 		MCPAllowedOrigins:    mcpAllowedOrigins,

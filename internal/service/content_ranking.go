@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"golang.org/x/sync/singleflight"
 
 	"aidevclub/internal/model"
 	"aidevclub/internal/repo"
@@ -38,10 +39,13 @@ type ContentRankingService struct {
 	mcpRepo     *repo.McpServerRepo
 	now         func() time.Time
 
-	mu         sync.Mutex
-	articleTop topSnapshot[HotArticleBrief]
-	skillTop   topSnapshot[HotSkillBrief]
-	mcpTop     topSnapshot[HotMcpServerBrief]
+	mu                  sync.Mutex
+	articleTop          topSnapshot[HotArticleBrief]
+	skillTop            topSnapshot[HotSkillBrief]
+	mcpTop              topSnapshot[HotMcpServerBrief]
+	topRefresh          singleflight.Group
+	topRefreshHook      func()
+	singleflightEnabled bool
 }
 
 type topSnapshot[T any] struct {
@@ -58,8 +62,13 @@ func NewContentRankingService(
 ) *ContentRankingService {
 	return &ContentRankingService{
 		rdb: rdb, articleRepo: articleRepo, skillRepo: skillRepo, mcpRepo: mcpRepo,
-		now: time.Now,
+		singleflightEnabled: true,
+		now:                 time.Now,
 	}
+}
+
+func (s *ContentRankingService) SetSingleflightEnabled(enabled bool) {
+	s.singleflightEnabled = enabled
 }
 
 // freshTop/storeTop 为包级泛型函数：Go 方法不能声明自有类型参数。
@@ -185,25 +194,11 @@ func (s *ContentRankingService) isTop5(page, pageSize int) bool {
 	return page == 1 && pageSize == dailyTopPageSize
 }
 
-func (s *ContentRankingService) ListArticles(ctx context.Context, page, pageSize int) ([]HotArticleBrief, int64, error) {
-	if s.isTop5(page, pageSize) {
-		s.mu.Lock()
-		items, total, ok := freshTop(s.now, &s.articleTop)
-		s.mu.Unlock()
-		if ok {
-			return items, total, nil
-		}
-	}
+func (s *ContentRankingService) listArticlesUncached(ctx context.Context, page, pageSize int) ([]HotArticleBrief, int64, error) {
 	p, err := s.readPage(ctx, RankedContentArticle, page, pageSize)
 	if err != nil {
 		s.logRankErr("list", RankedContentArticle, 0, 0, err)
-		items, total := []HotArticleBrief{}, int64(0)
-		if s.isTop5(page, pageSize) {
-			s.mu.Lock()
-			storeTop(s.now, &s.articleTop, items, total)
-			s.mu.Unlock()
-		}
-		return items, total, nil
+		return []HotArticleBrief{}, 0, nil
 	}
 	rows, err := s.articleRepo.ListTitlesByIDs(ctx, p.ids)
 	if err != nil {
@@ -219,19 +214,62 @@ func (s *ContentRankingService) ListArticles(ctx context.Context, page, pageSize
 	for i, id := range p.ids {
 		a, ok := byID[id]
 		if !ok {
-			_ = s.Remove(ctx, RankedContentArticle, id) // best-effort 清理不可见成员
+			_ = s.Remove(ctx, RankedContentArticle, id)
 			pruned++
 			continue
 		}
 		items = append(items, HotArticleBrief{ID: a.ID, Title: a.Title, Score: p.scores[i]})
 	}
-	total := p.total - int64(pruned) // 被清理的成员不再计入 total
+	total := p.total - int64(pruned)
 	if s.isTop5(page, pageSize) {
 		s.mu.Lock()
 		storeTop(s.now, &s.articleTop, items, total)
 		s.mu.Unlock()
 	}
 	return items, total, nil
+}
+
+func (s *ContentRankingService) ListArticles(ctx context.Context, page, pageSize int) ([]HotArticleBrief, int64, error) {
+	if s.isTop5(page, pageSize) {
+		s.mu.Lock()
+		items, total, ok := freshTop(s.now, &s.articleTop)
+		s.mu.Unlock()
+		if ok {
+			return items, total, nil
+		}
+		refresh := func() (articleTopResult, error) {
+			s.mu.Lock()
+			items, total, ok := freshTop(s.now, &s.articleTop)
+			s.mu.Unlock()
+			if ok {
+				return articleTopResult{items: items, total: total}, nil
+			}
+			if s.topRefreshHook != nil {
+				s.topRefreshHook()
+			}
+			items, total, err := s.listArticlesUncached(ctx, page, pageSize)
+			return articleTopResult{items: items, total: total}, err
+		}
+		if !s.singleflightEnabled {
+			result, err := refresh()
+			if err != nil {
+				return []HotArticleBrief{}, 0, nil
+			}
+			return result.items, result.total, nil
+		}
+		value, err, _ := s.topRefresh.Do("article", func() (any, error) { return refresh() })
+		if err != nil {
+			return []HotArticleBrief{}, 0, nil
+		}
+		result := value.(articleTopResult)
+		return result.items, result.total, nil
+	}
+	return s.listArticlesUncached(ctx, page, pageSize)
+}
+
+type articleTopResult struct {
+	items []HotArticleBrief
+	total int64
 }
 
 func (s *ContentRankingService) ListSkills(ctx context.Context, page, pageSize int) ([]HotSkillBrief, int64, error) {

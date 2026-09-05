@@ -47,6 +47,7 @@ func NewServices(infra *Infrastructure, cfg *platform.Config) *Services {
 	resourceComments := repo.NewResourceCommentRepo(infra.DB)
 
 	contentRanking := service.NewContentRankingService(infra.Redis, articles, skills, mcpServers)
+	contentRanking.SetSingleflightEnabled(cfg.RankingSingleflight)
 
 	articleService := service.NewArticleService(articles, tags, interactions, cfg, notifications, contentRanking)
 	commentService := service.NewCommentService(comments, articles, interactions, users, notifications, contentRanking)

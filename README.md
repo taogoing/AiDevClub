@@ -103,6 +103,7 @@ go run ./cmd/mcp-server
 | `AIDEVCLUB_MCP_ADDR` | `:8081` | MCP Server 监听地址 |
 | `AIDEVCLUB_MYSQL_DSN` | `root:root@tcp(localhost:3306)/aidevclub?...` | MySQL 连接串 |
 | `AIDEVCLUB_REDIS_ADDR` | `localhost:16379` | Redis 地址 |
+| `AIDEVCLUB_RANKING_SINGLEFLIGHT` | `true` | 是否合并文章热门排行 Top 5 缓存过期时的并发刷新 |
 | `AIDEVCLUB_JWT_SECRET` | `dev-secret-change-me` | JWT 签名密钥（**生产环境必须修改**） |
 | `AIDEVCLUB_ADMIN_EMAILS` | - | 管理员邮箱，逗号分隔 |
 

@@ -2,6 +2,9 @@ package service
 
 import (
 	"context"
+	"fmt"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -249,6 +252,55 @@ func TestContentTop5SnapshotServedWithoutRedis(t *testing.T) {
 	items4, total4, err := svc.ListArticles(ctx, 1, 5) // 降级空结果在 TTL 内直接复用
 	if err != nil || len(items4) != 0 || total4 != 0 {
 		t.Fatalf("degraded snapshot items=%+v err=%v", items4, err)
+	}
+}
+
+func TestContentTop5RefreshCoalescesConcurrentMisses(t *testing.T) {
+	svc, db, _ := newContentRankingEnv(t)
+	ctx := context.Background()
+	a := seedArticle(t, db, 1, "A", model.ArticleStatusPublished, false)
+	_ = svc.AddScore(ctx, RankedContentArticle, a.ID, 2)
+
+	var refreshes atomic.Int32
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	svc.topRefreshHook = func() {
+		if refreshes.Add(1) == 1 {
+			close(entered)
+		}
+		<-release
+	}
+
+	const callers = 32
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	errs := make(chan error, callers)
+	for i := 0; i < callers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			items, total, err := svc.ListArticles(ctx, 1, 5)
+			if err != nil || total != 1 || len(items) != 1 || items[0].ID != a.ID {
+				errs <- fmt.Errorf("items=%+v total=%d err=%v", items, total, err)
+			}
+		}()
+	}
+	close(start)
+	select {
+	case <-entered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("refresh did not start")
+	}
+	time.Sleep(50 * time.Millisecond)
+	close(release)
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Fatal(err)
+	}
+	if got := refreshes.Load(); got != 1 {
+		t.Fatalf("refreshes=%d want 1", got)
 	}
 }
 
