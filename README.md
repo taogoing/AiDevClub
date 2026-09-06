@@ -1,69 +1,61 @@
 # AIDevClub
 
-AIDevClub 是一个面向开发者和 AI Agent 的技术内容与 AI 资源分享社区。
+面向开发者和 AI Agent 的技术内容与 AI 资源社区。AIDevClub 提供文章、Skill 和 MCP Server 的发布、发现、互动与审核能力，并通过 MCP 接口把平台内容开放给 AI 客户端。
 
-## 功能特性
 
-### 三大核心板块
+## 项目概览
 
-| 板块 | 说明 |
-|------|------|
-| **技术社区** | 发布和交流技术文章，支持评论、点赞、收藏 |
-| **Skills Hub** | 发布和分享 Skill 及其 `SKILL.md` 文档 |
-| **MCP Hub** | 发布和分享 MCP Server、安装命令与客户端配置 |
+- **技术社区**：发布和阅读技术文章，支持评论、点赞、收藏和举报。
+- **Skills Hub**：发布、审核和发现 AI Agent Skill。
+- **MCP Hub**：发布、审核和发现 MCP Server，并展示安装配置。
+- **统一搜索与排行**：支持文章、Skill、MCP Server 的全文搜索和热门排行。
+- **通知与管理后台**：处理评论、互动、公告、举报、资源审核和操作日志。
+- **平台 MCP Server**：让 Claude Code、Cursor、Windsurf 等 MCP 客户端检索 AIDevClub 内容。
 
-### 其他功能
+## 页面预览
 
-- 统一标签系统：文章、Skill、MCP Server 共用同一套标签
-- 全文搜索：基于 MySQL FULLTEXT + ngram 中文分词
-- 热门排行：Redis ZSet 实现，时间衰减算法
-- 站内通知：评论、回复、点赞、公告、举报结果等
-- 举报审核：管理员处置举报内容
-- 管理后台：用户、内容、评论、资源审核、标签、举报、统计、公告、操作日志
-- 整站 MCP Server：让 Claude Code、Codex 等 MCP 客户端检索和操作平台内容
+### 文章与网站首页
+
+![文章与网站首页](img/文章详情页.png)
+
+### Skills Hub
+
+![Skills Hub](img/skills页面.png)
+
+### 后台管理
+
+![后台管理页面](img/后台管理页面.png)
 
 ## 技术栈
 
 | 层级 | 技术 |
-|------|------|
-| 后端 | Go、Gin、GORM |
-| 数据库 | MySQL 8 |
-| 缓存 | Redis |
-| 前端 | Vue 3、TypeScript、Vite、Element Plus |
-| 网关 | Nginx |
-| 部署 | Docker、Docker Compose |
-| 接口 | REST API、MCP Server |
+| --- | --- |
+| 后端 | Go 1.25、Gin、GORM |
+| 前端 | Vue 3、TypeScript、Vite、Element Plus、Pinia |
+| 数据库 | MySQL 8（中文全文检索使用 ngram parser） |
+| 缓存 | Redis 7 |
+| 接口 | REST API、Streamable HTTP MCP |
+| 部署 | Docker Compose、Nginx |
 
-## 架构
+## 目录结构
 
-整体采用**模块化单体（Modular Monolith）**架构：
-
-```
+~~~text
 cmd/
-├── server/          # REST API 服务入口
-└── mcp-server/      # MCP Server 入口
+├── server/       # REST API 与平台 MCP Server 的组合入口
+└── mcp-server/   # 独立 MCP Server 入口
 
 internal/
-├── app/             # 应用层：基础设施、服务组装、HTTP Server
-├── handler/         # HTTP Handler 层
-├── service/         # 业务逻辑层
-├── repo/            # 数据访问层
-├── model/           # 数据模型
-├── platform/        # 平台组件：配置、中间件、JWT、限流等
-├── mcpserver/       # MCP Server 实现
-├── scheduler/       # 定时任务
-└── testutil/        # 测试工具
+├── handler/      # REST API Handler
+├── service/      # 业务逻辑
+├── repo/         # 数据访问
+├── model/        # 数据模型
+├── platform/     # 配置、数据库、Redis、鉴权、中间件
+└── mcpserver/    # MCP 协议与工具实现
 
-frontend/            # Vue 3 前端
-```
-
-**核心设计原则：**
-
-- REST API 与 MCP Server **共用同一套领域服务、权限规则和数据**
-- MySQL 持久化业务数据；Redis 负责缓存、限流、Token 状态与热门排行
-- 内容与资源采用**软删除**
-- Skill 与 MCP Server 需管理员审核（草稿 → 待审核 → 已发布 / 已拒绝 / 已下架）
-- 用户认证采用 Access Token + Refresh Token，注册与登录接口限流
+frontend/         # Vue 前端
+deploy/           # Docker、Nginx 与生产部署脚本
+docs/             # MCP 指南、设计文档与测试报告
+~~~
 
 ## 快速开始
 
@@ -71,189 +63,128 @@ frontend/            # Vue 3 前端
 
 - Go 1.25+
 - Node.js 18+
-- Docker & Docker Compose
+- Docker 与 Docker Compose
 
-### 启动基础设施
+### 1. 启动基础设施
 
-```bash
+~~~bash
 docker compose up -d
-```
+~~~
 
-这会启动：
-- MySQL 8（端口 3306，数据库 `aidevclub`，用户 `root`，密码 `root`）
-- Redis 7（端口 16379）
+默认启动：
 
-### 启动后端服务
+- MySQL 8：localhost:3306（数据库名和账号凭据请按本地环境配置）
+- Redis 7：localhost:16379
 
-```bash
-# 启动 REST API 服务（默认端口 8080）
+### 2. 启动后端
+
+在项目根目录执行：
+
+~~~bash
+# REST API：localhost:8080
 go run ./cmd/server
+~~~
 
-# 启动 MCP Server（默认端口 8081）
+如果需要单独运行 MCP Server：
+
+~~~bash
+# MCP Server：localhost:8081
 go run ./cmd/mcp-server
-```
+~~~
 
-### 配置
+cmd/server 已经会同时启动 REST API 和平台 MCP Server；通常本地开发只需要启动它。
 
-通过环境变量配置（前缀 `AIDEVCLUB_`）：
+### 3. 启动前端
 
-| 环境变量 | 默认值 | 说明 |
-|----------|--------|------|
-| `AIDEVCLUB_HTTP_ADDR` | `:8080` | REST API 监听地址 |
-| `AIDEVCLUB_MCP_ADDR` | `:8081` | MCP Server 监听地址 |
-| `AIDEVCLUB_MYSQL_DSN` | `root:root@tcp(localhost:3306)/aidevclub?...` | MySQL 连接串 |
-| `AIDEVCLUB_REDIS_ADDR` | `localhost:16379` | Redis 地址 |
-| `AIDEVCLUB_RANKING_SINGLEFLIGHT` | `true` | 是否合并文章热门排行 Top 5 缓存过期时的并发刷新 |
-| `AIDEVCLUB_JWT_SECRET` | `dev-secret-change-me` | JWT 签名密钥（**生产环境必须修改**） |
-| `AIDEVCLUB_ADMIN_EMAILS` | - | 管理员邮箱，逗号分隔 |
-
-### 启动前端
-
-```bash
+~~~bash
 cd frontend
 npm install
 npm run dev
-```
+~~~
 
-前端开发服务器默认运行在 `http://localhost:5173`。
+前端默认地址为 <http://localhost:5173>，开发代理会把 /api 和 /static 请求转发到 localhost:8080。
 
-### 构建
+## 构建与测试
 
-```bash
-# 后端
-go build ./...
-
-# 前端
-cd frontend
-npm run build
-```
-
-### 测试
-
-```bash
-# 后端测试（需要先启动 MySQL 和 Redis）
+~~~bash
+# 后端格式化与测试
+gofmt -w ./cmd ./internal
 go test ./...
 
-# 前端类型检查
+# 后端构建
+go build ./...
+
+# 前端类型检查、Lint 与生产构建
 cd frontend
 npm run typecheck
-```
+npm run lint
+npm run build
+~~~
 
-## API 概览
+需要运行后端集成测试时，请先启动 MySQL 和 Redis。测试代码会使用 internal/testutil 提供的测试数据库辅助能力。
 
-### 认证
+## MCP 使用
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/v1/auth/register` | 注册 |
-| POST | `/api/v1/auth/login` | 登录 |
-| POST | `/api/v1/auth/refresh` | 刷新 Token |
-| POST | `/api/v1/auth/logout` | 登出 |
+本地 MCP 地址：http://localhost:8081/mcp。线上地址：https://aidevclub.xyz/mcp。
 
-### 用户
+平台 MCP Server 使用 Streamable HTTP，公开工具包括：
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/api/v1/users/me` | 获取当前用户信息 |
-| PUT | `/api/v1/users/me` | 更新个人资料 |
-| PUT | `/api/v1/users/me/password` | 修改密码 |
-| DELETE | `/api/v1/users/me` | 注销账号 |
-| POST | `/api/v1/users/me/avatar` | 上传头像 |
+- search_content：搜索文章、Skill 和 MCP Server
+- browse_content：按最新或热门浏览内容
+- get_article：读取文章详情，支持长内容分页
+- get_skill：读取 Skill 详情
+- get_mcp_server：读取 MCP Server 详情
+- list_taxonomy：查询分类和标签
 
-### 文章
+携带 Bearer Token 后，还可以使用 get_my_profile、list_my_content 和 list_my_notifications。
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/api/v1/articles` | 文章列表 |
-| POST | `/api/v1/articles` | 创建文章 |
-| GET | `/api/v1/articles/:id` | 文章详情 |
-| PUT | `/api/v1/articles/:id` | 更新文章 |
-| DELETE | `/api/v1/articles/:id` | 删除文章 |
-| POST | `/api/v1/articles/:id/like` | 点赞/取消点赞 |
-| POST | `/api/v1/articles/:id/favorite` | 收藏/取消收藏 |
-| POST | `/api/v1/articles/images` | 上传文章图片 |
+以 Claude Code、Cursor 等客户端为例，MCP 配置形如：
 
-### Skills
+~~~json
+{
+  "mcpServers": {
+    "aidevclub": {
+      "url": "https://aidevclub.xyz/mcp"
+    }
+  }
+}
+~~~
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/api/v1/skills` | Skill 列表 |
-| POST | `/api/v1/skills` | 创建 Skill |
-| GET | `/api/v1/skills/:id` | Skill 详情 |
-| PUT | `/api/v1/skills/:id` | 更新 Skill |
-| DELETE | `/api/v1/skills/:id` | 删除 Skill |
-| POST | `/api/v1/skills/:id/submit` | 提交审核 |
-| POST | `/api/v1/skills/:id/withdraw` | 撤回审核 |
-| POST | `/api/v1/skills/:id/archive` | 下架 Skill |
-| POST | `/api/v1/skills/:id/like` | 点赞/取消点赞 |
-| POST | `/api/v1/skills/:id/favorite` | 收藏/取消收藏 |
+完整工具参数、认证方式、错误处理和分页示例见 [docs/mcp-server-guide.md](docs/mcp-server-guide.md)。
 
-### MCP Servers
+## 健康检查
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/api/v1/mcp-servers` | MCP Server 列表 |
-| POST | `/api/v1/mcp-servers` | 创建 MCP Server |
-| GET | `/api/v1/mcp-servers/:id` | MCP Server 详情 |
-| PUT | `/api/v1/mcp-servers/:id` | 更新 MCP Server |
-| DELETE | `/api/v1/mcp-servers/:id` | 删除 MCP Server |
-| POST | `/api/v1/mcp-servers/:id/submit` | 提交审核 |
-| POST | `/api/v1/mcp-servers/:id/withdraw` | 撤回审核 |
-| POST | `/api/v1/mcp-servers/:id/archive` | 下架 MCP Server |
-| POST | `/api/v1/mcp-servers/:id/like` | 点赞/取消点赞 |
-| POST | `/api/v1/mcp-servers/:id/favorite` | 收藏/取消收藏 |
+~~~bash
+curl http://localhost:8080/healthz
+curl http://localhost:8080/readyz
+~~~
 
-### 搜索与排行
+/healthz 用于存活检查，/readyz 用于检查 MySQL 和 Redis 是否就绪。
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/api/v1/search` | 统一搜索 |
-| GET | `/api/v1/articles/ranking` | 文章热门排行 |
-| GET | `/api/v1/skills/ranking` | Skill 热门排行 |
-| GET | `/api/v1/mcp-servers/ranking` | MCP Server 热门排行 |
+## 部署
 
-### 管理后台
+生产部署相关文件位于 [deploy/](deploy/)：
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/api/v1/admin/dashboard` | 数据看板 |
-| GET/PUT/DELETE | `/api/v1/admin/users/*` | 用户管理 |
-| GET/PUT/DELETE | `/api/v1/admin/articles/*` | 文章管理 |
-| GET/PUT/DELETE | `/api/v1/admin/skills/*` | Skill 审核 |
-| GET/PUT/DELETE | `/api/v1/admin/mcp-servers/*` | MCP Server 审核 |
-| GET/POST | `/api/v1/admin/tags/*` | 标签管理 |
-| GET/PUT | `/api/v1/admin/reports/*` | 举报管理 |
-| GET/POST | `/api/v1/admin/announcements/*` | 公告管理 |
-| GET | `/api/v1/admin/logs` | 操作日志 |
+- docker-compose.prod.yml：生产服务编排
+- Dockerfile.backend：后端镜像
+- Dockerfile.frontend：前端镜像
+- nginx.conf：生产 Nginx 配置
+- deploy.sh、setup-server.sh：部署辅助脚本
 
-### MCP Server
+部署前请准备生产环境变量，并通过 CI/CD Secret 注入 SSH 私钥、数据库密码、JWT 密钥和管理员邮箱。仓库不应保存任何真实私钥或生产凭据。
 
-MCP Server 端点：`/mcp`
+## 相关文档
 
-支持的工具：
-- `search` - 搜索文章、Skill、MCP Server
-- `get_article` - 获取文章详情
-- `get_skill` - 获取 Skill 详情
-- `get_mcp_server` - 获取 MCP Server 详情
-- `list_categories` - 获取分类列表
-- `list_tags` - 获取标签列表
-- `get_ranking` - 获取热门排行
-- `get_profile` - 获取用户资料（需认证）
-- `get_notifications` - 获取通知列表（需认证）
+- [docs/mcp-server-guide.md](docs/mcp-server-guide.md)：MCP Server 使用指南
+- [docs/roadmap.md](docs/roadmap.md)：项目路线图
+- [docs/](docs/)：设计文档、阶段总结和测试报告
+- [线上站点](https://aidevclub.xyz)
+- [GitHub 仓库](https://github.com/taogoing/AiDevClub)
 
-## 项目路线图
+## 贡献
 
-| 阶段 | 名称 | 状态 |
-|------|------|------|
-| P0 | 基础设施骨架 | ✅ 已完成 |
-| P1 | 用户与认证 | ✅ 已完成 |
-| P2 | 技术社区 | ✅ 已完成 |
-| P3 | AI 资源 | ✅ 已完成 |
-| P4 | 标签/搜索/排行优化 | ✅ 已完成 |
-| P5 | 消息通知/举报审核 | ✅ 已完成 |
-| P6 | 平台 MCP Server/管理后台 | ✅ 已完成 |
-| 前端 | 用户端 + 管理端 | ✅ 已完成 |
+欢迎通过 Issue 或 Pull Request 提交问题、改进建议和代码。提交前请至少运行与改动相关的后端测试或前端检查，并避免将构建产物、日志、.env 文件和密钥加入版本库。
 
 ## 许可证
 
-本项目仅供学习和研究使用。
+当前项目主要用于学习和研究。正式对外发布前，请补充明确的开源许可证文件与版权说明。
