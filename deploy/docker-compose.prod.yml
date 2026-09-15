@@ -1,4 +1,34 @@
 services:
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.5
+    command: etcd -advertise-client-urls=http://etcd:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+    volumes:
+      - milvus_etcd:/etcd
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:RELEASE.2023-03-20T20-16-18Z
+    command: minio server /minio_data --console-address ":9001"
+    environment:
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    volumes:
+      - milvus_minio:/minio_data
+    restart: unless-stopped
+
+  milvus:
+    image: milvusdb/milvus:v2.4.13
+    command: ["milvus", "run", "standalone"]
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+    volumes:
+      - milvus_data:/var/lib/milvus
+    depends_on:
+      - etcd
+      - minio
+    restart: unless-stopped
+
   mysql:
     image: mysql:8
     command: --ngram-token-size=2
@@ -29,6 +59,24 @@ services:
       timeout: 5s
       retries: 5
 
+  rabbitmq:
+    image: rabbitmq:4-management
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-notification}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-notification}
+    ports:
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
   backend:
     build:
       context: ..
@@ -37,10 +85,15 @@ services:
       AIDEVCLUB_HTTP_ADDR: ":8080"
       AIDEVCLUB_MYSQL_DSN: "root:${MYSQL_ROOT_PASSWORD:-root}@tcp(mysql:3306)/aidevclub?charset=utf8mb4&parseTime=True&loc=Local"
       AIDEVCLUB_REDIS_ADDR: "redis:6379"
+      AIDEVCLUB_NOTIFICATION_MODE: ${NOTIFICATION_MODE:-outbox}
+      AIDEVCLUB_NOTIFICATION_RABBITMQ_URL: "amqp://${RABBITMQ_DEFAULT_USER:-notification}:${RABBITMQ_DEFAULT_PASS:-notification}@rabbitmq:5672/"
       AIDEVCLUB_JWT_SECRET: ${JWT_SECRET}
       AIDEVCLUB_PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://aidevclub.xyz}
       AIDEVCLUB_MCP_ADDR: ":8081"
       AIDEVCLUB_ADMIN_EMAILS: ${ADMIN_EMAILS:-}
+      AIDEVCLUB_AI_API_KEY: ${AI_API_KEY:-}
+      AIDEVCLUB_AI_MILVUS_URL: http://milvus:19530
+      AIDEVCLUB_AI_MILVUS_COLLECTION: ${AI_MILVUS_COLLECTION:-article_chunks}
     volumes:
       - storage_data:/app/storage
     depends_on:
@@ -48,6 +101,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      rabbitmq:
+        condition: service_started
+      milvus:
+        condition: service_started
     restart: unless-stopped
 
   frontend:
@@ -77,6 +134,10 @@ services:
 volumes:
   mysql_data:
   redis_data:
+  rabbitmq_data:
   storage_data:
   certbot_certs:
   certbot_webroot:
+  milvus_etcd:
+  milvus_minio:
+  milvus_data:

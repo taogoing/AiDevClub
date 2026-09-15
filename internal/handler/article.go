@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -14,9 +15,13 @@ import (
 	"aidevclub/internal/service"
 )
 
-type ArticleHandler struct{ svc *service.ArticleService }
+type ArticleHandler struct {
+	svc *service.ArticleService
+	ai  *service.AIAssistantService
+}
 
-func NewArticleHandler(svc *service.ArticleService) *ArticleHandler { return &ArticleHandler{svc: svc} }
+func NewArticleHandler(svc *service.ArticleService) *ArticleHandler     { return &ArticleHandler{svc: svc} }
+func (h *ArticleHandler) SetAIAssistant(ai *service.AIAssistantService) { h.ai = ai }
 
 func (h *ArticleHandler) Create(c *gin.Context) {
 	var in struct {
@@ -40,6 +45,9 @@ func (h *ArticleHandler) Create(c *gin.Context) {
 		return
 	}
 	platform.OK(c, gin.H{"id": a.ID})
+	if h.ai != nil && a.Status == model.ArticleStatusPublished {
+		go func() { _ = h.ai.IndexArticle(context.Background(), a.ID, a.Title, a.Content) }()
+	}
 }
 
 func (h *ArticleHandler) Update(c *gin.Context) {
@@ -69,6 +77,9 @@ func (h *ArticleHandler) Update(c *gin.Context) {
 		return
 	}
 	platform.OK(c, gin.H{"id": a.ID})
+	if h.ai != nil && a.Status == model.ArticleStatusPublished {
+		go func() { _ = h.ai.IndexArticle(context.Background(), a.ID, a.Title, a.Content) }()
+	}
 }
 
 func (h *ArticleHandler) Delete(c *gin.Context) {

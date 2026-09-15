@@ -16,6 +16,7 @@ import (
 	"aidevclub/internal/mcpserver"
 	"aidevclub/internal/model"
 	"aidevclub/internal/platform"
+	"aidevclub/internal/service"
 )
 
 func main() {
@@ -59,6 +60,8 @@ func main() {
 	r.GET("/api/v1/metrics/ranking", func(c *gin.Context) {
 		c.JSON(200, services.ContentRanking.RankingMetrics())
 	})
+	aiH := handler.NewAIAssistantHandler(services.AIAssistant)
+	r.POST("/api/v1/ai/ask", aiH.Ask)
 
 	ah := handler.NewAuthHandler(services.Auth)
 	rl := platform.RateLimitMiddleware(infra.Redis, cfg.RateLimitPerMin, time.Minute)
@@ -79,6 +82,7 @@ func main() {
 
 	tagH := handler.NewTagHandler(services.Tags)
 	artH := handler.NewArticleHandler(services.Articles)
+	artH.SetAIAssistant(services.AIAssistant)
 	comH := handler.NewCommentHandler(services.Comments)
 	p2Auth := platform.AuthMiddleware(cfg.JWTSecret)
 	opt := platform.OptionalAuthMiddleware(cfg.JWTSecret)
@@ -183,6 +187,14 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	if cfg.NotificationMode == "outbox" {
+		notificationMQ := service.NewNotificationMQ(
+			cfg.RabbitMQURL, services.NotificationOutbox, services.NotificationRepo,
+			cfg.NotificationPollInterval, cfg.NotificationLease,
+		)
+		notificationMQ.Start(ctx)
+		defer notificationMQ.Close()
+	}
 
 	// Start MCP server in the same process
 	startMCPServer(ctx, cfg, services, infra, logger)

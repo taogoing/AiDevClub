@@ -11,30 +11,43 @@ import (
 )
 
 type Config struct {
-	HTTPAddr             string
-	MySQLDSN             string
-	RedisAddr            string
-	RedisPassword        string
-	RedisDB              int
-	JWTSecret            string
-	AccessTokenTTL       time.Duration
-	RefreshTokenTTL      time.Duration
-	RateLimitPerMin      int
-	RankingSingleflight  bool
-	MCPAddr              string
-	PublicBaseURL        string
-	MCPAllowedOrigins    []string
-	MCPRateLimitPerMin   int
-	MCPMaxBodyBytes      int64
-	MCPRequestTimeout    time.Duration
-	AvatarDir            string
-	DefaultAvatarURL     string
-	MaxAvatarBytes       int64
-	DefaultPageSize      int
-	MaxPageSize          int
-	ArticleImageDir      string
-	MaxArticleImageBytes int64
-	AdminEmails          []string
+	HTTPAddr                 string
+	MySQLDSN                 string
+	RedisAddr                string
+	RedisPassword            string
+	RedisDB                  int
+	JWTSecret                string
+	AccessTokenTTL           time.Duration
+	RefreshTokenTTL          time.Duration
+	RateLimitPerMin          int
+	RankingSingleflight      bool
+	MCPAddr                  string
+	PublicBaseURL            string
+	MCPAllowedOrigins        []string
+	MCPRateLimitPerMin       int
+	MCPMaxBodyBytes          int64
+	MCPRequestTimeout        time.Duration
+	NotificationMode         string
+	RabbitMQURL              string
+	NotificationPollInterval time.Duration
+	NotificationLease        time.Duration
+	AvatarDir                string
+	DefaultAvatarURL         string
+	MaxAvatarBytes           int64
+	DefaultPageSize          int
+	MaxPageSize              int
+	ArticleImageDir          string
+	MaxArticleImageBytes     int64
+	AdminEmails              []string
+	AIAPIKey                 string
+	AIEmbeddingURL           string
+	AIEmbeddingModel         string
+	AIChatURL                string
+	AIChatModel              string
+	AIRerankURL              string
+	AIRerankModel            string
+	AIMilvusURL              string
+	AIMilvusCollection       string
 }
 
 func LoadConfig() (*Config, error) {
@@ -55,6 +68,10 @@ func LoadConfig() (*Config, error) {
 	v.SetDefault("mcp.ratelimit_per_minute", 60)
 	v.SetDefault("mcp.max_body_bytes", int64(1<<20))
 	v.SetDefault("mcp.request_timeout", "30s")
+	v.SetDefault("notification.mode", "outbox")
+	v.SetDefault("notification.rabbitmq_url", "amqp://notification:notification@localhost:5672/")
+	v.SetDefault("notification.poll_interval", "250ms")
+	v.SetDefault("notification.lease", "30s")
 	v.SetDefault("avatar.dir", "storage/avatars")
 	v.SetDefault("avatar.default_url", "/static/avatars/default.png")
 	v.SetDefault("avatar.max_bytes", int64(2<<20))
@@ -63,6 +80,14 @@ func LoadConfig() (*Config, error) {
 	v.SetDefault("article_image.dir", "storage/articles")
 	v.SetDefault("article_image.max_bytes", int64(5<<20))
 	v.SetDefault("admin.emails", "")
+	v.SetDefault("ai.embedding_url", "https://dashscope.aliyuncs.com/compatible-mode/v1/embeddings")
+	v.SetDefault("ai.embedding_model", "qwen3.7-text-embedding-flash")
+	v.SetDefault("ai.chat_url", "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions")
+	v.SetDefault("ai.chat_model", "qwen3.8-flash")
+	v.SetDefault("ai.rerank_url", "")
+	v.SetDefault("ai.rerank_model", "qwen3.7-text-rerank")
+	v.SetDefault("ai.milvus_url", "http://localhost:19530")
+	v.SetDefault("ai.milvus_collection", "article_chunks")
 
 	v.AutomaticEnv()
 	v.SetEnvPrefix("AIDEVCLUB")
@@ -79,6 +104,18 @@ func LoadConfig() (*Config, error) {
 	mcpRequestTimeout, err := time.ParseDuration(v.GetString("mcp.request_timeout"))
 	if err != nil {
 		return nil, err
+	}
+	notificationPollInterval, err := time.ParseDuration(v.GetString("notification.poll_interval"))
+	if err != nil || notificationPollInterval <= 0 {
+		return nil, fmt.Errorf("invalid notification poll interval")
+	}
+	notificationLease, err := time.ParseDuration(v.GetString("notification.lease"))
+	if err != nil || notificationLease <= 0 {
+		return nil, fmt.Errorf("invalid notification outbox lease")
+	}
+	notificationMode := strings.ToLower(strings.TrimSpace(v.GetString("notification.mode")))
+	if notificationMode != "sync" && notificationMode != "outbox" {
+		return nil, fmt.Errorf("invalid notification mode %q: expected sync or outbox", notificationMode)
 	}
 	publicBaseURL, err := validatePublicBaseURL(v.GetString("public.base_url"))
 	if err != nil {
@@ -99,30 +136,37 @@ func LoadConfig() (*Config, error) {
 	}
 
 	cfg := &Config{
-		HTTPAddr:             v.GetString("http.addr"),
-		MySQLDSN:             v.GetString("mysql.dsn"),
-		RedisAddr:            v.GetString("redis.addr"),
-		RedisPassword:        v.GetString("redis.password"),
-		RedisDB:              v.GetInt("redis.db"),
-		JWTSecret:            v.GetString("jwt.secret"),
-		AccessTokenTTL:       accessTTL,
-		RefreshTokenTTL:      refreshTTL,
-		RateLimitPerMin:      v.GetInt("ratelimit.per_minute"),
-		RankingSingleflight:  v.GetBool("ranking.singleflight"),
-		MCPAddr:              v.GetString("mcp.addr"),
-		PublicBaseURL:        publicBaseURL,
-		MCPAllowedOrigins:    mcpAllowedOrigins,
-		MCPRateLimitPerMin:   v.GetInt("mcp.ratelimit_per_minute"),
-		MCPMaxBodyBytes:      v.GetInt64("mcp.max_body_bytes"),
-		MCPRequestTimeout:    mcpRequestTimeout,
-		AvatarDir:            v.GetString("avatar.dir"),
-		DefaultAvatarURL:     v.GetString("avatar.default_url"),
-		MaxAvatarBytes:       v.GetInt64("avatar.max_bytes"),
-		DefaultPageSize:      v.GetInt("article.page_size_default"),
-		MaxPageSize:          v.GetInt("article.page_size_max"),
-		ArticleImageDir:      v.GetString("article_image.dir"),
-		MaxArticleImageBytes: v.GetInt64("article_image.max_bytes"),
-		AdminEmails:          adminEmails,
+		HTTPAddr:                 v.GetString("http.addr"),
+		MySQLDSN:                 v.GetString("mysql.dsn"),
+		RedisAddr:                v.GetString("redis.addr"),
+		RedisPassword:            v.GetString("redis.password"),
+		RedisDB:                  v.GetInt("redis.db"),
+		JWTSecret:                v.GetString("jwt.secret"),
+		AccessTokenTTL:           accessTTL,
+		RefreshTokenTTL:          refreshTTL,
+		RateLimitPerMin:          v.GetInt("ratelimit.per_minute"),
+		RankingSingleflight:      v.GetBool("ranking.singleflight"),
+		MCPAddr:                  v.GetString("mcp.addr"),
+		PublicBaseURL:            publicBaseURL,
+		MCPAllowedOrigins:        mcpAllowedOrigins,
+		MCPRateLimitPerMin:       v.GetInt("mcp.ratelimit_per_minute"),
+		MCPMaxBodyBytes:          v.GetInt64("mcp.max_body_bytes"),
+		MCPRequestTimeout:        mcpRequestTimeout,
+		NotificationMode:         notificationMode,
+		RabbitMQURL:              v.GetString("notification.rabbitmq_url"),
+		NotificationPollInterval: notificationPollInterval,
+		NotificationLease:        notificationLease,
+		AvatarDir:                v.GetString("avatar.dir"),
+		DefaultAvatarURL:         v.GetString("avatar.default_url"),
+		MaxAvatarBytes:           v.GetInt64("avatar.max_bytes"),
+		DefaultPageSize:          v.GetInt("article.page_size_default"),
+		MaxPageSize:              v.GetInt("article.page_size_max"),
+		ArticleImageDir:          v.GetString("article_image.dir"),
+		MaxArticleImageBytes:     v.GetInt64("article_image.max_bytes"),
+		AdminEmails:              adminEmails,
+		AIAPIKey:                 v.GetString("ai.api_key"), AIEmbeddingURL: v.GetString("ai.embedding_url"), AIEmbeddingModel: v.GetString("ai.embedding_model"),
+		AIChatURL: v.GetString("ai.chat_url"), AIChatModel: v.GetString("ai.chat_model"), AIRerankURL: v.GetString("ai.rerank_url"), AIRerankModel: v.GetString("ai.rerank_model"),
+		AIMilvusURL: v.GetString("ai.milvus_url"), AIMilvusCollection: v.GetString("ai.milvus_collection"),
 	}
 
 	// 生产环境若忘记设置 AIDEVCLUB_JWT_SECRET，会使用众所周知的默认值，

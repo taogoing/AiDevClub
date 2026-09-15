@@ -7,21 +7,24 @@ import (
 )
 
 type Services struct {
-	UserRepo         *repo.UserRepo
-	Auth             *service.AuthService
-	Users            *service.UserService
-	Articles         *service.ArticleService
-	Comments         *service.CommentService
-	Skills           *service.SkillService
-	MCPServers       *service.McpServerService
-	ResourceComments *service.ResourceCommentService
-	Search           *service.SearchService
-	ContentRanking   *service.ContentRankingService
-	Tags             *service.TagService
-	Notifications    *service.NotificationService
-	Reports          *service.ReportService
-	Admin            *service.AdminService
-	AdminLogs        *service.AdminLogService
+	UserRepo           *repo.UserRepo
+	Auth               *service.AuthService
+	Users              *service.UserService
+	Articles           *service.ArticleService
+	Comments           *service.CommentService
+	Skills             *service.SkillService
+	MCPServers         *service.McpServerService
+	ResourceComments   *service.ResourceCommentService
+	Search             *service.SearchService
+	ContentRanking     *service.ContentRankingService
+	Tags               *service.TagService
+	Notifications      *service.NotificationService
+	NotificationRepo   *repo.NotificationRepo
+	NotificationOutbox *repo.NotificationOutboxRepo
+	Reports            *service.ReportService
+	Admin              *service.AdminService
+	AdminLogs          *service.AdminLogService
+	AIAssistant        *service.AIAssistantService
 }
 
 func NewServices(infra *Infrastructure, cfg *platform.Config) *Services {
@@ -36,6 +39,8 @@ func NewServices(infra *Infrastructure, cfg *platform.Config) *Services {
 	interactions := repo.NewInteractionRepo(infra.DB)
 	notificationRepo := repo.NewNotificationRepo(infra.DB)
 	notifications := service.NewNotificationService(notificationRepo, users)
+	notificationOutbox := repo.NewNotificationOutboxRepo(infra.DB)
+	notifications.ConfigureMode(cfg.NotificationMode, notificationOutbox)
 
 	tagService := service.NewTagService(tags)
 
@@ -68,20 +73,23 @@ func NewServices(infra *Infrastructure, cfg *platform.Config) *Services {
 	)
 
 	return &Services{
-		UserRepo:         users,
-		Auth:             auth,
-		Users:            userService,
-		Articles:         articleService,
-		Comments:         commentService,
-		Skills:           skillService,
-		MCPServers:       mcpServerService,
-		ResourceComments: resourceCommentService,
-		Search:           search,
-		ContentRanking:   contentRanking,
-		Tags:             tagService,
-		Notifications:    notifications,
-		Reports:          reports,
-		Admin:            admin,
-		AdminLogs:        adminLogs,
+		UserRepo:           users,
+		Auth:               auth,
+		Users:              userService,
+		Articles:           articleService,
+		Comments:           commentService,
+		Skills:             skillService,
+		MCPServers:         mcpServerService,
+		ResourceComments:   resourceCommentService,
+		Search:             search,
+		ContentRanking:     contentRanking,
+		Tags:               tagService,
+		Notifications:      notifications,
+		NotificationRepo:   notificationRepo,
+		NotificationOutbox: notificationOutbox,
+		Reports:            reports,
+		Admin:              admin,
+		AdminLogs:          adminLogs,
+		AIAssistant:        service.NewAIAssistantService(service.AIAssistantConfig{APIKey: cfg.AIAPIKey, EmbeddingURL: cfg.AIEmbeddingURL, EmbeddingModel: cfg.AIEmbeddingModel, ChatURL: cfg.AIChatURL, ChatModel: cfg.AIChatModel, RerankURL: cfg.AIRerankURL, RerankModel: cfg.AIRerankModel, MilvusURL: cfg.AIMilvusURL, MilvusCollection: cfg.AIMilvusCollection}),
 	}
 }

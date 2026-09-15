@@ -18,6 +18,10 @@
           />
         </div>
         <div class="navbar-right">
+          <AiAssistantPanel
+            :article-id="currentArticleId"
+            :context-label="currentArticleId ? '当前文章知识库' : '全站文章知识库'"
+          />
           <template v-if="auth.isLoggedIn">
             <NotificationBell />
             <el-dropdown trigger="click" @command="handleCommand">
@@ -59,11 +63,13 @@ import { useRoute, useRouter } from 'vue-router'
 import { Search } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import NotificationBell from './NotificationBell.vue'
+import AiAssistantPanel from './AiAssistantPanel.vue'
 
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
 const searchKeyword = ref('')
+const currentArticleId = computed(() => route.name === 'article-detail' && route.params.id ? Number(route.params.id) : undefined)
 const searchType = computed(() => {
   if (route.path === '/skills') return 'skill'
   if (route.path === '/mcps') return 'mcp_server'
