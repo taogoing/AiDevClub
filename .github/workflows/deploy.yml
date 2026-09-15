@@ -52,7 +52,7 @@ jobs:
 
       - name: Create .env on server
         run: |
-          ssh -i ~/.ssh/deploy_key ${{ env.SERVER_USERNAME }}@${{ env.SERVER_HOST }} "printf 'MYSQL_ROOT_PASSWORD=%s\nJWT_SECRET=%s\nPUBLIC_BASE_URL=https://aidevclub.xyz\nADMIN_EMAILS=%s\nCERTBOT_EMAIL=%s\n' '${{ secrets.MYSQL_ROOT_PASSWORD }}' '${{ secrets.JWT_SECRET }}' '${{ secrets.ADMIN_EMAILS }}' '${{ secrets.CERTBOT_EMAIL }}' > ${{ env.DEPLOY_DIR }}/.env"
+          ssh -i ~/.ssh/deploy_key ${{ env.SERVER_USERNAME }}@${{ env.SERVER_HOST }} "printf 'MYSQL_ROOT_PASSWORD=%s\nJWT_SECRET=%s\nPUBLIC_BASE_URL=https://aidevclub.xyz\nADMIN_EMAILS=%s\nCERTBOT_EMAIL=%s\nAI_API_KEY=%s\n' '${{ secrets.MYSQL_ROOT_PASSWORD }}' '${{ secrets.JWT_SECRET }}' '${{ secrets.ADMIN_EMAILS }}' '${{ secrets.CERTBOT_EMAIL }}' '${{ secrets.AI_API_KEY }}' > ${{ env.DEPLOY_DIR }}/.env"
 
       - name: Deploy on server
         run: |
