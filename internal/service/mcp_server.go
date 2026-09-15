@@ -401,6 +401,7 @@ func (s *McpServerService) ToggleLike(ctx context.Context, userID, serverID uint
 	}
 	var liked bool
 	var newCount int
+	notification := &NotificationDraft{UserID: sv.AuthorID, Type: model.NotifTypeLikeMcpServer, Title: "点赞", Content: "有人赞了你的 MCP Server", ResourceType: "mcp_server", ResourceID: serverID, ActorID: userID}
 	err = s.servers.DB().Transaction(func(tx *gorm.DB) error {
 		var err error
 		liked, err = s.inter.ToggleMcpServerLike(tx, userID, serverID)
@@ -415,6 +416,9 @@ func (s *McpServerService) ToggleLike(ctx context.Context, userID, serverID uint
 			return err
 		}
 		newCount = sv.LikesCount + delta
+		if liked {
+			return s.notifSvc.EnqueueInTx(tx, notification)
+		}
 		return nil
 	})
 	if err == nil {
@@ -426,9 +430,7 @@ func (s *McpServerService) ToggleLike(ctx context.Context, userID, serverID uint
 			_ = s.contentRanking.AddScore(ctx, RankedContentMcpServer, serverID, delta)
 		}
 		if liked {
-			go func() {
-				_ = s.notifSvc.Create(context.Background(), sv.AuthorID, model.NotifTypeLikeMcpServer, "点赞", "有人赞了你的 MCP Server", "mcp_server", serverID, userID)
-			}()
+			s.notifSvc.DeliverAfterCommit(ctx, notification)
 		}
 	}
 	return liked, newCount, err
@@ -441,6 +443,7 @@ func (s *McpServerService) ToggleFavorite(ctx context.Context, userID, serverID 
 	}
 	var favorited bool
 	var newCount int
+	notification := &NotificationDraft{UserID: sv.AuthorID, Type: model.NotifTypeFavoriteMcpServer, Title: "收藏", Content: "有人收藏了你的 MCP Server", ResourceType: "mcp_server", ResourceID: serverID, ActorID: userID}
 	err = s.servers.DB().Transaction(func(tx *gorm.DB) error {
 		var err error
 		favorited, err = s.inter.ToggleMcpServerFavorite(tx, userID, serverID)
@@ -454,6 +457,11 @@ func (s *McpServerService) ToggleFavorite(ctx context.Context, userID, serverID 
 		if err := s.servers.IncrCount(tx, serverID, "favorites_count", delta); err != nil {
 			return err
 		}
+		if favorited {
+			if err := s.notifSvc.EnqueueInTx(tx, notification); err != nil {
+				return err
+			}
+		}
 		newCount = sv.FavoritesCount + delta
 		return nil
 	})
@@ -463,6 +471,9 @@ func (s *McpServerService) ToggleFavorite(ctx context.Context, userID, serverID 
 			delta = -2
 		}
 		_ = s.contentRanking.AddScore(ctx, RankedContentMcpServer, serverID, delta)
+	}
+	if err == nil && favorited {
+		s.notifSvc.DeliverAfterCommit(ctx, notification)
 	}
 	return favorited, newCount, err
 }

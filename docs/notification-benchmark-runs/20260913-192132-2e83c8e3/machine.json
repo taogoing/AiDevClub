@@ -1,0 +1,21 @@
+{
+  "captured_at": "2026-09-13T19:21:43.2061047+08:00",
+  "os": "Microsoft Windows 11 专业版",
+  "os_version": "10.0.26200",
+  "architecture": "AMD64",
+  "cpu": "12th Gen Intel(R) Core(TM) i9-12900H",
+  "logical_processors": 20,
+  "physical_memory_bytes": 16890978304,
+  "docker_engine_version": "29.6.2",
+  "mysql_image": "mysql:8",
+  "redis_image": "redis:7",
+  "rabbitmq_image": "rabbitmq:4-management",
+  "k6_version": "k6.exe v2.2.0 (commit/00a9a1b7f5, go1.26.5, windows/amd64)",
+  "vus": 20,
+  "duration": "30s",
+  "actions": [
+    "like",
+    "favorite",
+    "comment"
+  ]
+}

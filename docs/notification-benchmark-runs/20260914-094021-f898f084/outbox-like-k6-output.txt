@@ -1,0 +1,66 @@
+
+         /\      Grafana   /‾‾/  
+    /\  /  \     |\  __   /  /   
+   /  \/    \    | |/ /  /   ‾‾\ 
+  /          \   |   (  |  (‾)  |
+ / __________ \  |_|\_\  \_____/ 
+
+
+     execution: local
+        script: E:\goProject\library\src\GoStudy\AiDevClub\scripts\notification-benchmark.js
+        output: -
+
+     scenarios: (100.00%) 1 scenario, 2 max VUs, 10s max duration (incl. graceful stop):
+              * notification_write: 2 looping VUs for 5s (gracefulStop: 5s)
+
+
+running (01.0s), 2/2 VUs, 6 complete and 0 interrupted iterations
+notification_write   [  20% ] 2 VUs  1.0s/5s
+
+running (02.0s), 2/2 VUs, 13 complete and 0 interrupted iterations
+notification_write   [  40% ] 2 VUs  2.0s/5s
+
+running (03.0s), 2/2 VUs, 20 complete and 0 interrupted iterations
+notification_write   [  60% ] 2 VUs  3.0s/5s
+
+running (04.0s), 2/2 VUs, 28 complete and 0 interrupted iterations
+notification_write   [  80% ] 2 VUs  4.0s/5s
+
+running (05.0s), 2/2 VUs, 36 complete and 0 interrupted iterations
+notification_write   [ 100% ] 2 VUs  5.0s/5s
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 38      7.24173/s
+    checks_succeeded...: 100.00% 38 out of 38
+    checks_failed......: 0.00%   0 out of 38
+
+    ✓ like endpoint returns HTTP 200
+
+    CUSTOM
+    benchmark_error_rate...........: 0.00%  0 out of 38
+    benchmark_request_duration.....: avg=269.92ms min=249.01ms med=266.12ms max=324.13ms p(90)=292.25ms p(95)=310.42ms p(99)=323.5ms 
+    benchmark_requests.............: 38     7.24173/s
+
+    HTTP
+    http_req_duration..............: avg=269.92ms min=249.01ms med=266.12ms max=324.13ms p(90)=292.25ms p(95)=310.42ms p(99)=323.5ms 
+      { expected_response:true }...: avg=269.92ms min=249.01ms med=266.12ms max=324.13ms p(90)=292.25ms p(95)=310.42ms p(99)=323.5ms 
+    http_req_failed................: 0.00%  0 out of 38
+    http_reqs......................: 38     7.24173/s
+
+    EXECUTION
+    iteration_duration.............: avg=271.91ms min=249.01ms med=267.41ms max=359.76ms p(90)=300.43ms p(95)=310.87ms p(99)=345.94ms
+    iterations.....................: 38     7.24173/s
+    vus............................: 2      min=2       max=2
+    vus_max........................: 2      min=2       max=2
+
+    NETWORK
+    data_received..................: 7.1 kB 1.4 kB/s
+    data_sent......................: 12 kB  2.3 kB/s
+
+
+
+
+running (05.2s), 0/2 VUs, 38 complete and 0 interrupted iterations
+notification_write ✓ [ 100% ] 2 VUs  5s

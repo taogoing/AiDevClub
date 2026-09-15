@@ -1,0 +1,141 @@
+
+         /\      Grafana   /‾‾/  
+    /\  /  \     |\  __   /  /   
+   /  \/    \    | |/ /  /   ‾‾\ 
+  /          \   |   (  |  (‾)  |
+ / __________ \  |_|\_\  \_____/ 
+
+
+     execution: local
+        script: E:\goProject\library\src\GoStudy\AiDevClub\scripts\notification-benchmark.js
+        output: -
+
+     scenarios: (100.00%) 1 scenario, 20 max VUs, 35s max duration (incl. graceful stop):
+              * notification_write: 20 looping VUs for 30s (gracefulStop: 5s)
+
+
+running (01.0s), 20/20 VUs, 60 complete and 0 interrupted iterations
+notification_write   [   3% ] 20 VUs  01.0s/30s
+
+running (02.0s), 20/20 VUs, 123 complete and 0 interrupted iterations
+notification_write   [   7% ] 20 VUs  02.0s/30s
+
+running (03.0s), 20/20 VUs, 198 complete and 0 interrupted iterations
+notification_write   [  10% ] 20 VUs  03.0s/30s
+
+running (04.0s), 20/20 VUs, 265 complete and 0 interrupted iterations
+notification_write   [  13% ] 20 VUs  04.0s/30s
+
+running (05.0s), 20/20 VUs, 337 complete and 0 interrupted iterations
+notification_write   [  17% ] 20 VUs  05.0s/30s
+
+running (06.0s), 20/20 VUs, 406 complete and 0 interrupted iterations
+notification_write   [  20% ] 20 VUs  06.0s/30s
+
+running (07.0s), 20/20 VUs, 475 complete and 0 interrupted iterations
+notification_write   [  23% ] 20 VUs  07.0s/30s
+
+running (08.0s), 20/20 VUs, 544 complete and 0 interrupted iterations
+notification_write   [  27% ] 20 VUs  08.0s/30s
+
+running (09.0s), 20/20 VUs, 612 complete and 0 interrupted iterations
+notification_write   [  30% ] 20 VUs  09.0s/30s
+
+running (10.0s), 20/20 VUs, 678 complete and 0 interrupted iterations
+notification_write   [  33% ] 20 VUs  10.0s/30s
+
+running (11.0s), 20/20 VUs, 747 complete and 0 interrupted iterations
+notification_write   [  37% ] 20 VUs  11.0s/30s
+
+running (12.0s), 20/20 VUs, 819 complete and 0 interrupted iterations
+notification_write   [  40% ] 20 VUs  12.0s/30s
+
+running (13.0s), 20/20 VUs, 885 complete and 0 interrupted iterations
+notification_write   [  43% ] 20 VUs  13.0s/30s
+
+running (14.0s), 20/20 VUs, 959 complete and 0 interrupted iterations
+notification_write   [  47% ] 20 VUs  14.0s/30s
+
+running (15.0s), 20/20 VUs, 1024 complete and 0 interrupted iterations
+notification_write   [  50% ] 20 VUs  15.0s/30s
+
+running (16.0s), 20/20 VUs, 1091 complete and 0 interrupted iterations
+notification_write   [  53% ] 20 VUs  16.0s/30s
+
+running (17.0s), 20/20 VUs, 1165 complete and 0 interrupted iterations
+notification_write   [  57% ] 20 VUs  17.0s/30s
+
+running (18.0s), 20/20 VUs, 1228 complete and 0 interrupted iterations
+notification_write   [  60% ] 20 VUs  18.0s/30s
+
+running (19.0s), 20/20 VUs, 1292 complete and 0 interrupted iterations
+notification_write   [  63% ] 20 VUs  19.0s/30s
+
+running (20.0s), 20/20 VUs, 1370 complete and 0 interrupted iterations
+notification_write   [  67% ] 20 VUs  20.0s/30s
+
+running (21.0s), 20/20 VUs, 1435 complete and 0 interrupted iterations
+notification_write   [  70% ] 20 VUs  21.0s/30s
+
+running (22.0s), 20/20 VUs, 1501 complete and 0 interrupted iterations
+notification_write   [  73% ] 20 VUs  22.0s/30s
+
+running (23.0s), 20/20 VUs, 1578 complete and 0 interrupted iterations
+notification_write   [  77% ] 20 VUs  23.0s/30s
+
+running (24.0s), 20/20 VUs, 1648 complete and 0 interrupted iterations
+notification_write   [  80% ] 20 VUs  24.0s/30s
+
+running (25.0s), 20/20 VUs, 1715 complete and 0 interrupted iterations
+notification_write   [  83% ] 20 VUs  25.0s/30s
+
+running (26.0s), 20/20 VUs, 1784 complete and 0 interrupted iterations
+notification_write   [  87% ] 20 VUs  26.0s/30s
+
+running (27.0s), 20/20 VUs, 1853 complete and 0 interrupted iterations
+notification_write   [  90% ] 20 VUs  27.0s/30s
+
+running (28.0s), 20/20 VUs, 1921 complete and 0 interrupted iterations
+notification_write   [  93% ] 20 VUs  28.0s/30s
+
+running (29.0s), 20/20 VUs, 1991 complete and 0 interrupted iterations
+notification_write   [  97% ] 20 VUs  29.0s/30s
+
+running (30.0s), 20/20 VUs, 2056 complete and 0 interrupted iterations
+notification_write   [ 100% ] 20 VUs  30.0s/30s
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 2078    68.661868/s
+    checks_succeeded...: 100.00% 2078 out of 2078
+    checks_failed......: 0.00%   0 out of 2078
+
+    ✓ comment endpoint returns HTTP 200
+
+    CUSTOM
+    benchmark_error_rate...........: 0.00%  0 out of 2078
+    benchmark_request_duration.....: avg=289.64ms min=171.88ms med=290.32ms max=369.59ms p(90)=310.61ms p(95)=319.64ms p(99)=333.19ms
+    benchmark_requests.............: 2078   68.661868/s
+
+    HTTP
+    http_req_duration..............: avg=289.64ms min=171.88ms med=290.32ms max=369.59ms p(90)=310.61ms p(95)=319.64ms p(99)=333.19ms
+      { expected_response:true }...: avg=289.64ms min=171.88ms med=290.32ms max=369.59ms p(90)=310.61ms p(95)=319.64ms p(99)=333.19ms
+    http_req_failed................: 0.00%  0 out of 2078
+    http_reqs......................: 2078   68.661868/s
+
+    EXECUTION
+    iteration_duration.............: avg=289.97ms min=171.86ms med=290.34ms max=382.61ms p(90)=310.8ms  p(95)=319.89ms p(99)=343.5ms 
+    iterations.....................: 2078   68.661868/s
+    vus............................: 20     min=20        max=20
+    vus_max........................: 20     min=20        max=20
+
+    NETWORK
+    data_received..................: 347 kB 12 kB/s
+    data_sent......................: 811 kB 27 kB/s
+
+
+
+
+running (30.3s), 00/20 VUs, 2078 complete and 0 interrupted iterations
+notification_write ✓ [ 100% ] 20 VUs  30s

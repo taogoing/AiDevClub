@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"aidevclub/internal/model"
 )
@@ -14,6 +15,15 @@ func NewNotificationRepo(db *gorm.DB) *NotificationRepo { return &NotificationRe
 
 func (r *NotificationRepo) Create(n *model.Notification) error {
 	return r.db.Create(n).Error
+}
+
+// CreateFromOutboxEvent is idempotent on the unique event id. A duplicate event
+// is already processed and is therefore safe for the consumer to ACK.
+func (r *NotificationRepo) CreateFromOutboxEvent(ctx context.Context, n *model.Notification) error {
+	return r.db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "event_id"}},
+		DoNothing: true,
+	}).Create(n).Error
 }
 
 func (r *NotificationRepo) CreateBatch(notifications []*model.Notification) error {

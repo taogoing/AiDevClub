@@ -48,32 +48,37 @@ func (s *CommentService) Create(ctx context.Context, userID, articleID uint, con
 		}
 	}
 	c := &model.Comment{ArticleID: articleID, AuthorID: userID, ParentID: parentID, ReplyToID: replyToID, Content: content}
+	notification := s.commentNotificationDraft(a.AuthorID, userID, articleID, replyToID, content)
 	err = s.articles.DB().Transaction(func(tx *gorm.DB) error {
 		if err := s.comments.Create(tx, c); err != nil {
 			return err
 		}
-		return s.articles.IncrCount(tx, articleID, "comments_count", 1)
+		if err := s.articles.IncrCount(tx, articleID, "comments_count", 1); err != nil {
+			return err
+		}
+		return s.notifSvc.EnqueueInTx(tx, notification)
 	})
 	if err == nil {
 		if s.contentRanking != nil {
 			_ = s.contentRanking.AddScore(ctx, RankedContentArticle, articleID, 3)
 		}
-		go s.sendCommentNotification(context.Background(), a.AuthorID, userID, articleID, replyToID, content)
+		s.notifSvc.DeliverAfterCommit(ctx, notification)
 	}
 	return c, err
 }
 
-func (s *CommentService) sendCommentNotification(ctx context.Context, articleAuthorID, userID, articleID uint, replyToID *uint, content string) {
+func (s *CommentService) commentNotificationDraft(articleAuthorID, userID, articleID uint, replyToID *uint, content string) *NotificationDraft {
 	if replyToID != nil {
 		rc, err := s.comments.FindByID(nil, *replyToID)
 		if err == nil && rc.AuthorID != userID {
-			_ = s.notifSvc.Create(ctx, rc.AuthorID, model.NotifTypeReplyComment, "新回复", content, "article", articleID, userID)
+			return &NotificationDraft{UserID: rc.AuthorID, Type: model.NotifTypeReplyComment, Title: "新回复", Content: content, ResourceType: "article", ResourceID: articleID, ActorID: userID}
 		}
-		return
+		return nil
 	}
 	if articleAuthorID != userID {
-		_ = s.notifSvc.Create(ctx, articleAuthorID, model.NotifTypeCommentArticle, "新评论", content, "article", articleID, userID)
+		return &NotificationDraft{UserID: articleAuthorID, Type: model.NotifTypeCommentArticle, Title: "新评论", Content: content, ResourceType: "article", ResourceID: articleID, ActorID: userID}
 	}
+	return nil
 }
 
 func (s *CommentService) List(ctx context.Context, articleID uint) ([]CommentItem, error) {
@@ -190,6 +195,7 @@ func (s *CommentService) ToggleLike(ctx context.Context, userID, commentID uint)
 	}
 	var liked bool
 	var newCount int
+	notification := &NotificationDraft{UserID: c.AuthorID, Type: model.NotifTypeLikeComment, Title: "点赞", Content: "有人赞了你的评论", ResourceType: "comment", ResourceID: commentID, ActorID: userID}
 	err = s.articles.DB().Transaction(func(tx *gorm.DB) error {
 		var err error
 		liked, err = s.inter.ToggleCommentLike(tx, userID, commentID)
@@ -204,12 +210,13 @@ func (s *CommentService) ToggleLike(ctx context.Context, userID, commentID uint)
 			return err
 		}
 		newCount = c.LikesCount + delta
+		if liked {
+			return s.notifSvc.EnqueueInTx(tx, notification)
+		}
 		return nil
 	})
 	if err == nil && liked {
-		go func() {
-			_ = s.notifSvc.Create(context.Background(), c.AuthorID, model.NotifTypeLikeComment, "点赞", "有人赞了你的评论", "comment", commentID, userID)
-		}()
+		s.notifSvc.DeliverAfterCommit(ctx, notification)
 	}
 	return liked, newCount, err
 }

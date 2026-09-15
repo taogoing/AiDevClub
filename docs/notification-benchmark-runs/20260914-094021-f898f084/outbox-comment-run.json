@@ -1,0 +1,15 @@
+{
+  "mode": "outbox",
+  "action": "comment",
+  "article_id": 47,
+  "users": 2,
+  "concurrency": 2,
+  "duration": "5s",
+  "auth": "dedicated local JWT access tokens; one user per VU; same secret and middleware in each mode",
+  "k6_version": "k6.exe v2.2.0 (commit/00a9a1b7f5, go1.26.5, windows/amd64)",
+  "application_average_cpu_percent_of_machine": 0.0,
+  "application_peak_working_set_bytes": 69029888.0,
+  "sample_count": 2,
+  "summary_file": "outbox-comment-k6-summary.json",
+  "resource_samples_file": "outbox-comment-resource-samples.jsonl"
+}

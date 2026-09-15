@@ -11,6 +11,7 @@ func TestNewTestDBMigratesAllModels(t *testing.T) {
 	for _, m := range []interface{}{
 		&model.Tag{}, &model.Article{}, &model.ArticleTag{},
 		&model.ArticleLike{}, &model.ArticleFavorite{}, &model.Comment{}, &model.CommentLike{},
+		&model.Notification{}, &model.NotificationOutboxEvent{},
 	} {
 		if !db.Migrator().HasTable(m) {
 			t.Fatalf("table %T not migrated", m)

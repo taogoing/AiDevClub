@@ -32,7 +32,7 @@ func Migrate(db *gorm.DB) error {
 		&model.SkillLike{}, &model.SkillFavorite{},
 		&model.McpServerLike{}, &model.McpServerFavorite{},
 		&model.ResourceComment{}, &model.ResourceCommentLike{},
-		&model.Notification{}, &model.Report{}, &model.AdminLog{}, &model.Announcement{},
+		&model.Notification{}, &model.NotificationOutboxEvent{}, &model.Report{}, &model.AdminLog{}, &model.Announcement{},
 	); err != nil {
 		return err
 	}

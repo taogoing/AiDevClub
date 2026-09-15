@@ -50,6 +50,18 @@ func TestLoadConfigMCPEnvironment(t *testing.T) {
 	assert.Equal(t, []string{"https://admin.example", "http://localhost:5173"}, cfg.MCPAllowedOrigins)
 }
 
+func TestLoadConfigNotificationMode(t *testing.T) {
+	t.Setenv("AIDEVCLUB_NOTIFICATION_MODE", "sync")
+	t.Setenv("AIDEVCLUB_NOTIFICATION_RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.NotificationMode != "sync" || cfg.RabbitMQURL != "amqp://guest:guest@localhost:5672/" {
+		t.Fatalf("notification config = mode:%q url:%q", cfg.NotificationMode, cfg.RabbitMQURL)
+	}
+}
+
 func TestLoadConfigRejectsInvalidPublicBaseURL(t *testing.T) {
 	for _, value := range []string{"/local", "ftp://aidevclub.example"} {
 		t.Run(value, func(t *testing.T) {

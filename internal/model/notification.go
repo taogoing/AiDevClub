@@ -10,6 +10,9 @@ const (
 	NotifTypeLikeArticle         NotifType = "like_article"
 	NotifTypeLikeSkill           NotifType = "like_skill"
 	NotifTypeLikeMcpServer       NotifType = "like_mcp_server"
+	NotifTypeFavoriteArticle     NotifType = "favorite_article"
+	NotifTypeFavoriteSkill       NotifType = "favorite_skill"
+	NotifTypeFavoriteMcpServer   NotifType = "favorite_mcp_server"
 	NotifTypeLikeComment         NotifType = "like_comment"
 	NotifTypeLikeResourceComment NotifType = "like_resource_comment"
 	NotifTypeResourceApproved    NotifType = "resource_approved"
@@ -20,6 +23,7 @@ const (
 
 type Notification struct {
 	ID           uint      `gorm:"primaryKey"`
+	EventID      *string   `gorm:"size:64;uniqueIndex:uniq_notification_event_id"`
 	UserID       uint      `gorm:"not null;index:idx_user_read"`
 	Type         NotifType `gorm:"size:32;not null"`
 	Title        string    `gorm:"size:200;not null"`

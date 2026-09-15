@@ -253,8 +253,6 @@ func (s *ArticleService) List(ctx context.Context, q ListQuery) (*ArticleListRes
 		q.Sort = "latest"
 	}
 
-
-
 	rq := repo.ArticleQuery{
 		Page: q.Page, PageSize: q.PageSize,
 		TagID:   q.TagID,
@@ -308,6 +306,7 @@ func (s *ArticleService) ToggleLike(ctx context.Context, userID, articleID uint)
 	}
 	var liked bool
 	var newCount int
+	notification := &NotificationDraft{UserID: a.AuthorID, Type: model.NotifTypeLikeArticle, Title: "点赞", Content: "有人赞了你的文章", ResourceType: "article", ResourceID: articleID, ActorID: userID}
 	err = s.articles.DB().Transaction(func(tx *gorm.DB) error {
 		var err error
 		liked, err = s.inter.ToggleArticleLike(tx, userID, articleID)
@@ -322,6 +321,9 @@ func (s *ArticleService) ToggleLike(ctx context.Context, userID, articleID uint)
 			return err
 		}
 		newCount = a.LikesCount + delta
+		if liked {
+			return s.notifSvc.EnqueueInTx(tx, notification)
+		}
 		return nil
 	})
 	if err == nil {
@@ -333,9 +335,7 @@ func (s *ArticleService) ToggleLike(ctx context.Context, userID, articleID uint)
 			_ = s.contentRanking.AddScore(ctx, RankedContentArticle, articleID, delta)
 		}
 		if liked {
-			go func() {
-				_ = s.notifSvc.Create(context.Background(), a.AuthorID, model.NotifTypeLikeArticle, "点赞", "有人赞了你的文章", "article", articleID, userID)
-			}()
+			s.notifSvc.DeliverAfterCommit(ctx, notification)
 		}
 	}
 	return liked, newCount, err
@@ -348,6 +348,7 @@ func (s *ArticleService) ToggleFavorite(ctx context.Context, userID, articleID u
 	}
 	var favorited bool
 	var newCount int
+	notification := &NotificationDraft{UserID: a.AuthorID, Type: model.NotifTypeFavoriteArticle, Title: "收藏", Content: "有人收藏了你的文章", ResourceType: "article", ResourceID: articleID, ActorID: userID}
 	err = s.articles.DB().Transaction(func(tx *gorm.DB) error {
 		var err error
 		favorited, err = s.inter.ToggleArticleFavorite(tx, userID, articleID)
@@ -361,6 +362,11 @@ func (s *ArticleService) ToggleFavorite(ctx context.Context, userID, articleID u
 		if err := s.articles.IncrCount(tx, articleID, "favorites_count", delta); err != nil {
 			return err
 		}
+		if favorited {
+			if err := s.notifSvc.EnqueueInTx(tx, notification); err != nil {
+				return err
+			}
+		}
 		newCount = a.FavoritesCount + delta
 		return nil
 	})
@@ -370,6 +376,9 @@ func (s *ArticleService) ToggleFavorite(ctx context.Context, userID, articleID u
 			delta = -2
 		}
 		_ = s.contentRanking.AddScore(ctx, RankedContentArticle, articleID, delta)
+	}
+	if err == nil && favorited {
+		s.notifSvc.DeliverAfterCommit(ctx, notification)
 	}
 	return favorited, newCount, err
 }

@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	ErrResCommentNotFound = platform.NewBizError(http.StatusNotFound, platform.CodeResCommentNotFound, "资源评论不存在")
+	ErrResCommentNotFound  = platform.NewBizError(http.StatusNotFound, platform.CodeResCommentNotFound, "资源评论不存在")
 	ErrResCommentBadParent = platform.NewBizError(http.StatusBadRequest, platform.CodeBizError, "父评论不合法")
 	ErrResourceNotFound    = platform.NewBizError(http.StatusNotFound, platform.CodeBizError, "资源不存在或不可见")
 	ErrResCommentForbidden = platform.NewBizError(http.StatusForbidden, platform.CodeForbidden, "无权限")
@@ -55,12 +55,12 @@ func (s *ResourceCommentService) checkResourcePublished(resourceType string, res
 	}
 }
 
-func (s *ResourceCommentService) incrCommentsCount(resourceType string, resourceID uint, delta int) error {
+func (s *ResourceCommentService) incrCommentsCount(tx *gorm.DB, resourceType string, resourceID uint, delta int) error {
 	switch resourceType {
 	case "skill":
-		return s.skills.IncrCount(nil, resourceID, "comments_count", delta)
+		return s.skills.IncrCount(tx, resourceID, "comments_count", delta)
 	case "mcp_server":
-		return s.mcpServers.IncrCount(nil, resourceID, "comments_count", delta)
+		return s.mcpServers.IncrCount(tx, resourceID, "comments_count", delta)
 	default:
 		return nil
 	}
@@ -92,11 +92,15 @@ func (s *ResourceCommentService) Create(ctx context.Context, userID uint, resour
 		ReplyToID:    replyToID,
 		Content:      content,
 	}
+	notification := s.resourceCommentNotificationDraft(userID, resourceType, resourceID, replyToID, content)
 	err = s.getDB().Transaction(func(tx *gorm.DB) error {
 		if err := s.comments.Create(tx, c); err != nil {
 			return err
 		}
-		return s.incrCommentsCount(resourceType, resourceID, 1)
+		if err := s.incrCommentsCount(tx, resourceType, resourceID, 1); err != nil {
+			return err
+		}
+		return s.notifSvc.EnqueueInTx(tx, notification)
 	})
 	if err == nil {
 		if s.contentRanking != nil {
@@ -104,26 +108,27 @@ func (s *ResourceCommentService) Create(ctx context.Context, userID uint, resour
 				_ = s.contentRanking.AddScore(ctx, ct, resourceID, 3)
 			}
 		}
-		go s.sendResCommentNotification(context.Background(), userID, resourceType, resourceID, replyToID, content)
+		s.notifSvc.DeliverAfterCommit(ctx, notification)
 	}
 	return c, err
 }
 
-func (s *ResourceCommentService) sendResCommentNotification(ctx context.Context, userID uint, resourceType string, resourceID uint, replyToID *uint, content string) {
+func (s *ResourceCommentService) resourceCommentNotificationDraft(userID uint, resourceType string, resourceID uint, replyToID *uint, content string) *NotificationDraft {
 	if replyToID != nil {
 		rc, err := s.comments.FindByID(nil, *replyToID)
 		if err == nil && rc.AuthorID != userID {
-			_ = s.notifSvc.Create(ctx, rc.AuthorID, model.NotifTypeReplyComment, "新回复", content, resourceType, resourceID, userID)
+			return &NotificationDraft{UserID: rc.AuthorID, Type: model.NotifTypeReplyComment, Title: "新回复", Content: content, ResourceType: resourceType, ResourceID: resourceID, ActorID: userID}
 		}
-		return
+		return nil
 	}
 	authorID, err := s.checkResourcePublished(resourceType, resourceID)
 	if err != nil {
-		return
+		return nil
 	}
 	if authorID != userID {
-		_ = s.notifSvc.Create(ctx, authorID, model.NotifTypeCommentArticle, "新评论", content, resourceType, resourceID, userID)
+		return &NotificationDraft{UserID: authorID, Type: model.NotifTypeCommentArticle, Title: "新评论", Content: content, ResourceType: resourceType, ResourceID: resourceID, ActorID: userID}
 	}
+	return nil
 }
 
 func (s *ResourceCommentService) List(ctx context.Context, resourceType string, resourceID uint) ([]ResourceCommentItem, error) {
@@ -224,7 +229,7 @@ func (s *ResourceCommentService) Delete(ctx context.Context, userID, commentID u
 		if err := s.comments.Delete(tx, commentID); err != nil {
 			return err
 		}
-		return s.incrCommentsCount(c.ResourceType, c.ResourceID, -1)
+		return s.incrCommentsCount(tx, c.ResourceType, c.ResourceID, -1)
 	})
 	if err == nil && s.contentRanking != nil {
 		if ct, ok := rankedResourceType(c.ResourceType); ok {
@@ -241,6 +246,7 @@ func (s *ResourceCommentService) ToggleLike(ctx context.Context, userID, comment
 	}
 	var liked bool
 	var newCount int
+	notification := &NotificationDraft{UserID: c.AuthorID, Type: model.NotifTypeLikeResourceComment, Title: "点赞", Content: "有人赞了你的评论", ResourceType: c.ResourceType, ResourceID: commentID, ActorID: userID}
 	err = s.getDB().Transaction(func(tx *gorm.DB) error {
 		var err error
 		liked, err = s.inter.ToggleResourceCommentLike(tx, userID, commentID)
@@ -255,12 +261,13 @@ func (s *ResourceCommentService) ToggleLike(ctx context.Context, userID, comment
 			return err
 		}
 		newCount = c.LikesCount + delta
+		if liked {
+			return s.notifSvc.EnqueueInTx(tx, notification)
+		}
 		return nil
 	})
 	if err == nil && liked {
-		go func() {
-			_ = s.notifSvc.Create(context.Background(), c.AuthorID, model.NotifTypeLikeResourceComment, "点赞", "有人赞了你的评论", c.ResourceType, commentID, userID)
-		}()
+		s.notifSvc.DeliverAfterCommit(ctx, notification)
 	}
 	return liked, newCount, err
 }

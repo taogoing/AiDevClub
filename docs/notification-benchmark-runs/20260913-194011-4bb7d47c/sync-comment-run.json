@@ -1,0 +1,15 @@
+{
+  "mode": "sync",
+  "action": "comment",
+  "article_id": 37,
+  "users": 20,
+  "concurrency": 20,
+  "duration": "30s",
+  "auth": "dedicated local JWT access tokens; one user per VU; same secret and middleware in each mode",
+  "k6_version": "k6.exe v2.2.0 (commit/00a9a1b7f5, go1.26.5, windows/amd64)",
+  "application_average_cpu_percent_of_machine": 0.65,
+  "application_peak_working_set_bytes": 75591680.0,
+  "sample_count": 8,
+  "summary_file": "sync-comment-k6-summary.json",
+  "resource_samples_file": "sync-comment-resource-samples.jsonl"
+}

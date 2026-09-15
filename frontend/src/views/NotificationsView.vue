@@ -90,9 +90,19 @@ const formatTime = (time: string) => {
 
 const getTagType = (type: string) => {
   const types: Record<string, string> = {
-    'like': 'danger',
-    'comment': 'primary',
-    'system': 'warning',
+    like_article: 'danger',
+    like_skill: 'danger',
+    like_mcp_server: 'danger',
+    favorite_article: 'warning',
+    favorite_skill: 'warning',
+    favorite_mcp_server: 'warning',
+    like_comment: 'danger',
+    like_resource_comment: 'danger',
+    comment_article: 'primary',
+    reply_comment: 'primary',
+    resource_approved: 'success',
+    resource_rejected: 'danger',
+    report_resolved: 'warning',
     'announcement': 'success'
   }
   return (types[type] || 'info') as any
@@ -100,9 +110,19 @@ const getTagType = (type: string) => {
 
 const getTypeName = (type: string) => {
   const names: Record<string, string> = {
-    'like': '点赞',
-    'comment': '评论',
-    'system': '系统',
+    like_article: '文章点赞',
+    like_skill: 'Skill 点赞',
+    like_mcp_server: 'MCP Server 点赞',
+    favorite_article: '文章收藏',
+    favorite_skill: 'Skill 收藏',
+    favorite_mcp_server: 'MCP Server 收藏',
+    like_comment: '评论点赞',
+    like_resource_comment: '资源评论点赞',
+    comment_article: '文章评论',
+    reply_comment: '评论回复',
+    resource_approved: '资源审核通过',
+    resource_rejected: '资源审核未通过',
+    report_resolved: '举报处理',
     'announcement': '公告'
   }
   return names[type] || type

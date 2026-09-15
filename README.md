@@ -34,6 +34,7 @@
 | 前端 | Vue 3、TypeScript、Vite、Element Plus、Pinia |
 | 数据库 | MySQL 8（中文全文检索使用 ngram parser） |
 | 缓存 | Redis 7 |
+| 异步通知 | RabbitMQ 4（管理界面）+ MySQL Transactional Outbox |
 | 接口 | REST API、Streamable HTTP MCP |
 | 部署 | Docker Compose、Nginx |
 
@@ -75,6 +76,10 @@ docker compose up -d
 
 - MySQL 8：localhost:3306（数据库名和账号凭据请按本地环境配置）
 - Redis 7：localhost:16379
+- RabbitMQ AMQP：localhost:5672
+- RabbitMQ 管理界面：http://localhost:15672（默认本地账号 `notification` / `notification`）
+
+本地 RabbitMQ 凭据可通过 `RABBITMQ_DEFAULT_USER` 和 `RABBITMQ_DEFAULT_PASS` 覆盖；自定义凭据时，同时设置后端的 `AIDEVCLUB_NOTIFICATION_RABBITMQ_URL`。管理端口仅用于本地开发，生产部署默认绑定到服务器回环地址。
 
 ### 2. 启动后端
 
@@ -84,6 +89,29 @@ docker compose up -d
 # REST API：localhost:8080
 go run ./cmd/server
 ~~~
+
+通知默认使用 Outbox 模式。可通过 `AIDEVCLUB_NOTIFICATION_MODE=sync` 切到同步 best-effort 模式；设置为 `outbox` 时，互动和 Outbox 事件在同一 MySQL 事务提交，独立 worker 再投递到 RabbitMQ。RabbitMQ 暂不可用不会阻断互动请求，未投递事件留在 MySQL，worker 会持续按退避间隔重试。
+
+### 通知压测与失败恢复
+
+在 Windows PowerShell 中运行以下命令，会先启动 MySQL、Redis、RabbitMQ，再启动同一个 Go 服务二进制，分别对点赞、收藏和评论接口执行相同的 k6 并发与时长测试：
+
+~~~powershell
+.\scripts\run-notification-benchmark.ps1 -Mode both -VUs 20 -Duration 30s
+~~~
+
+脚本使用独立的本地测试用户和文章，通过专用 JWT 令牌访问真实 HTTP 鉴权中间件。每个场景的 k6 原始汇总、机器配置、应用进程 CPU/内存采样和 MySQL/Redis/RabbitMQ 容器资源采样写入 `docs/notification-benchmark-runs/<时间>-<随机标识>/`。测试结束后以 `docs/notification-sync-benchmark.md` 与 `docs/notification-rabbitmq-benchmark.md` 中记录的实测值为准；旧热榜压测数据与本测试无关。
+
+消费者对数据库写入失败采用 1 秒、5 秒、30 秒延迟重试，最多重试 8 次后将消息转入 `aidevclub.notifications.dead` 死信队列。排查时先在 RabbitMQ 管理界面查看死信消息的 `event_id` 和错误头，修复根因后可在 MySQL 重新开放对应 Outbox 事件：
+
+~~~sql
+UPDATE notification_outbox_events
+SET status = 'pending', retry_count = 0, next_retry_at = NULL,
+    locked_until = NULL, lease_token = '', last_error = NULL, published_at = NULL
+WHERE event_id = '<event-id>' AND status = 'published';
+~~~
+
+Outbox Publisher 会使用原事件 ID 补发，通知表唯一事件索引会阻止重复消费产生重复通知。确认通知已写入后，可从死信队列清理原消息。
 
 如果需要单独运行 MCP Server：
 

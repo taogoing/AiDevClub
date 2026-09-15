@@ -347,6 +347,7 @@ func (s *SkillService) ToggleLike(ctx context.Context, userID, skillID uint) (bo
 	}
 	var liked bool
 	var newCount int
+	notification := &NotificationDraft{UserID: sk.AuthorID, Type: model.NotifTypeLikeSkill, Title: "点赞", Content: "有人赞了你的 Skill", ResourceType: "skill", ResourceID: skillID, ActorID: userID}
 	err = s.skills.DB().Transaction(func(tx *gorm.DB) error {
 		var err error
 		liked, err = s.inter.ToggleSkillLike(tx, userID, skillID)
@@ -361,6 +362,9 @@ func (s *SkillService) ToggleLike(ctx context.Context, userID, skillID uint) (bo
 			return err
 		}
 		newCount = sk.LikesCount + delta
+		if liked {
+			return s.notifSvc.EnqueueInTx(tx, notification)
+		}
 		return nil
 	})
 	if err == nil {
@@ -372,9 +376,7 @@ func (s *SkillService) ToggleLike(ctx context.Context, userID, skillID uint) (bo
 			_ = s.contentRanking.AddScore(ctx, RankedContentSkill, skillID, delta)
 		}
 		if liked {
-			go func() {
-				_ = s.notifSvc.Create(context.Background(), sk.AuthorID, model.NotifTypeLikeSkill, "点赞", "有人赞了你的 Skill", "skill", skillID, userID)
-			}()
+			s.notifSvc.DeliverAfterCommit(ctx, notification)
 		}
 	}
 	return liked, newCount, err
@@ -387,6 +389,7 @@ func (s *SkillService) ToggleFavorite(ctx context.Context, userID, skillID uint)
 	}
 	var favorited bool
 	var newCount int
+	notification := &NotificationDraft{UserID: sk.AuthorID, Type: model.NotifTypeFavoriteSkill, Title: "收藏", Content: "有人收藏了你的 Skill", ResourceType: "skill", ResourceID: skillID, ActorID: userID}
 	err = s.skills.DB().Transaction(func(tx *gorm.DB) error {
 		var err error
 		favorited, err = s.inter.ToggleSkillFavorite(tx, userID, skillID)
@@ -400,6 +403,11 @@ func (s *SkillService) ToggleFavorite(ctx context.Context, userID, skillID uint)
 		if err := s.skills.IncrCount(tx, skillID, "favorites_count", delta); err != nil {
 			return err
 		}
+		if favorited {
+			if err := s.notifSvc.EnqueueInTx(tx, notification); err != nil {
+				return err
+			}
+		}
 		newCount = sk.FavoritesCount + delta
 		return nil
 	})
@@ -409,6 +417,9 @@ func (s *SkillService) ToggleFavorite(ctx context.Context, userID, skillID uint)
 			delta = -2
 		}
 		_ = s.contentRanking.AddScore(ctx, RankedContentSkill, skillID, delta)
+	}
+	if err == nil && favorited {
+		s.notifSvc.DeliverAfterCommit(ctx, notification)
 	}
 	return favorited, newCount, err
 }
