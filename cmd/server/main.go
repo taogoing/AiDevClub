@@ -195,6 +195,9 @@ func main() {
 		notificationMQ.Start(ctx)
 		defer notificationMQ.Close()
 	}
+	indexMQ := service.NewDocumentIndexMQ(cfg.RabbitMQURL, services.DocumentIndexOutbox, services.AIAssistant)
+	indexMQ.Start(ctx)
+	defer indexMQ.Close()
 
 	// Start MCP server in the same process
 	startMCPServer(ctx, cfg, services, infra, logger)

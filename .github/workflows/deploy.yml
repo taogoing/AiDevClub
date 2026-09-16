@@ -62,7 +62,7 @@ jobs:
           docker load -i backend.tar.gz
           docker load -i frontend.tar.gz
           echo "Starting services..."
-          docker compose up -d
+          docker compose up -d --force-recreate --remove-orphans
           echo "Obtaining TLS certificate (HTTPS)..."
           bash obtain-cert.sh
           echo "Checking service status..."

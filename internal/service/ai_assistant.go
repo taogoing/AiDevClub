@@ -19,8 +19,9 @@ type AIAssistantConfig struct {
 	ChatModel        string
 	RerankURL        string
 	RerankModel      string
-	MilvusURL        string
-	MilvusCollection string
+	QdrantURL        string
+	QdrantCollection string
+	VectorDimension  int
 }
 
 type AIAssistantService struct {
@@ -28,9 +29,9 @@ type AIAssistantService struct {
 	client *http.Client
 }
 
-// IndexArticle asynchronously prepares fixed-size Markdown chunks for Milvus.
+// IndexArticle prepares Markdown chunks and writes them to Qdrant.
 func (s *AIAssistantService) IndexArticle(ctx context.Context, articleID uint, title, content string) error {
-	if s.cfg.APIKey == "" || s.cfg.EmbeddingURL == "" || s.cfg.MilvusURL == "" {
+	if s.cfg.APIKey == "" || s.cfg.EmbeddingURL == "" || s.cfg.QdrantURL == "" {
 		return fmt.Errorf("AI 索引服务未配置")
 	}
 	chunks := markdownChunks(content, 1200)
@@ -52,19 +53,28 @@ func (s *AIAssistantService) IndexArticle(ctx context.Context, articleID uint, t
 	if len(emb.Data) != len(chunks) {
 		return fmt.Errorf("embedding 分片数量不一致")
 	}
-	rows := make([]map[string]any, len(chunks))
-	for i, chunk := range chunks {
-		rows[i] = map[string]any{"article_id": articleID, "title": title, "heading_path": "", "chunk_id": fmt.Sprintf("%d-%d", articleID, i), "text": chunk, "embedding": emb.Data[i].Embedding}
-	}
-	var out map[string]any
-	// Re-indexing an edited article must be idempotent; remove stale chunks first.
-	if err := s.post(ctx, strings.TrimRight(s.cfg.MilvusURL, "/")+"/v2/vectordb/entities/delete", map[string]any{
-		"collectionName": s.cfg.MilvusCollection,
-		"filter":         "article_id == " + strconv.FormatUint(uint64(articleID), 10),
-	}, &out); err != nil {
+	if err := s.ensureCollection(ctx); err != nil {
 		return err
 	}
-	return s.post(ctx, strings.TrimRight(s.cfg.MilvusURL, "/")+"/v2/vectordb/entities/insert", map[string]any{"collectionName": s.cfg.MilvusCollection, "data": rows}, &out)
+	if s.cfg.VectorDimension > 0 && len(emb.Data[0].Embedding) != s.cfg.VectorDimension {
+		return fmt.Errorf("embedding 维度不匹配")
+	}
+	points := make([]map[string]any, len(chunks))
+	for i, chunk := range chunks {
+		points[i] = map[string]any{"id": uint64(articleID)*1000000 + uint64(i), "vector": map[string]any{"dense": emb.Data[i].Embedding, "lexical": EncodeLexical(chunk)}, "payload": map[string]any{"article_id": articleID, "title": title, "heading_path": "", "chunk_id": fmt.Sprintf("%d-%d", articleID, i), "text": chunk}}
+	}
+	var out map[string]any
+	if err := s.qdrant(ctx, http.MethodPost, "/collections/"+s.cfg.QdrantCollection+"/points/delete?wait=true", map[string]any{"filter": map[string]any{"must": []any{map[string]any{"key": "article_id", "match": map[string]any{"value": articleID}}}}}, &out); err != nil {
+		return err
+	}
+	return s.qdrant(ctx, http.MethodPut, "/collections/"+s.cfg.QdrantCollection+"/points?wait=true", map[string]any{"points": points}, &out)
+}
+
+func (s *AIAssistantService) DeleteArticle(ctx context.Context, articleID uint) error {
+	var out map[string]any
+	err := s.qdrant(ctx, http.MethodPost, "/collections/"+s.cfg.QdrantCollection+"/points/delete?wait=true", map[string]any{"filter": map[string]any{"must": []any{map[string]any{"key": "article_id", "match": map[string]any{"value": articleID}}}}}, &out)
+	if err != nil && strings.Contains(err.Error(), "HTTP 404") { return nil }
+	return err
 }
 
 func markdownChunks(text string, size int) []string {
@@ -108,14 +118,14 @@ func (s *AIAssistantService) Ask(ctx context.Context, question string, articleID
 	if question == "" {
 		return nil, fmt.Errorf("问题不能为空")
 	}
-	if s.cfg.APIKey == "" || s.cfg.EmbeddingURL == "" || s.cfg.ChatURL == "" || s.cfg.MilvusURL == "" {
+	if s.cfg.APIKey == "" || s.cfg.EmbeddingURL == "" || s.cfg.ChatURL == "" || s.cfg.QdrantURL == "" {
 		return nil, fmt.Errorf("AI 助手服务未配置")
 	}
 	vector, err := s.embedding(ctx, question)
 	if err != nil {
 		return nil, err
 	}
-	hits, err := s.search(ctx, vector, articleID)
+	hits, err := s.search(ctx, question, vector, articleID)
 	if err != nil {
 		return nil, err
 	}
@@ -173,29 +183,30 @@ func (s *AIAssistantService) embedding(ctx context.Context, text string) ([]floa
 	return out.Data[0].Embedding, nil
 }
 
-func (s *AIAssistantService) search(ctx context.Context, vector []float64, articleID *uint) ([]aiHit, error) {
-	filter := ""
+func (s *AIAssistantService) search(ctx context.Context, question string, vector []float64, articleID *uint) ([]aiHit, error) {
+	filter := map[string]any{}
 	if articleID != nil {
-		filter = "article_id == " + strconv.FormatUint(uint64(*articleID), 10)
+		filter = map[string]any{"must": []any{map[string]any{"key": "article_id", "match": map[string]any{"value": *articleID}}}}
 	}
-	body := map[string]any{"collectionName": s.cfg.MilvusCollection, "data": [][]float64{vector}, "annsField": "embedding", "limit": 8, "outputFields": []string{"article_id", "title", "heading_path", "chunk_id", "text"}}
-	if filter != "" {
+	body := map[string]any{"prefetch": []any{map[string]any{"query": vector, "using": "dense", "limit": 30}, map[string]any{"query": EncodeLexical(question), "using": "lexical", "limit": 30}}, "query": map[string]any{"fusion": "rrf"}, "limit": 8, "with_payload": true}
+	if len(filter) > 0 {
 		body["filter"] = filter
 	}
 	var out struct {
-		Data []struct {
-			ID       any            `json:"id"`
-			Distance float64        `json:"distance"`
-			Entity   map[string]any `json:"entity"`
-		} `json:"data"`
+		Result struct {
+			Points []struct {
+				Score   float64        `json:"score"`
+				Payload map[string]any `json:"payload"`
+			} `json:"points"`
+		} `json:"result"`
 	}
-	if err := s.post(ctx, strings.TrimRight(s.cfg.MilvusURL, "/")+"/v2/vectordb/entities/search", body, &out); err != nil {
+	if err := s.qdrant(ctx, http.MethodPost, "/collections/"+s.cfg.QdrantCollection+"/points/query", body, &out); err != nil {
 		return nil, err
 	}
-	hits := make([]aiHit, 0, len(out.Data))
-	for _, row := range out.Data {
-		e := row.Entity
-		h := aiHit{score: row.Distance}
+	hits := make([]aiHit, 0, len(out.Result.Points))
+	for _, row := range out.Result.Points {
+		e := row.Payload
+		h := aiHit{score: row.Score}
 		h.citation.ArticleID = number(e["article_id"])
 		h.citation.Title = stringValue(e["title"])
 		h.citation.HeadingPath = stringValue(e["heading_path"])
@@ -206,6 +217,42 @@ func (s *AIAssistantService) search(ctx context.Context, vector []float64, artic
 		}
 	}
 	return hits, nil
+}
+
+func (s *AIAssistantService) ensureCollection(ctx context.Context) error {
+	var out map[string]any
+	if err := s.qdrant(ctx, http.MethodGet, "/collections/"+s.cfg.QdrantCollection, nil, &out); err == nil {
+		return nil
+	}
+	dimension := s.cfg.VectorDimension
+	if dimension <= 0 {
+		dimension = 1024
+	}
+	return s.qdrant(ctx, http.MethodPut, "/collections/"+s.cfg.QdrantCollection, map[string]any{
+		"vectors":        map[string]any{"dense": map[string]any{"size": dimension, "distance": "Cosine"}},
+		"sparse_vectors": map[string]any{"lexical": map[string]any{"index": map[string]any{}, "modifier": "idf"}},
+	}, &out)
+}
+
+func (s *AIAssistantService) qdrant(ctx context.Context, method, path string, body, out any) error {
+	var b []byte
+	if body != nil {
+		b, _ = json.Marshal(body)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, strings.TrimRight(s.cfg.QdrantURL, "/")+path, bytes.NewReader(b))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode/100 != 2 {
+		return fmt.Errorf("Qdrant 返回 HTTP %d", resp.StatusCode)
+	}
+	return json.NewDecoder(resp.Body).Decode(out)
 }
 
 func (s *AIAssistantService) rerank(ctx context.Context, query string, hits []aiHit) []aiHit {

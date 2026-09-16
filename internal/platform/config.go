@@ -46,8 +46,9 @@ type Config struct {
 	AIChatModel              string
 	AIRerankURL              string
 	AIRerankModel            string
-	AIMilvusURL              string
-	AIMilvusCollection       string
+	AIQdrantURL              string
+	AIQdrantCollection       string
+	AIVectorDimension        int
 }
 
 func LoadConfig() (*Config, error) {
@@ -86,8 +87,9 @@ func LoadConfig() (*Config, error) {
 	v.SetDefault("ai.chat_model", "qwen3.8-flash")
 	v.SetDefault("ai.rerank_url", "")
 	v.SetDefault("ai.rerank_model", "qwen3.7-text-rerank")
-	v.SetDefault("ai.milvus_url", "http://localhost:19530")
-	v.SetDefault("ai.milvus_collection", "article_chunks")
+	v.SetDefault("ai.qdrant_url", "http://localhost:6333")
+	v.SetDefault("ai.qdrant_collection", "article_chunks")
+	v.SetDefault("ai.vector_dimension", 1024)
 
 	v.AutomaticEnv()
 	v.SetEnvPrefix("AIDEVCLUB")
@@ -166,7 +168,7 @@ func LoadConfig() (*Config, error) {
 		AdminEmails:              adminEmails,
 		AIAPIKey:                 v.GetString("ai.api_key"), AIEmbeddingURL: v.GetString("ai.embedding_url"), AIEmbeddingModel: v.GetString("ai.embedding_model"),
 		AIChatURL: v.GetString("ai.chat_url"), AIChatModel: v.GetString("ai.chat_model"), AIRerankURL: v.GetString("ai.rerank_url"), AIRerankModel: v.GetString("ai.rerank_model"),
-		AIMilvusURL: v.GetString("ai.milvus_url"), AIMilvusCollection: v.GetString("ai.milvus_collection"),
+		AIQdrantURL: v.GetString("ai.qdrant_url"), AIQdrantCollection: v.GetString("ai.qdrant_collection"), AIVectorDimension: v.GetInt("ai.vector_dimension"),
 	}
 
 	// 生产环境若忘记设置 AIDEVCLUB_JWT_SECRET，会使用众所周知的默认值，

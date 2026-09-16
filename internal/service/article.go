@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"time"
@@ -28,10 +29,34 @@ type ArticleService struct {
 	cfg            *platform.Config
 	notifSvc       *NotificationService
 	contentRanking *ContentRankingService
+	indexOutbox    *repo.DocumentIndexOutboxRepo
 }
 
-func NewArticleService(articles *repo.ArticleRepo, tags *repo.TagRepo, inter *repo.InteractionRepo, cfg *platform.Config, notifSvc *NotificationService, contentRanking *ContentRankingService) *ArticleService {
-	return &ArticleService{articles: articles, tags: tags, inter: inter, cfg: cfg, notifSvc: notifSvc, contentRanking: contentRanking}
+func NewArticleService(articles *repo.ArticleRepo, tags *repo.TagRepo, inter *repo.InteractionRepo, cfg *platform.Config, notifSvc *NotificationService, contentRanking *ContentRankingService, outbox ...*repo.DocumentIndexOutboxRepo) *ArticleService {
+	s := &ArticleService{articles: articles, tags: tags, inter: inter, cfg: cfg, notifSvc: notifSvc, contentRanking: contentRanking}
+	if len(outbox) > 0 {
+		s.indexOutbox = outbox[0]
+	}
+	return s
+}
+
+func (s *ArticleService) enqueueIndex(tx *gorm.DB, operation string, a *model.Article) error {
+	if s.indexOutbox == nil {
+		return nil
+	}
+	id, err := newEventID()
+	if err != nil {
+		return err
+	}
+	payload, err := json.Marshal(struct {
+		EventID, Operation string
+		ArticleID          uint
+		Title, Content     string
+	}{id, operation, a.ID, a.Title, a.Content})
+	if err != nil {
+		return err
+	}
+	return s.indexOutbox.Create(tx, &model.DocumentIndexOutboxEvent{EventID: id, Operation: operation, ArticleID: a.ID, Payload: payload})
 }
 
 func (s *ArticleService) ImageDir() string     { return s.cfg.ArticleImageDir }
@@ -131,6 +156,9 @@ func (s *ArticleService) Create(ctx context.Context, userID uint, in CreateArtic
 				}
 			}
 		}
+		if a.Status == model.ArticleStatusPublished {
+			return s.enqueueIndex(tx, "upsert", a)
+		}
 		return nil
 	})
 	return a, err
@@ -200,7 +228,13 @@ func (s *ArticleService) Update(ctx context.Context, userID, articleID uint, in 
 				}
 			}
 		}
-		return s.articles.SetArticleTags(tx, articleID, newTags)
+		if err := s.articles.SetArticleTags(tx, articleID, newTags); err != nil {
+			return err
+		}
+		if a.Status == model.ArticleStatusPublished && !a.Hidden {
+			return s.enqueueIndex(tx, "upsert", a)
+		}
+		return s.enqueueIndex(tx, "delete", a)
 	})
 	if err == nil && wasPublished && a.Status == model.ArticleStatusDraft && s.contentRanking != nil {
 		_ = s.contentRanking.Remove(ctx, RankedContentArticle, articleID)
@@ -222,6 +256,9 @@ func (s *ArticleService) Delete(ctx context.Context, userID, articleID uint) err
 			return err
 		}
 		if err := s.articles.Delete(tx, articleID); err != nil {
+			return err
+		}
+		if err := s.enqueueIndex(tx, "delete", a); err != nil {
 			return err
 		}
 		for _, id := range tagIDs {

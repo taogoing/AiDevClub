@@ -7,24 +7,25 @@ import (
 )
 
 type Services struct {
-	UserRepo           *repo.UserRepo
-	Auth               *service.AuthService
-	Users              *service.UserService
-	Articles           *service.ArticleService
-	Comments           *service.CommentService
-	Skills             *service.SkillService
-	MCPServers         *service.McpServerService
-	ResourceComments   *service.ResourceCommentService
-	Search             *service.SearchService
-	ContentRanking     *service.ContentRankingService
-	Tags               *service.TagService
-	Notifications      *service.NotificationService
-	NotificationRepo   *repo.NotificationRepo
-	NotificationOutbox *repo.NotificationOutboxRepo
-	Reports            *service.ReportService
-	Admin              *service.AdminService
-	AdminLogs          *service.AdminLogService
-	AIAssistant        *service.AIAssistantService
+	UserRepo            *repo.UserRepo
+	Auth                *service.AuthService
+	Users               *service.UserService
+	Articles            *service.ArticleService
+	Comments            *service.CommentService
+	Skills              *service.SkillService
+	MCPServers          *service.McpServerService
+	ResourceComments    *service.ResourceCommentService
+	Search              *service.SearchService
+	ContentRanking      *service.ContentRankingService
+	Tags                *service.TagService
+	Notifications       *service.NotificationService
+	NotificationRepo    *repo.NotificationRepo
+	NotificationOutbox  *repo.NotificationOutboxRepo
+	DocumentIndexOutbox *repo.DocumentIndexOutboxRepo
+	Reports             *service.ReportService
+	Admin               *service.AdminService
+	AdminLogs           *service.AdminLogService
+	AIAssistant         *service.AIAssistantService
 }
 
 func NewServices(infra *Infrastructure, cfg *platform.Config) *Services {
@@ -40,6 +41,7 @@ func NewServices(infra *Infrastructure, cfg *platform.Config) *Services {
 	notificationRepo := repo.NewNotificationRepo(infra.DB)
 	notifications := service.NewNotificationService(notificationRepo, users)
 	notificationOutbox := repo.NewNotificationOutboxRepo(infra.DB)
+	documentIndexOutbox := repo.NewDocumentIndexOutboxRepo(infra.DB)
 	notifications.ConfigureMode(cfg.NotificationMode, notificationOutbox)
 
 	tagService := service.NewTagService(tags)
@@ -54,7 +56,7 @@ func NewServices(infra *Infrastructure, cfg *platform.Config) *Services {
 	contentRanking := service.NewContentRankingService(infra.Redis, articles, skills, mcpServers)
 	contentRanking.SetSingleflightEnabled(cfg.RankingSingleflight)
 
-	articleService := service.NewArticleService(articles, tags, interactions, cfg, notifications, contentRanking)
+	articleService := service.NewArticleService(articles, tags, interactions, cfg, notifications, contentRanking, documentIndexOutbox)
 	commentService := service.NewCommentService(comments, articles, interactions, users, notifications, contentRanking)
 	skillService := service.NewSkillService(skills, tags, interactions, cfg, notifications, contentRanking)
 	mcpServerService := service.NewMcpServerService(mcpServers, tags, interactions, cfg, notifications, contentRanking)
@@ -73,23 +75,24 @@ func NewServices(infra *Infrastructure, cfg *platform.Config) *Services {
 	)
 
 	return &Services{
-		UserRepo:           users,
-		Auth:               auth,
-		Users:              userService,
-		Articles:           articleService,
-		Comments:           commentService,
-		Skills:             skillService,
-		MCPServers:         mcpServerService,
-		ResourceComments:   resourceCommentService,
-		Search:             search,
-		ContentRanking:     contentRanking,
-		Tags:               tagService,
-		Notifications:      notifications,
-		NotificationRepo:   notificationRepo,
-		NotificationOutbox: notificationOutbox,
-		Reports:            reports,
-		Admin:              admin,
-		AdminLogs:          adminLogs,
-		AIAssistant:        service.NewAIAssistantService(service.AIAssistantConfig{APIKey: cfg.AIAPIKey, EmbeddingURL: cfg.AIEmbeddingURL, EmbeddingModel: cfg.AIEmbeddingModel, ChatURL: cfg.AIChatURL, ChatModel: cfg.AIChatModel, RerankURL: cfg.AIRerankURL, RerankModel: cfg.AIRerankModel, MilvusURL: cfg.AIMilvusURL, MilvusCollection: cfg.AIMilvusCollection}),
+		UserRepo:            users,
+		Auth:                auth,
+		Users:               userService,
+		Articles:            articleService,
+		Comments:            commentService,
+		Skills:              skillService,
+		MCPServers:          mcpServerService,
+		ResourceComments:    resourceCommentService,
+		Search:              search,
+		ContentRanking:      contentRanking,
+		Tags:                tagService,
+		Notifications:       notifications,
+		NotificationRepo:    notificationRepo,
+		NotificationOutbox:  notificationOutbox,
+		DocumentIndexOutbox: documentIndexOutbox,
+		Reports:             reports,
+		Admin:               admin,
+		AdminLogs:           adminLogs,
+		AIAssistant:         service.NewAIAssistantService(service.AIAssistantConfig{APIKey: cfg.AIAPIKey, EmbeddingURL: cfg.AIEmbeddingURL, EmbeddingModel: cfg.AIEmbeddingModel, ChatURL: cfg.AIChatURL, ChatModel: cfg.AIChatModel, RerankURL: cfg.AIRerankURL, RerankModel: cfg.AIRerankModel, QdrantURL: cfg.AIQdrantURL, QdrantCollection: cfg.AIQdrantCollection, VectorDimension: cfg.AIVectorDimension}),
 	}
 }

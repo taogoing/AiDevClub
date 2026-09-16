@@ -1,32 +1,8 @@
 services:
-  etcd:
-    image: quay.io/coreos/etcd:v3.5.5
-    command: etcd -advertise-client-urls=http://etcd:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+  qdrant:
+    image: qdrant/qdrant:v1.16.2
     volumes:
-      - milvus_etcd:/etcd
-    restart: unless-stopped
-
-  minio:
-    image: minio/minio:RELEASE.2023-03-20T20-16-18Z
-    command: minio server /minio_data --console-address ":9001"
-    environment:
-      MINIO_ACCESS_KEY: minioadmin
-      MINIO_SECRET_KEY: minioadmin
-    volumes:
-      - milvus_minio:/minio_data
-    restart: unless-stopped
-
-  milvus:
-    image: milvusdb/milvus:v2.4.13
-    command: ["milvus", "run", "standalone"]
-    environment:
-      ETCD_ENDPOINTS: etcd:2379
-      MINIO_ADDRESS: minio:9000
-    volumes:
-      - milvus_data:/var/lib/milvus
-    depends_on:
-      - etcd
-      - minio
+      - qdrant_data:/qdrant/storage
     restart: unless-stopped
 
   mysql:
@@ -93,8 +69,8 @@ services:
       AIDEVCLUB_MCP_ADDR: ":8081"
       AIDEVCLUB_ADMIN_EMAILS: ${ADMIN_EMAILS:-}
       AIDEVCLUB_AI_API_KEY: ${AI_API_KEY:-}
-      AIDEVCLUB_AI_MILVUS_URL: http://milvus:19530
-      AIDEVCLUB_AI_MILVUS_COLLECTION: ${AI_MILVUS_COLLECTION:-article_chunks}
+      AIDEVCLUB_AI_QDRANT_URL: http://qdrant:6333
+      AIDEVCLUB_AI_QDRANT_COLLECTION: ${AI_QDRANT_COLLECTION:-article_chunks}
     volumes:
       - storage_data:/app/storage
     depends_on:
@@ -104,7 +80,7 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_started
-      milvus:
+      qdrant:
         condition: service_started
     restart: unless-stopped
 
@@ -140,6 +116,4 @@ volumes:
   storage_data:
   certbot_certs:
   certbot_webroot:
-  milvus_etcd:
-  milvus_minio:
-  milvus_data:
+  qdrant_data:

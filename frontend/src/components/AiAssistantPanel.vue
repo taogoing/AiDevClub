@@ -39,9 +39,9 @@
               <p class="message-text">{{ message.content }}</p>
               <div v-if="message.citations?.length" class="citations">
                 <span class="citation-label">参考内容</span>
-                <button v-for="(citation, index) in message.citations" :key="`${message.id}-${index}`" class="citation">
+                <router-link v-for="(citation, index) in message.citations" :key="`${message.id}-${index}`" class="citation" :to="`/articles/${citation.article_id}`">
                   {{ citation.title || '相关帖子' }}<span v-if="citation.heading_path"> · {{ formatHeading(citation.heading_path) }}</span>
-                </button>
+                </router-link>
               </div>
             </div>
           </article>

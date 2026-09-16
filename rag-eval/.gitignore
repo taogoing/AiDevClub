@@ -1,6 +1,0 @@
-__pycache__/
-.pytest_cache/
-results/*-runs.json
-results/*.csv
-!results/comparison.csv
-!results/*-summary.json

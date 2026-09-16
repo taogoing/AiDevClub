@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -45,9 +44,6 @@ func (h *ArticleHandler) Create(c *gin.Context) {
 		return
 	}
 	platform.OK(c, gin.H{"id": a.ID})
-	if h.ai != nil && a.Status == model.ArticleStatusPublished {
-		go func() { _ = h.ai.IndexArticle(context.Background(), a.ID, a.Title, a.Content) }()
-	}
 }
 
 func (h *ArticleHandler) Update(c *gin.Context) {
@@ -77,9 +73,6 @@ func (h *ArticleHandler) Update(c *gin.Context) {
 		return
 	}
 	platform.OK(c, gin.H{"id": a.ID})
-	if h.ai != nil && a.Status == model.ArticleStatusPublished {
-		go func() { _ = h.ai.IndexArticle(context.Background(), a.ID, a.Title, a.Content) }()
-	}
 }
 
 func (h *ArticleHandler) Delete(c *gin.Context) {
